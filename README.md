@@ -80,12 +80,29 @@ See [NOTIFICATION_CONFIGURATION.md](NOTIFICATION_CONFIGURATION.md) for detailed 
 - **Environment-based settings**
 - **Optional separate database** for performance isolation
 
+### 🔌 Plugin System
+- **Extensible architecture** for custom integrations
+- **Event hooks** throughout error lifecycle
+- **Built-in examples**: Metrics tracking, Audit logging, Jira integration
+- **Easy to create** custom plugins for any service
+- **Safe execution** - plugin errors don't break the app
+
+Common plugin use cases:
+- 📊 Send metrics to StatsD, Datadog, Prometheus
+- 🎫 Create tickets in Jira, Linear, GitHub Issues
+- 📝 Log audit trails for compliance
+- 📢 Send custom notifications
+- 💾 Archive errors to data warehouses
+
+See [PLUGIN_SYSTEM_GUIDE.md](PLUGIN_SYSTEM_GUIDE.md) for detailed documentation.
+
 ### 🏗️ Architecture
 Built with **Service Objects + CQRS Principles**:
 - **Commands**: LogError, ResolveError, BatchResolveErrors, BatchDeleteErrors (write operations)
 - **Queries**: ErrorsList, DashboardStats, AnalyticsStats (read operations)
 - **Value Objects**: ErrorContext (immutable data)
 - **Services**: PlatformDetector (business logic)
+- **Plugins**: Extensible event-driven architecture
 
 ## 📦 Installation
 

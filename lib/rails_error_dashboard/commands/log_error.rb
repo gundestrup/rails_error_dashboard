@@ -43,7 +43,14 @@ module RailsErrorDashboard
 
         # Send notifications only for new errors (not increments)
         # Check if this is first occurrence or error was just created
-        send_notifications(error_log) if error_log.occurrence_count == 1
+        if error_log.occurrence_count == 1
+          send_notifications(error_log)
+          # Dispatch plugin event for new error
+          PluginRegistry.dispatch(:on_error_logged, error_log)
+        else
+          # Dispatch plugin event for error recurrence
+          PluginRegistry.dispatch(:on_error_recurred, error_log)
+        end
 
         error_log
       rescue => e

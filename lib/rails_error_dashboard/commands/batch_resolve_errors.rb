@@ -23,6 +23,8 @@ module RailsErrorDashboard
         resolved_count = 0
         failed_ids = []
 
+        resolved_errors = []
+
         errors.each do |error|
           begin
             error.update!(
@@ -32,11 +34,15 @@ module RailsErrorDashboard
               resolution_comment: @resolution_comment
             )
             resolved_count += 1
+            resolved_errors << error
           rescue => e
             failed_ids << error.id
             Rails.logger.error("Failed to resolve error #{error.id}: #{e.message}")
           end
         end
+
+        # Dispatch plugin event for batch resolved errors
+        PluginRegistry.dispatch(:on_errors_batch_resolved, resolved_errors) if resolved_errors.any?
 
         {
           success: failed_ids.empty?,

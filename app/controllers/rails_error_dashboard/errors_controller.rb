@@ -26,6 +26,9 @@ module RailsErrorDashboard
     def show
       @error = ErrorLog.find(params[:id])
       @related_errors = @error.related_errors(limit: 5)
+
+      # Dispatch plugin event for error viewed
+      RailsErrorDashboard::PluginRegistry.dispatch(:on_error_viewed, @error)
     end
 
     def resolve

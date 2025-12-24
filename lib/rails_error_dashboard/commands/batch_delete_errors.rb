@@ -18,8 +18,12 @@ module RailsErrorDashboard
 
         errors = ErrorLog.where(id: @error_ids)
         count = errors.count
+        error_ids_to_delete = errors.pluck(:id)
 
         errors.destroy_all
+
+        # Dispatch plugin event for batch deleted errors
+        PluginRegistry.dispatch(:on_errors_batch_deleted, error_ids_to_delete) if error_ids_to_delete.any?
 
         {
           success: true,

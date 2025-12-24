@@ -25,6 +25,9 @@ module RailsErrorDashboard
           resolution_reference: @resolution_data[:resolution_reference]
         )
 
+        # Dispatch plugin event for resolved error
+        PluginRegistry.dispatch(:on_error_resolved, error)
+
         error
       end
     end
