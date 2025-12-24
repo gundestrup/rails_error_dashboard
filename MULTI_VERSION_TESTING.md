@@ -2,6 +2,20 @@
 
 Rails Error Dashboard supports multiple Rails versions and is tested against Rails 7.0, 7.1, 7.2, and 8.0.
 
+> 💡 **Troubleshooting CI?** See [CI_TROUBLESHOOTING.md](CI_TROUBLESHOOTING.md) for detailed solutions to common issues.
+
+## Table of Contents
+
+- [Supported Versions](#supported-versions)
+- [Quick Start](#quick-start)
+- [Testing Locally](#testing-locally)
+- [Continuous Integration](#continuous-integration)
+- [Version Compatibility](#version-compatibility)
+- [Configuration](#configuration)
+- [Troubleshooting](#troubleshooting)
+
+---
+
 ## Supported Versions
 
 ### Rails Versions
@@ -13,75 +27,99 @@ Rails Error Dashboard supports multiple Rails versions and is tested against Rai
 ### Ruby Versions
 - ✅ **Ruby 3.2** (with Rails 7.0, 7.1, 7.2, 8.0)
 - ✅ **Ruby 3.3** (with Rails 7.0, 7.1, 7.2, 8.0)
-- ✅ **Ruby 3.4** (with Rails 7.0, 7.1, 7.2, 8.0)
 
-**Note**: Rails Error Dashboard requires Ruby >= 3.2 due to the browser gem dependency
+**Note**: Rails Error Dashboard requires **Ruby >= 3.2** due to the browser gem dependency.
+
+**Why no Ruby 3.1?** The browser gem v6.x requires Ruby >= 3.2.0. See [CI_TROUBLESHOOTING.md#1-browser-gem-ruby-version-incompatibility](CI_TROUBLESHOOTING.md#1-browser-gem-ruby-version-incompatibility) for details.
+
+---
+
+## Quick Start
+
+### Installation
+
+```bash
+# Clone the repo
+git clone https://github.com/AnjanJ/rails_error_dashboard.git
+cd rails_error_dashboard
+
+# Install dependencies (defaults to Rails 8.0)
+bundle install
+
+# Run tests
+bundle exec rspec
+```
+
+### Test Specific Rails Version
+
+```bash
+# Test Rails 7.0
+RAILS_VERSION=7.0 bundle install
+RAILS_VERSION=7.0 bundle exec rspec
+
+# Test Rails 8.0
+RAILS_VERSION=8.0 bundle install
+RAILS_VERSION=8.0 bundle exec rspec
+```
 
 ---
 
 ## Testing Locally
 
-### Quick Test (Current Version)
+### Single Version Test
 
 ```bash
+# Test current Rails version
 bundle exec rspec
-```
 
-This runs tests against the Rails version specified in your `Gemfile.lock`.
+# Test with coverage
+ENFORCE_COVERAGE=true bundle exec rspec
+```
 
 ### Test Against Specific Rails Version
 
-Use the `RAILS_VERSION` environment variable to test against different Rails versions:
+Use the `RAILS_VERSION` environment variable:
 
 ```bash
-# Test Rails 7.0
-RAILS_VERSION=7.0 bundle update && bundle exec rspec
+# Rails 7.0
+RAILS_VERSION=7.0 bundle install && bundle exec rspec
 
-# Test Rails 7.1
-RAILS_VERSION=7.1 bundle update && bundle exec rspec
+# Rails 7.1
+RAILS_VERSION=7.1 bundle install && bundle exec rspec
 
-# Test Rails 7.2
-RAILS_VERSION=7.2 bundle update && bundle exec rspec
+# Rails 7.2
+RAILS_VERSION=7.2 bundle install && bundle exec rspec
 
-# Test Rails 8.0
-RAILS_VERSION=8.0 bundle update && bundle exec rspec
+# Rails 8.0
+RAILS_VERSION=8.0 bundle install && bundle exec rspec
 ```
 
-### Test All Versions (Sequential)
+### Test All Versions
 
 ```bash
-# Create a test script
-cat > test_all_versions.sh <<'EOF'
 #!/bin/bash
-set -e
-
 for version in 7.0 7.1 7.2 8.0; do
   echo "======================================="
   echo "Testing Rails $version"
   echo "======================================="
-  RAILS_VERSION=$version bundle update rails
-  bundle exec rspec
+  RAILS_VERSION=$version bundle install || exit 1
+  RAILS_VERSION=$version bundle exec rspec || exit 1
   echo ""
 done
-EOF
-
-chmod +x test_all_versions.sh
-./test_all_versions.sh
+echo "✅ All versions passed!"
 ```
 
 ---
 
-## Continuous Integration (GitHub Actions)
+## Continuous Integration
 
-Multi-version testing is automated via GitHub Actions. Every push and pull request is tested against:
+### GitHub Actions Setup
 
-- **8 combinations** (2 Ruby versions × 4 Rails versions)
-  - Ruby 3.2 with Rails 7.0, 7.1, 7.2, 8.0
-  - Ruby 3.3 with Rails 7.0, 7.1, 7.2, 8.0
+Every push and pull request is tested against **8 combinations**:
+- Ruby 3.2 × Rails 7.0, 7.1, 7.2, 8.0
+- Ruby 3.3 × Rails 7.0, 7.1, 7.2, 8.0
 
-### GitHub Actions Workflow
-
-**File**: `.github/workflows/test.yml`
+**Configuration**: `.github/workflows/test.yml`
 
 ```yaml
 name: Tests
@@ -105,240 +143,195 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: ${{ matrix.ruby }}
+        bundler-cache: false  # Important: See CI_TROUBLESHOOTING.md#7
+
     - name: Install dependencies
       env:
         RAILS_VERSION: ${{ matrix.rails }}
-      run: bundle install
+      run: |
+        rm -f Gemfile.lock  # Fresh lockfile per version
+        bundle config set --local path 'vendor/bundle'
+        bundle install --jobs 4 --retry 3
+
     - name: Run tests
+      env:
+        RAILS_VERSION: ${{ matrix.rails }}
+        COVERAGE: false
       run: bundle exec rspec
 ```
 
+### Why No Gemfile.lock?
+
+We **don't commit `Gemfile.lock`** for this gem. Here's why:
+
+**Problem**: Gemfile.lock with dynamic Rails versions causes deployment mode conflicts in CI.
+
+**Solution**: Generate fresh lockfile for each Rails version.
+
+**Details**: See [CI_TROUBLESHOOTING.md#7-bundler-deployment-mode-conflicts](CI_TROUBLESHOOTING.md#7-bundler-deployment-mode-conflicts)
+
+**This is standard for multi-version gems**: Devise, Pundit, FactoryBot, etc. all skip Gemfile.lock.
+
 ### Viewing CI Results
 
-1. Go to your repository on GitHub
-2. Click "Actions" tab
-3. View test results for all Ruby/Rails combinations
-4. Green checkmarks = all tests passing
-
----
-
-## Using Appraisal (Alternative Method)
-
-### What is Appraisal?
-
-Appraisal allows you to test against multiple dependency versions by generating separate Gemfiles.
-
-### Setup
-
 ```bash
-# Install appraisal
-bundle install
+# View recent CI runs
+gh run list --workflow=test.yml --limit 5
 
-# Generate gemfiles for each Rails version
-bundle exec appraisal install
-```
+# View specific run
+gh run view <run-id>
 
-This creates:
-- `gemfiles/rails_7.0.gemfile`
-- `gemfiles/rails_7.1.gemfile`
-- `gemfiles/rails_7.2.gemfile`
-- `gemfiles/rails_8.0.gemfile`
-
-### Run Tests with Appraisal
-
-```bash
-# Test specific version
-bundle exec appraisal rails-7.0 rspec
-bundle exec appraisal rails-7.1 rspec
-bundle exec appraisal rails-7.2 rspec
-bundle exec appraisal rails-8.0 rspec
-
-# Test all versions
-bundle exec appraisal rspec
-```
-
-### Appraisals File
-
-**File**: `Appraisals`
-
-```ruby
-# Rails 7.0 (Stable LTS)
-appraise "rails-7.0" do
-  gem "rails", "~> 7.0.0"
-end
-
-# Rails 7.1 (Stable)
-appraise "rails-7.1" do
-  gem "rails", "~> 7.1.0"
-end
-
-# Rails 7.2 (Stable)
-appraise "rails-7.2" do
-  gem "rails", "~> 7.2.0"
-end
-
-# Rails 8.0 (Latest)
-appraise "rails-8.0" do
-  gem "rails", "~> 8.0.0"
-end
+# View job logs
+gh run view <run-id> --log
 ```
 
 ---
 
-## Version Compatibility Matrix
+## Version Compatibility
+
+### Compatibility Matrix
 
 | Ruby | Rails 7.0 | Rails 7.1 | Rails 7.2 | Rails 8.0 |
 |------|-----------|-----------|-----------|-----------|
 | 3.2  | ✅        | ✅        | ✅        | ✅        |
 | 3.3  | ✅        | ✅        | ✅        | ✅        |
-| 3.4  | ✅        | ✅        | ✅        | ✅        |
 
-**Legend**:
-- ✅ Supported and tested
+**All 8 combinations tested in CI!** [![Tests](https://github.com/AnjanJ/rails_error_dashboard/workflows/Tests/badge.svg)](https://github.com/AnjanJ/rails_error_dashboard/actions)
 
-**Note**: Ruby 3.1 is not supported because the browser gem (used for platform detection) requires Ruby >= 3.2.0
+### Key Compatibility Notes
+
+1. **Ruby 3.2+ required** - browser gem dependency
+2. **concurrent-ruby pinned to < 1.3.5** - Rails 7.0 compatibility ([details](CI_TROUBLESHOOTING.md#3-concurrent-ruby-135-breaking-rails-70))
+3. **Rails 7.0.8+ used** - Bug fixes for Ruby 3.2+ ([details](CI_TROUBLESHOOTING.md#4-rails-700-descendantstracker-bugs))
+4. **sqlite3 version is conditional** - Different versions for Rails 7.x vs 8.x ([details](CI_TROUBLESHOOTING.md#5-sqlite3-version-conflicts))
 
 ---
 
-## Gemspec Configuration
+## Configuration
 
-The gemspec is configured to support multiple Rails versions:
+### Gemfile
+
+```ruby
+# rails_error_dashboard/Gemfile
+
+# Dynamic Rails version based on RAILS_VERSION env var
+rails_version = ENV["RAILS_VERSION"] || "~> 8.0.0"
+rails_version = "~> #{rails_version}.1" if rails_version =~ /^\d+\.\d+$/
+gem "rails", rails_version
+
+# Conditional sqlite3 based on Rails version
+rails_env = ENV["RAILS_VERSION"] || "8.0"
+if rails_env.start_with?("7.") || rails_env.start_with?("~> 7.")
+  gem "sqlite3", "~> 1.4"  # Rails 7.0-7.2
+else
+  gem "sqlite3", ">= 2.1"  # Rails 8.0+
+end
+```
+
+### Gemspec
 
 ```ruby
 # rails_error_dashboard.gemspec
 
-# Minimum Rails version
+# Minimum versions
+spec.required_ruby_version = ">= 3.2.0"
 spec.add_dependency "rails", ">= 7.0.0"
 
-# Dependencies with version flexibility
+# Pinned for compatibility
+spec.add_dependency "concurrent-ruby", "~> 1.3.0", "< 1.3.5"
+
+# Flexible dependencies
 spec.add_dependency "pagy", "~> 9.0"
 spec.add_dependency "browser", "~> 6.0"
 spec.add_dependency "groupdate", "~> 6.0"
 spec.add_dependency "httparty", "~> 0.21"
-
-# Development dependencies
-spec.add_development_dependency "sqlite3", ">= 1.4"  # Flexible for different Rails versions
-spec.add_development_dependency "appraisal", "~> 2.5"
 ```
 
----
+### Why These Pins?
 
-## Rails Version Differences
+- **Ruby >= 3.2.0**: browser gem requirement
+- **concurrent-ruby < 1.3.5**: Rails 7.0 compatibility
+- **Rails 7.0.8+**: Bug fixes for Ruby 3.2+
 
-### Rails 7.0 vs 7.1 vs 7.2 vs 8.0
-
-**Key Changes Affecting This Gem:**
-
-1. **Rails 7.0**: Baseline version, stable LTS
-2. **Rails 7.1**:
-   - Improved error reporting
-   - Better query logging
-3. **Rails 7.2**:
-   - Enhanced database features
-   - Performance improvements
-4. **Rails 8.0**:
-   - Requires Ruby >= 3.2
-   - Modern Ruby syntax
-   - Performance optimizations
-
-**Gem Compatibility:**
-- ✅ All core features work across all versions
-- ✅ Error tracking works identically
-- ✅ Notifications work identically
-- ✅ UI rendering identical
-- ✅ Database queries compatible
+See [CI_TROUBLESHOOTING.md](CI_TROUBLESHOOTING.md) for detailed explanations.
 
 ---
 
 ## Troubleshooting
 
-### Issue: Bundle fails with dependency conflicts
+### Quick Fixes
 
-**Solution**: Clear bundler cache and reinstall
-
+**Bundle install fails?**
 ```bash
 rm Gemfile.lock
 bundle install
 ```
 
-### Issue: Tests fail on specific Rails version
-
-**Solution**: Check Rails version-specific changes
-
+**Tests fail on specific Rails version?**
 ```bash
-# Check which Rails version is installed
-bundle exec rails -v
+# Check Rails version
+RAILS_VERSION=7.0 bundle exec rails -v
 
-# Verify gemspec dependencies
-bundle exec gem dependency rails_error_dashboard
+# Clear cache
+rm -rf .bundle vendor/bundle
+bundle install
 ```
 
-### Issue: Appraisal install fails
+**CI failing?**
+1. Check [Actions tab](https://github.com/AnjanJ/rails_error_dashboard/actions)
+2. Look for specific Ruby/Rails combination failing
+3. Check logs for error messages
+4. See [CI_TROUBLESHOOTING.md](CI_TROUBLESHOOTING.md) for solutions
 
-**Solution**: Use environment variable method instead
+### Common Issues
 
-```bash
-# Instead of appraisal, use:
-RAILS_VERSION=7.0 bundle update && bundle exec rspec
-```
+All common CI issues and their solutions are documented in:
 
-### Issue: GitHub Actions failing
+**[CI_TROUBLESHOOTING.md](CI_TROUBLESHOOTING.md)**
 
-**Solution**: Check workflow logs for specific Ruby/Rails combination
-
-1. Go to Actions tab
-2. Click failing workflow
-3. Expand failing job
-4. Check error messages for that specific combination
+Issues covered:
+1. Browser gem Ruby version incompatibility
+2. SimpleCov blocking tests
+3. concurrent-ruby 1.3.5+ breaking Rails 7.0
+4. Rails 7.0.0 DescendantsTracker bugs
+5. SQLite3 version conflicts
+6. Gemfile.lock platform issues
+7. Bundler deployment mode conflicts
 
 ---
 
 ## Best Practices
 
-### 1. Test Before Releasing
+### Before Releasing
 
-Before releasing a new version, test against all supported Rails versions:
+Test all supported versions:
 
 ```bash
 for version in 7.0 7.1 7.2 8.0; do
   echo "Testing Rails $version..."
-  RAILS_VERSION=$version bundle update rails && bundle exec rspec || exit 1
+  RAILS_VERSION=$version bundle install || exit 1
+  RAILS_VERSION=$version bundle exec rspec || exit 1
 done
-echo "All versions passed!"
 ```
 
-### 2. Keep Dependencies Flexible
+### Version Testing Checklist
 
-Use pessimistic version constraints (`~>`) for dependencies to allow minor updates:
+- [ ] All specs pass on Rails 7.0
+- [ ] All specs pass on Rails 7.1
+- [ ] All specs pass on Rails 7.2
+- [ ] All specs pass on Rails 8.0
+- [ ] All specs pass on Ruby 3.2 (all Rails)
+- [ ] All specs pass on Ruby 3.3 (all Rails)
+- [ ] GitHub Actions CI passing (8/8 combinations)
+- [ ] No deprecation warnings
+- [ ] CHANGELOG.md updated
 
-```ruby
-# Good
-spec.add_dependency "pagy", "~> 9.0"  # Allows 9.0.x, 9.1.x, etc.
-
-# Avoid
-spec.add_dependency "pagy", "= 9.0.0"  # Too restrictive
-```
-
-### 3. Document Breaking Changes
-
-If a feature only works on newer Rails versions, document it:
-
-```ruby
-# Works on Rails 7.1+
-if Rails.version >= "7.1"
-  # Use new feature
-else
-  # Fallback for Rails 7.0
-end
-```
-
-### 4. Monitor Deprecation Warnings
-
-Run tests with deprecation warnings enabled:
+### Monitor Deprecations
 
 ```bash
 RAILS_DEPRECATION_WARNINGS=1 bundle exec rspec
@@ -346,133 +339,46 @@ RAILS_DEPRECATION_WARNINGS=1 bundle exec rspec
 
 ---
 
-## Updating Supported Versions
-
-### Adding a New Rails Version
-
-1. Update `Appraisals` file:
-```ruby
-appraise "rails-8.1" do
-  gem "rails", "~> 8.1.0"
-end
-```
-
-2. Update `.github/workflows/test.yml`:
-```yaml
-matrix:
-  rails: ['7.0', '7.1', '7.2', '8.0', '8.1']  # Add 8.1
-```
-
-3. Update `rails_error_dashboard.gemspec` if needed:
-```ruby
-spec.add_dependency "rails", ">= 7.0.0", "< 8.2"
-```
-
-4. Update this document with new version info
-
-5. Test locally:
-```bash
-RAILS_VERSION=8.1 bundle update && bundle exec rspec
-```
-
-6. Update README.md:
-```markdown
-- Rails 7.0, 7.1, 7.2, 8.0, 8.1 support
-```
-
-### Dropping an Old Rails Version
-
-1. Update gemspec:
-```ruby
-# Old
-spec.add_dependency "rails", ">= 7.0.0"
-
-# New (dropping 7.0 support)
-spec.add_dependency "rails", ">= 7.1.0"
-```
-
-2. Remove from Appraisals:
-```ruby
-# Remove rails-7.0 section
-```
-
-3. Remove from GitHub Actions:
-```yaml
-matrix:
-  rails: ['7.1', '7.2', '8.0']  # Removed 7.0
-```
-
-4. Update documentation
-5. Announce in CHANGELOG.md
-6. Bump major version (semver)
-
----
-
-## Version Testing Checklist
-
-Before releasing a new version:
-
-- [ ] All specs pass on Rails 7.0
-- [ ] All specs pass on Rails 7.1
-- [ ] All specs pass on Rails 7.2
-- [ ] All specs pass on Rails 8.0
-- [ ] All specs pass on Ruby 3.2 (with all Rails)
-- [ ] All specs pass on Ruby 3.3 (with all Rails)
-- [ ] GitHub Actions CI passing (all combinations)
-- [ ] No deprecation warnings
-- [ ] Documentation updated
-- [ ] CHANGELOG.md updated
-- [ ] Version bumped appropriately
-
----
-
 ## Resources
 
-### Official Documentation
+### Documentation
+- [CI Troubleshooting Guide](CI_TROUBLESHOOTING.md) - Detailed CI issue solutions
 - [Rails Upgrade Guide](https://guides.rubyonrails.org/upgrading_ruby_on_rails.html)
-- [Rails Versions](https://rubygems.org/gems/rails/versions)
-- [Appraisal Gem](https://github.com/thoughtbot/appraisal)
-- [GitHub Actions Ruby Setup](https://github.com/ruby/setup-ruby)
+- [ruby/setup-ruby](https://github.com/ruby/setup-ruby)
 
-### Version Support Policy
-- **Rails 7.0**: LTS support until 2025
-- **Rails 7.1**: Active support
-- **Rails 7.2**: Active support
-- **Rails 8.0**: Latest stable
+### Compatibility
+- [Ruby & Rails Compatibility Table](https://www.fastruby.io/blog/ruby/rails/versions/compatibility-table.html)
+- [Rails and Ruby Compatibility in 2025](https://www.fastruby.io/blog/ruby-rails-compatibility-in-2025.html)
 
-### Gem Support Policy
+### Support Policy
+
 Rails Error Dashboard will:
-- Support the latest 4 Rails versions
+- Support the latest 4 Rails major/minor versions
 - Support Ruby versions compatible with supported Rails
-- Drop support for EOL Rails versions in major releases
+- Drop EOL Rails versions in major releases only
 - Provide 6 months notice before dropping support
 
 ---
 
 ## FAQ
 
-### Q: Which Rails version should I use?
+**Q: Which Rails version should I use in development?**
+A: Use Rails 8.0 (latest) unless you have specific version requirements.
 
-**A**: Use the latest stable version (Rails 8.0) unless you have specific requirements for an older version.
+**Q: Why isn't Gemfile.lock committed?**
+A: For multi-version gems, committed lockfiles conflict with CI matrix testing. See [CI_TROUBLESHOOTING.md#7](CI_TROUBLESHOOTING.md#7-bundler-deployment-mode-conflicts).
 
-### Q: Will my code work across all versions?
+**Q: Can I use Rails 6.x?**
+A: No, minimum is Rails 7.0. Rails 6.x reached EOL.
 
-**A**: Yes, Rails Error Dashboard is tested to work identically across all supported versions.
+**Q: Why no Ruby 3.1?**
+A: The browser gem requires Ruby >= 3.2.0. See [CI_TROUBLESHOOTING.md#1](CI_TROUBLESHOOTING.md#1-browser-gem-ruby-version-incompatibility).
 
-### Q: How often are new Rails versions added?
-
-**A**: We add support for new Rails versions within 1 month of their stable release.
-
-### Q: What if I'm on Rails 6.x?
-
-**A**: Rails 6.x is not supported. Please upgrade to Rails 7.0+ or use an older version of this gem.
-
-### Q: Can I use this gem with Rails edge?
-
-**A**: Not recommended for production. Edge Rails may have breaking changes.
+**Q: How do I test locally without installing all versions?**
+A: Use Docker or rely on CI. GitHub Actions tests all combinations for you.
 
 ---
 
-**Phase 5 Complete!** 🎉
+**Multi-version testing complete!** 🎉
 
-Multi-version testing is now configured and documented. The gem is tested against 12 different Ruby/Rails combinations in CI.
+All 8 Ruby/Rails combinations tested in CI. See [CI_TROUBLESHOOTING.md](CI_TROUBLESHOOTING.md) for lessons learned.

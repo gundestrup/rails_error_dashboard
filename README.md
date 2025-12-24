@@ -746,18 +746,28 @@ end
 
 ## 📚 Documentation
 
-### Quick Start Guides
+### User Guides
 - **[README.md](README.md)** - Main documentation (you are here!)
+- **[NOTIFICATION_CONFIGURATION.md](NOTIFICATION_CONFIGURATION.md)** - Multi-channel notifications setup (Slack, Email, Discord, PagerDuty, Webhooks)
 - **[MOBILE_APP_INTEGRATION.md](MOBILE_APP_INTEGRATION.md)** - Complete guide for integrating with React Native, Expo, and other mobile frameworks
+- **[BATCH_OPERATIONS_GUIDE.md](BATCH_OPERATIONS_GUIDE.md)** - Bulk resolve/delete errors guide
+- **[PLUGIN_DEVELOPMENT_GUIDE.md](PLUGIN_DEVELOPMENT_GUIDE.md)** - Create custom plugins for Jira, metrics, etc.
+
+### Operations & Deployment
 - **[MIGRATION_TO_SEPARATE_DATABASE.md](MIGRATION_TO_SEPARATE_DATABASE.md)** - Step-by-step guide for migrating to a separate error logs database
+- **[MULTI_VERSION_TESTING.md](MULTI_VERSION_TESTING.md)** - Testing across Rails 7.0-8.0 and Ruby 3.2-3.3
+- **[CI_TROUBLESHOOTING.md](CI_TROUBLESHOOTING.md)** - Complete guide to CI issues and solutions (for contributors)
 
 ### Topics Covered
 - ✅ Rails backend error tracking (automatic + manual)
 - ✅ Frontend/mobile error reporting (React, React Native, Vue, Angular, Flutter)
-- ✅ Multi-channel notifications (Slack + Email)
+- ✅ Multi-channel notifications (Slack, Email, Discord, PagerDuty, Webhooks)
 - ✅ Analytics and dashboard usage
 - ✅ Separate database setup and migration
 - ✅ Queue configuration (Sidekiq, Solid Queue, etc.)
+- ✅ Plugin system and custom integrations
+- ✅ Batch operations (bulk resolve/delete)
+- ✅ Multi-version compatibility (Rails 7.0-8.0, Ruby 3.2-3.3)
 - ✅ Security and authentication
 - ✅ Service Objects + CQRS architecture
 
