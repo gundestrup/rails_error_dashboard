@@ -127,7 +127,8 @@ module RailsErrorDashboard
         existing
       else
         # Create new error record
-        create!(attributes)
+        # Ensure resolved has a value (default to false)
+        create!(attributes.reverse_merge(resolved: false))
       end
     end
 
