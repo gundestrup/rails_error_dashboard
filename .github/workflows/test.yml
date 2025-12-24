@@ -42,8 +42,9 @@ jobs:
       env:
         RAILS_ENV: test
         RAILS_VERSION: ${{ matrix.rails }}
-        APP_PATH: spec/dummy/config/application
-      run: bundle exec rake db:migrate
+      run: |
+        bundle exec rake app:db:create
+        bundle exec rake app:db:migrate
 
     - name: Run tests
       env:
