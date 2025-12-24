@@ -17,7 +17,7 @@ SimpleCov.start 'rails' do
   minimum_coverage 80
 end
 
-require File.expand_path('../test/dummy/config/environment.rb', __dir__)
+require File.expand_path('dummy/config/environment.rb', __dir__)
 require 'rspec/rails'
 require 'factory_bot_rails'
 require 'faker'
@@ -29,6 +29,9 @@ require 'database_cleaner/active_record'
 Dir[File.join(__dir__, 'support', '**', '*.rb')].sort.each { |f| require f }
 
 RSpec.configure do |config|
+  # Set spec root to gem root, not dummy app root
+  config.pattern = File.expand_path('../**/*_spec.rb', __dir__)
+
   config.expect_with :rspec do |expectations|
     expectations.include_chain_clauses_in_custom_matcher_descriptions = true
   end
