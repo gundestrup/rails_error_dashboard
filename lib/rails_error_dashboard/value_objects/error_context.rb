@@ -104,7 +104,7 @@ module RailsErrorDashboard
       def detect_platform
         # Check if it's from a mobile request
         user_agent = extract_user_agent
-        return PlatformDetector.detect(user_agent) if @context[:request]
+        return Services::PlatformDetector.detect(user_agent) if @context[:request]
 
         # Everything else is API/backend
         "API"
