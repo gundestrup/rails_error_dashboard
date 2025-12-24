@@ -11,9 +11,9 @@
 #
 # CI/CD testing is handled by .github/workflows/test.yml
 
-# Rails 7.0 (Stable LTS)
+# Rails 7.0 (Stable LTS) - Use latest patch version for Ruby 3.2+ compat
 appraise "rails-7.0" do
-  gem "rails", "~> 7.0.0"
+  gem "rails", "~> 7.0.8"
 end
 
 # Rails 7.1 (Stable)
