@@ -5,7 +5,8 @@ module RailsErrorDashboard
     # Immutable value object representing error context
     # Extracts and normalizes context information from various sources
     class ErrorContext
-      attr_reader :user_id, :request_url, :request_params, :user_agent, :ip_address, :platform
+      attr_reader :user_id, :request_url, :request_params, :user_agent, :ip_address, :platform,
+                  :controller_name, :action_name
 
       def initialize(context, source = nil)
         @context = context
@@ -17,6 +18,8 @@ module RailsErrorDashboard
         @user_agent = extract_user_agent
         @ip_address = extract_ip_address
         @platform = detect_platform
+        @controller_name = extract_controller_name
+        @action_name = extract_action_name
       end
 
       def to_h
@@ -26,7 +29,9 @@ module RailsErrorDashboard
           request_params: request_params,
           user_agent: user_agent,
           ip_address: ip_address,
-          platform: platform
+          platform: platform,
+          controller_name: controller_name,
+          action_name: action_name
         }
       end
 
@@ -111,6 +116,32 @@ module RailsErrorDashboard
 
         # Everything else is API/backend
         "API"
+      end
+
+      def extract_controller_name
+        # From Rails request params
+        return @context[:request].params[:controller] if @context[:request]&.params&.[](:controller)
+
+        # From explicit context
+        return @context[:controller_name] if @context[:controller_name]
+
+        # From Rails controller instance
+        return @context[:controller]&.class&.name if @context[:controller]
+
+        nil
+      end
+
+      def extract_action_name
+        # From Rails request params
+        return @context[:request].params[:action] if @context[:request]&.params&.[](:action)
+
+        # From explicit context
+        return @context[:action_name] if @context[:action_name]
+
+        # From action parameter
+        return @context[:action] if @context[:action]
+
+        nil
       end
     end
   end

@@ -10,15 +10,21 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2025_12_24_000001) do
+ActiveRecord::Schema[8.1].define(version: 2025_12_24_101217) do
   create_table "rails_error_dashboard_error_logs", force: :cascade do |t|
+    t.string "action_name"
     t.text "backtrace"
+    t.string "controller_name"
     t.datetime "created_at", null: false
     t.string "environment", null: false
+    t.string "error_hash"
     t.string "error_type", null: false
+    t.datetime "first_seen_at"
     t.string "ip_address"
+    t.datetime "last_seen_at"
     t.text "message", null: false
     t.datetime "occurred_at", null: false
+    t.integer "occurrence_count", default: 1, null: false
     t.string "platform"
     t.text "request_params"
     t.text "request_url"
@@ -30,11 +36,16 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_24_000001) do
     t.datetime "updated_at", null: false
     t.text "user_agent"
     t.integer "user_id"
-    t.index [ "environment" ], name: "index_rails_error_dashboard_error_logs_on_environment"
-    t.index [ "error_type" ], name: "index_rails_error_dashboard_error_logs_on_error_type"
-    t.index [ "occurred_at" ], name: "index_rails_error_dashboard_error_logs_on_occurred_at"
-    t.index [ "platform" ], name: "index_rails_error_dashboard_error_logs_on_platform"
-    t.index [ "resolved" ], name: "index_rails_error_dashboard_error_logs_on_resolved"
-    t.index [ "user_id" ], name: "index_rails_error_dashboard_error_logs_on_user_id"
+    t.index ["controller_name", "action_name", "error_hash"], name: "index_error_logs_on_controller_action_hash"
+    t.index ["environment"], name: "index_rails_error_dashboard_error_logs_on_environment"
+    t.index ["error_hash"], name: "index_rails_error_dashboard_error_logs_on_error_hash"
+    t.index ["error_type"], name: "index_rails_error_dashboard_error_logs_on_error_type"
+    t.index ["first_seen_at"], name: "index_rails_error_dashboard_error_logs_on_first_seen_at"
+    t.index ["last_seen_at"], name: "index_rails_error_dashboard_error_logs_on_last_seen_at"
+    t.index ["occurred_at"], name: "index_rails_error_dashboard_error_logs_on_occurred_at"
+    t.index ["occurrence_count"], name: "index_rails_error_dashboard_error_logs_on_occurrence_count"
+    t.index ["platform"], name: "index_rails_error_dashboard_error_logs_on_platform"
+    t.index ["resolved"], name: "index_rails_error_dashboard_error_logs_on_resolved"
+    t.index ["user_id"], name: "index_rails_error_dashboard_error_logs_on_user_id"
   end
 end

@@ -24,12 +24,111 @@ module RailsErrorDashboard
     scope :last_24_hours, -> { where("occurred_at >= ?", 24.hours.ago) }
     scope :last_week, -> { where("occurred_at >= ?", 1.week.ago) }
 
-    # Set defaults
+    # Set defaults and tracking
     before_validation :set_defaults, on: :create
+    before_create :set_tracking_fields
 
     def set_defaults
       self.environment ||= Rails.env.to_s
       self.platform ||= "API"
+    end
+
+    def set_tracking_fields
+      self.error_hash ||= generate_error_hash
+      self.first_seen_at ||= Time.current
+      self.last_seen_at ||= Time.current
+      self.occurrence_count ||= 1
+    end
+
+    # Generate unique hash for error grouping
+    # Includes controller/action for better context-aware grouping
+    def generate_error_hash
+      # Hash based on error class, normalized message, first stack frame, controller, and action
+      digest_input = [
+        error_type,
+        message&.gsub(/\d+/, "N")&.gsub(/"[^"]*"/, '""'), # Normalize numbers and strings
+        backtrace&.lines&.first&.split(":")&.first, # Just the file, not line number
+        controller_name, # Controller context
+        action_name      # Action context
+      ].compact.join("|")
+
+      Digest::SHA256.hexdigest(digest_input)[0..15]
+    end
+
+    # Check if this is a critical error
+    def critical?
+      CRITICAL_ERROR_TYPES.include?(error_type)
+    end
+
+    # Check if error is recent (< 1 hour)
+    def recent?
+      occurred_at >= 1.hour.ago
+    end
+
+    # Check if error is old unresolved (> 7 days)
+    def stale?
+      !resolved? && occurred_at < 7.days.ago
+    end
+
+    # Get severity level
+    def severity
+      return :critical if CRITICAL_ERROR_TYPES.include?(error_type)
+      return :high if HIGH_SEVERITY_ERROR_TYPES.include?(error_type)
+      return :medium if MEDIUM_SEVERITY_ERROR_TYPES.include?(error_type)
+      :low
+    end
+
+    CRITICAL_ERROR_TYPES = %w[
+      SecurityError
+      NoMemoryError
+      SystemStackError
+      SignalException
+      ActiveRecord::StatementInvalid
+    ].freeze
+
+    HIGH_SEVERITY_ERROR_TYPES = %w[
+      ActiveRecord::RecordNotFound
+      ArgumentError
+      TypeError
+      NoMethodError
+      NameError
+    ].freeze
+
+    MEDIUM_SEVERITY_ERROR_TYPES = %w[
+      ActiveRecord::RecordInvalid
+      Timeout::Error
+      Net::ReadTimeout
+      Net::OpenTimeout
+    ].freeze
+
+    # Find existing error by hash or create new one
+    # This is CRITICAL for accurate occurrence tracking
+    def self.find_or_increment_by_hash(error_hash, attributes = {})
+      # Look for unresolved error with same hash in last 24 hours
+      # (resolved errors are considered "fixed" so new occurrence = new issue)
+      existing = unresolved
+                  .where(error_hash: error_hash)
+                  .where("occurred_at >= ?", 24.hours.ago)
+                  .order(last_seen_at: :desc)
+                  .first
+
+      if existing
+        # Increment existing error
+        existing.update!(
+          occurrence_count: existing.occurrence_count + 1,
+          last_seen_at: Time.current,
+          # Update context from latest occurrence
+          user_id: attributes[:user_id] || existing.user_id,
+          request_url: attributes[:request_url] || existing.request_url,
+          request_params: attributes[:request_params] || existing.request_params,
+          user_agent: attributes[:user_agent] || existing.user_agent,
+          ip_address: attributes[:ip_address] || existing.ip_address
+        )
+        existing
+      else
+        # Create new error record
+        create!(attributes)
+      end
     end
 
     # Log an error with context (delegates to Command)

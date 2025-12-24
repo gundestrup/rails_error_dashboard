@@ -17,7 +17,8 @@ module RailsErrorDashboard
       def call
         error_context = ValueObjects::ErrorContext.new(@context, @context[:source])
 
-        error_log = ErrorLog.create!(
+        # Build error attributes
+        attributes = {
           error_type: @exception.class.name,
           message: @exception.message,
           backtrace: @exception.backtrace&.join("\n"),
@@ -28,20 +29,70 @@ module RailsErrorDashboard
           ip_address: error_context.ip_address,
           environment: Rails.env,
           platform: error_context.platform,
+          controller_name: error_context.controller_name,
+          action_name: error_context.action_name,
           occurred_at: Time.current
-        )
+        }
 
-        # Send notifications asynchronously if configured
-        send_notifications(error_log)
+        # Generate error hash for deduplication (including controller/action context)
+        error_hash = generate_error_hash(@exception, error_context.controller_name, error_context.action_name)
+
+        # Find existing error or create new one
+        # This ensures accurate occurrence tracking
+        error_log = ErrorLog.find_or_increment_by_hash(error_hash, attributes.merge(error_hash: error_hash))
+
+        # Send notifications only for new errors (not increments)
+        # Check if this is first occurrence or error was just created
+        send_notifications(error_log) if error_log.occurrence_count == 1
 
         error_log
       rescue => e
         # Don't let error logging cause more errors
         Rails.logger.error("Failed to log error: #{e.message}")
+        Rails.logger.error("Backtrace: #{e.backtrace&.first(5)&.join("\n")}")
         nil
       end
 
       private
+
+      # Generate consistent hash for error deduplication
+      # Same hash = same error type
+      # Note: This is also defined in ErrorLog model for backward compatibility
+      def generate_error_hash(exception, controller_name = nil, action_name = nil)
+        # Hash components:
+        # 1. Error class (NoMethodError, ArgumentError, etc.)
+        # 2. Normalized message (replace numbers, quoted strings)
+        # 3. First stack frame file (ignore line numbers)
+        # 4. Controller name (for context-aware grouping)
+        # 5. Action name (for context-aware grouping)
+
+        normalized_message = exception.message
+          &.gsub(/\d+/, "N")                    # Replace numbers: "User 123" -> "User N"
+          &.gsub(/"[^"]*"/, '""')               # Replace quoted strings: "foo" -> ""
+          &.gsub(/'[^']*'/, "''")               # Replace single quoted strings
+          &.gsub(/0x[0-9a-f]+/i, "0xHEX")       # Replace hex addresses
+          &.gsub(/#<[^>]+>/, "#<OBJ>")          # Replace object inspections
+
+        # Get first meaningful stack frame (skip gems, focus on app code)
+        first_app_frame = exception.backtrace&.find { |frame|
+          # Look for app code, not gems
+          frame.include?("/app/") || frame.include?("/lib/") || !frame.include?("/gems/")
+        }
+
+        # Extract just the file path, not line number
+        file_path = first_app_frame&.split(":")&.first
+
+        # Generate hash including controller/action for better grouping
+        digest_input = [
+          exception.class.name,
+          normalized_message,
+          file_path,
+          controller_name, # Context: which controller
+          action_name      # Context: which action
+        ].compact.join("|")
+
+        Digest::SHA256.hexdigest(digest_input)[0..15]
+      end
 
       def send_notifications(error_log)
         config = RailsErrorDashboard.configuration
