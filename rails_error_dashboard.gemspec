@@ -51,7 +51,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "webmock", "~> 3.0"
   spec.add_development_dependency "vcr", "~> 6.0"
   spec.add_development_dependency "simplecov", "~> 0.22"
-  # Pin sqlite3 to 1.x for Rails 7.0 compatibility
-  spec.add_development_dependency "sqlite3", "~> 1.4"
+  # Note: sqlite3 version is specified in Gemfile based on Rails version
+  # Rails 7.0 requires ~> 1.4, Rails 8.0 requires >= 2.1
   spec.add_development_dependency "appraisal", "~> 2.5"
 end

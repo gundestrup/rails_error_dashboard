@@ -13,6 +13,15 @@ gem "puma"
 
 gem "pg"
 
+# SQLite3 - version depends on Rails version
+# Rails 7.0-7.2 require ~> 1.4, Rails 8.0+ requires >= 2.1
+rails_env = ENV['RAILS_VERSION'] || '8.0'
+if rails_env.start_with?('7.') || rails_env.start_with?('~> 7.')
+  gem "sqlite3", "~> 1.4"
+else
+  gem "sqlite3", ">= 2.1"
+end
+
 # Omakase Ruby styling [https://github.com/rails/rubocop-rails-omakase/]
 gem "rubocop-rails-omakase", require: false
 
