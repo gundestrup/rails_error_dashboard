@@ -6,10 +6,11 @@ Gem::Specification.new do |spec|
   spec.authors     = [ "Anjan Jagirdar" ]
   spec.email       = [ "anjan@example.com" ]
   spec.homepage    = "https://github.com/AnjanJ/rails_error_dashboard"
-  spec.summary     = "Beautiful, production-ready error tracking dashboard for Rails applications"
-  spec.description = "Rails Error Dashboard provides a complete error tracking solution with a beautiful UI, " \
-                     "Slack notifications, platform detection (iOS/Android/API), analytics, and optional " \
-                     "separate database support. Works seamlessly with Rails 7+ error reporting."
+  spec.summary     = "Beautiful error tracking dashboard for Rails applications (BETA)"
+  spec.description = "⚠️ BETA: Rails Error Dashboard provides error tracking with a beautiful UI, " \
+                     "multi-channel notifications (Slack, Email, Discord, PagerDuty), platform detection " \
+                     "(iOS/Android/Web/API), analytics, and optional separate database support. " \
+                     "Works with Rails 7.0-8.0. API may change before v1.0.0."
   spec.license     = "MIT"
 
   spec.metadata["homepage_uri"] = spec.homepage

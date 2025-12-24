@@ -4,7 +4,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://github.com/AnjanJ/rails_error_dashboard/workflows/Tests/badge.svg)](https://github.com/AnjanJ/rails_error_dashboard/actions)
 
-> **A beautiful, production-ready error tracking dashboard for Rails applications and their frontends**
+> **⚠️ BETA SOFTWARE**: This gem is currently in beta and under active development. While functional and tested, the API and features may change before v1.0.0. Use in production at your own discretion.
+
+> **A beautiful error tracking dashboard for Rails applications and their frontends**
 
 Rails Error Dashboard provides a complete error tracking and alerting solution for Rails backends AND frontend/mobile apps (React, React Native, Vue, Angular, Flutter, etc.). Features include: modern UI, multi-channel notifications (Slack + Email), real-time analytics, platform detection (iOS/Android/Web/API), and optional separate database support. Built with Rails 7+ error reporting and following Service Objects + CQRS principles.
 
