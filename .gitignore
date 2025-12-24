@@ -1,11 +1,23 @@
 /.bundle/
-/doc/
-/log/*.log
+/vendor/bundle/
+/coverage/
+/spec/examples.txt
+/.yardoc
+/Gemfile.lock
 /pkg/
 /tmp/
-/coverage/
-/spec/dummy/db/*.sqlite3
-/spec/dummy/db/*.sqlite3-*
-/spec/dummy/log/*.log
-/spec/dummy/tmp/
-/spec/examples.txt
+*.gem
+*.rbc
+
+# Ignore dummy app artifacts
+spec/dummy/db/*.sqlite3
+spec/dummy/db/*.sqlite3-*
+spec/dummy/log/*.log
+spec/dummy/tmp/
+spec/dummy/storage/
+
+# Ignore test coverage
+coverage/
+
+# Ignore byebug history
+.byebug_history
