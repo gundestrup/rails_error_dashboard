@@ -34,6 +34,7 @@ jobs:
       env:
         RAILS_VERSION: ${{ matrix.rails }}
       run: |
+        rm -f Gemfile.lock
         bundle config set --local path 'vendor/bundle'
         bundle install --jobs 4 --retry 3
 
