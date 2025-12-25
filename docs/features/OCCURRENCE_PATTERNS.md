@@ -1,6 +1,14 @@
-# Occurrence Patterns Guide (Phase 4.5)
+# Occurrence Patterns Guide
 
-This guide covers the enhanced occurrence pattern detection features introduced in Phase 4.5, including cyclical pattern analysis and error burst detection.
+This guide covers the enhanced occurrence pattern detection features, including cyclical pattern analysis and error burst detection.
+
+**⚙️ Optional Feature** - Occurrence pattern detection is disabled by default. Enable it in your initializer:
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_occurrence_patterns = true
+end
+```
 
 ## Table of Contents
 

@@ -1,6 +1,17 @@
-# Baseline Monitoring and Alerts (Phase 4.2 & 4.3)
+# Baseline Monitoring and Alerts
 
-This guide covers the intelligent baseline monitoring features introduced in Phase 4.2 and 4.3, including statistical baseline calculation, anomaly detection, and automated alerting.
+This guide covers the intelligent baseline monitoring features, including statistical baseline calculation, anomaly detection, and automated alerting.
+
+**⚙️ Optional Feature** - Baseline monitoring is disabled by default. Enable it in your initializer:
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_baseline_alerts = true
+  config.baseline_alert_threshold_std_devs = 2.0  # Alert when >2 std devs above baseline
+  config.baseline_alert_severities = [:critical, :high]  # Alert on these severities
+  config.baseline_alert_cooldown_minutes = 120  # 2 hours between alerts
+end
+```
 
 ## Table of Contents
 

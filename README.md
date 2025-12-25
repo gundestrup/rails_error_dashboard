@@ -109,7 +109,7 @@ HTTP Basic Auth, environment-based settings, optional separate database for isol
 gem 'rails_error_dashboard'
 ```
 
-### 2. Install
+### 2. Install with Interactive Setup
 
 ```bash
 bundle install
@@ -117,8 +117,15 @@ rails generate rails_error_dashboard:install
 rails db:migrate
 ```
 
+The installer will guide you through optional feature selection:
+- **Notifications** (Slack, Email, Discord, PagerDuty, Webhooks)
+- **Performance** (Async Logging, Error Sampling, Separate Database)
+- **Advanced Analytics** (8 powerful features including baseline alerts, fuzzy matching, platform comparison)
+
+**All features are opt-in** - choose what you need during installation, or enable/disable them later in the initializer.
+
 This will:
-- Create `config/initializers/rails_error_dashboard.rb`
+- Create `config/initializers/rails_error_dashboard.rb` with your selected features
 - Copy database migrations
 - Mount the engine at `/error_dashboard`
 
@@ -152,26 +159,58 @@ The error will appear instantly in your dashboard with full context, backtrace, 
 
 ## ⚙️ Configuration
 
-### Basic Setup
+### Opt-in Feature System
+
+Rails Error Dashboard uses an **opt-in architecture** - core features (error capture, dashboard UI, analytics) are always enabled, while everything else is disabled by default.
+
+**Tier 1 Features (Always ON)**:
+- ✅ Error capture (controllers, jobs, middleware)
+- ✅ Dashboard UI with search and filtering
+- ✅ Real-time updates
+- ✅ Analytics and trend charts
+
+**Optional Features (Choose During Install)**:
+- 📧 Multi-channel notifications (Slack, Email, Discord, PagerDuty, Webhooks)
+- ⚡ Performance optimizations (Async logging, Error sampling)
+- 📊 Advanced analytics (Baseline alerts, Fuzzy matching, Platform comparison, and more)
+
+### Basic Configuration
 
 Edit `config/initializers/rails_error_dashboard.rb`:
 
 ```ruby
 RailsErrorDashboard.configure do |config|
-  # Dashboard authentication
+  # ============================================================================
+  # AUTHENTICATION (Always Required)
+  # ============================================================================
   config.dashboard_username = ENV.fetch('ERROR_DASHBOARD_USER', 'gandalf')
   config.dashboard_password = ENV.fetch('ERROR_DASHBOARD_PASSWORD', 'youshallnotpass')
 
-  # Slack notifications
+  # ============================================================================
+  # OPTIONAL FEATURES (Enable as needed)
+  # ============================================================================
+
+  # Slack notifications (if enabled during install)
   config.enable_slack_notifications = true
   config.slack_webhook_url = ENV['SLACK_WEBHOOK_URL']
 
-  # Email notifications
+  # Email notifications (if enabled during install)
   config.enable_email_notifications = true
   config.notification_email_recipients = ["dev@yourapp.com"]
   config.notification_email_from = "errors@yourapp.com"
+
+  # Async logging for better performance (if enabled during install)
+  config.async_logging = true
+  config.async_adapter = :sidekiq  # or :solid_queue, :async
+
+  # Advanced analytics features (if enabled during install)
+  config.enable_baseline_alerts = true
+  config.enable_similar_errors = true
+  config.enable_platform_comparison = true
 end
 ```
+
+All features can be toggled on/off at any time by editing the initializer.
 
 ### Environment Variables
 

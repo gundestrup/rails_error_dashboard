@@ -2,6 +2,31 @@
 
 This document provides a comprehensive overview of all features in Rails Error Dashboard.
 
+## Feature Categories
+
+Rails Error Dashboard uses an **opt-in architecture** with two categories of features:
+
+### Tier 1 Features (Always ON)
+Core features that are always enabled - no configuration needed:
+- ✅ **Error Tracking & Capture** - Automatic error logging from controllers, jobs, middleware
+- ✅ **Dashboard & UI** - Modern interface with search, filtering, real-time updates
+- ✅ **Analytics & Insights** - Trend charts, severity breakdown, spike detection
+- ✅ **Security & Privacy** - HTTP Basic Auth, data retention
+
+### Optional Features (Opt-in)
+**16 powerful features** you can enable during installation or anytime in the initializer:
+
+**📧 Notifications (5 features)**
+- Slack, Email, Discord, PagerDuty, Webhooks
+
+**⚡ Performance (3 features)**
+- Async Logging, Error Sampling, Separate Database
+
+**📊 Advanced Analytics (8 features)**
+- Baseline Alerts, Fuzzy Matching, Co-occurring Errors, Error Cascades, Correlation, Platform Comparison, Occurrence Patterns
+
+All features are disabled by default and can be toggled on/off at any time. See [Configuration Guide](guides/CONFIGURATION.md) for setup.
+
 ---
 
 ## 🎯 Error Tracking & Capture
@@ -130,6 +155,15 @@ This document provides a comprehensive overview of all features in Rails Error D
 
 ## 🚨 Notifications & Alerting
 
+**⚙️ Optional Features** - All notification channels are disabled by default. Enable them during installation or in the initializer:
+```ruby
+config.enable_slack_notifications = true
+config.enable_email_notifications = true
+config.enable_discord_notifications = true
+config.enable_pagerduty_notifications = true
+config.enable_webhook_notifications = true
+```
+
 ### Slack Integration
 - **Rich message formatting** with markdown
 - **Color-coded attachments** by severity (red, orange, yellow, blue)
@@ -176,6 +210,13 @@ This document provides a comprehensive overview of all features in Rails Error D
 ---
 
 ## ⚡ Performance & Scalability
+
+**⚙️ Optional Features** - Performance optimizations are disabled by default. Enable as needed:
+```ruby
+config.async_logging = true           # Async error logging
+config.sampling_rate = 0.1            # Error sampling (10%)
+config.use_separate_database = true   # Separate database
+```
 
 ### Async Error Logging
 - **Non-blocking** error capture
@@ -427,9 +468,20 @@ This document provides a comprehensive overview of all features in Rails Error D
 
 ---
 
-## 🎯 Phase 4 Features (Advanced)
+## 🎯 Advanced Analytics Features
 
-*The following features are part of Phase 4 implementation. All code is complete and tested (850+ tests passing). These advanced features provide powerful insights for production debugging.*
+**⚙️ Optional Features** - All advanced analytics are disabled by default. Enable the ones you need:
+```ruby
+config.enable_similar_errors = true          # Fuzzy error matching
+config.enable_co_occurring_errors = true     # Co-occurring patterns
+config.enable_error_cascades = true          # Cascade detection
+config.enable_baseline_alerts = true         # Baseline anomaly alerts
+config.enable_occurrence_patterns = true     # Cyclical/burst patterns
+config.enable_error_correlation = true       # Version/user correlation
+config.enable_platform_comparison = true     # Platform health comparison
+```
+
+*All code is complete and tested (847+ tests passing). These advanced features provide powerful insights for production debugging.*
 
 ### Fuzzy Error Matching
 - **Find similar errors** even with different error hashes

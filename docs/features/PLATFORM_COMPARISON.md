@@ -1,6 +1,14 @@
-# Platform Comparison Guide (Phase 4.4)
+# Platform Comparison Guide
 
-This guide covers the platform comparison and health analytics features introduced in Phase 4.4, which enable side-by-side comparison of error metrics across iOS, Android, API, and Web platforms.
+This guide covers the platform comparison and health analytics features, which enable side-by-side comparison of error metrics across iOS, Android, API, and Web platforms.
+
+**⚙️ Optional Feature** - Platform comparison is disabled by default. Enable it in your initializer:
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_platform_comparison = true
+end
+```
 
 ## Table of Contents
 

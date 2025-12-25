@@ -1,6 +1,16 @@
-# Advanced Error Grouping (Phase 4.1)
+# Advanced Error Grouping
 
-This guide covers the advanced error grouping features introduced in Phase 4.1, including fuzzy error matching, co-occurring error detection, and error cascade identification.
+This guide covers the advanced error grouping features, including fuzzy error matching, co-occurring error detection, and error cascade identification.
+
+**⚙️ Optional Features** - All grouping features are disabled by default. Enable them in your initializer:
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_similar_errors = true          # Fuzzy error matching
+  config.enable_co_occurring_errors = true     # Co-occurring patterns
+  config.enable_error_cascades = true          # Cascade detection
+end
+```
 
 ## Table of Contents
 
@@ -13,7 +23,7 @@ This guide covers the advanced error grouping features introduced in Phase 4.1, 
 
 ## Overview
 
-Phase 4.1 introduces intelligent error grouping that goes beyond simple error type matching:
+Intelligent error grouping that goes beyond simple error type matching:
 
 - **Fuzzy Matching**: Find similar errors even when error_hash differs
 - **Co-occurring Errors**: Detect errors that happen together in time

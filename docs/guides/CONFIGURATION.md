@@ -4,15 +4,37 @@ This guide covers all configuration options for Rails Error Dashboard, including
 
 ## Table of Contents
 
+- [Opt-in Feature System](#opt-in-feature-system)
 - [Basic Configuration](#basic-configuration)
+- [Notification Features](#notification-features)
+- [Performance Features](#performance-features)
+- [Advanced Analytics Features](#advanced-analytics-features)
 - [Custom Severity Classification](#custom-severity-classification)
 - [Ignored Exceptions](#ignored-exceptions)
 - [Error Sampling](#error-sampling)
 - [Notification Callbacks](#notification-callbacks)
 - [ActiveSupport Notifications](#activesupport-notifications)
-- [Async Logging](#async-logging)
 - [Backtrace Configuration](#backtrace-configuration)
 - [Complete Configuration Example](#complete-configuration-example)
+
+---
+
+## Opt-in Feature System
+
+Rails Error Dashboard uses an **opt-in architecture**. Core features are always enabled, while everything else is disabled by default.
+
+**Tier 1 Features (Always ON):**
+- ✅ Error capture (controllers, jobs, middleware)
+- ✅ Dashboard UI with search and filtering
+- ✅ Real-time updates via Turbo Streams
+- ✅ Analytics and trend charts
+
+**Optional Features (16 total):**
+- 📧 **5 Notification Channels** (Slack, Email, Discord, PagerDuty, Webhooks)
+- ⚡ **3 Performance Features** (Async Logging, Error Sampling, Separate Database)
+- 📊 **8 Advanced Analytics** (Baseline Alerts, Fuzzy Matching, Co-occurring Errors, Error Cascades, Correlation, Platform Comparison, Occurrence Patterns)
+
+All features can be enabled during installation via the interactive installer, or toggled on/off at any time in the initializer.
 
 ---
 
@@ -38,6 +60,217 @@ RailsErrorDashboard.configure do |config|
   config.enable_error_subscriber = true
 end
 ```
+
+---
+
+## Notification Features
+
+Rails Error Dashboard supports 5 notification channels, all disabled by default.
+
+### Slack Notifications
+
+Send real-time error notifications to Slack channels.
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_slack_notifications = true
+  config.slack_webhook_url = ENV['SLACK_WEBHOOK_URL']
+end
+```
+
+### Email Notifications
+
+Send error alerts via email to your team.
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_email_notifications = true
+  config.notification_email_recipients = ["dev@yourapp.com", "team@yourapp.com"]
+  config.notification_email_from = "errors@yourapp.com"
+end
+```
+
+### Discord Notifications
+
+Push errors to Discord channels via webhooks.
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_discord_notifications = true
+  config.discord_webhook_url = ENV['DISCORD_WEBHOOK_URL']
+end
+```
+
+### PagerDuty Integration
+
+Escalate critical errors to PagerDuty for on-call teams. **Only triggers for critical errors** to avoid alert fatigue.
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_pagerduty_notifications = true
+  config.pagerduty_integration_key = ENV['PAGERDUTY_INTEGRATION_KEY']
+end
+```
+
+### Custom Webhooks
+
+Send errors to custom endpoints (Zapier, IFTTT, custom services).
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_webhook_notifications = true
+  config.webhook_urls = [
+    'https://yourapp.com/hooks/errors',
+    'https://zapier.com/hooks/catch/123456/abcdef'
+  ]
+end
+```
+
+**Dashboard Base URL** (for notification links):
+```ruby
+config.dashboard_base_url = ENV['DASHBOARD_BASE_URL']  # e.g., "https://yourapp.com"
+```
+
+See [Notifications Guide](NOTIFICATIONS.md) for detailed setup instructions.
+
+---
+
+## Performance Features
+
+Optimize performance and reduce database load with these features.
+
+### Async Error Logging
+
+Log errors in background jobs for non-blocking performance.
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.async_logging = true
+  config.async_adapter = :sidekiq  # Options: :sidekiq, :solid_queue, :async
+end
+```
+
+**Supported Adapters:**
+- `:sidekiq` - Battle-tested, recommended for production
+- `:solid_queue` - Rails 8.1+ built-in job backend
+- `:async` - Rails default (in-process, good for development)
+
+### Error Sampling
+
+Reduce database writes by logging only a percentage of non-critical errors. **Critical errors are ALWAYS logged** regardless of sampling rate.
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.sampling_rate = 0.1  # Log 10% of non-critical errors
+end
+```
+
+See [Error Sampling](#error-sampling) section below for details.
+
+### Separate Database
+
+Isolate error data in a dedicated database for better performance and separation of concerns.
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.use_separate_database = true
+end
+```
+
+Requires additional database configuration. See [Database Options Guide](DATABASE_OPTIONS.md) for setup instructions.
+
+---
+
+## Advanced Analytics Features
+
+Powerful analytics features for deep error insights, all disabled by default.
+
+### Baseline Anomaly Alerts
+
+Automatically detect when error rates exceed normal patterns using statistical analysis.
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_baseline_alerts = true
+  config.baseline_alert_threshold_std_devs = 2.0  # Alert when >2 std devs above baseline
+  config.baseline_alert_severities = [:critical, :high]  # Alert on these severities only
+  config.baseline_alert_cooldown_minutes = 120  # 2 hours between alerts for same error
+end
+```
+
+See [Baseline Monitoring Guide](../features/BASELINE_MONITORING.md) for details.
+
+### Fuzzy Error Matching
+
+Find similar errors even with different error_hashes using backtrace signatures and message similarity.
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_similar_errors = true
+end
+```
+
+See [Advanced Error Grouping Guide](../features/ADVANCED_ERROR_GROUPING.md) for details.
+
+### Co-occurring Errors
+
+Detect errors that happen together in time (within 5-minute windows).
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_co_occurring_errors = true
+end
+```
+
+See [Advanced Error Grouping Guide](../features/ADVANCED_ERROR_GROUPING.md) for details.
+
+### Error Cascades
+
+Identify parent→child error relationships (error A causes error B).
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_error_cascades = true
+end
+```
+
+See [Advanced Error Grouping Guide](../features/ADVANCED_ERROR_GROUPING.md) for details.
+
+### Error Correlation
+
+Correlate errors with app versions, users, and time patterns.
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_error_correlation = true
+end
+```
+
+See [Error Correlation Guide](../features/ERROR_CORRELATION.md) for details.
+
+### Platform Comparison
+
+Compare iOS vs Android vs Web health metrics and platform-specific error rates.
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_platform_comparison = true
+end
+```
+
+See [Platform Comparison Guide](../features/PLATFORM_COMPARISON.md) for details.
+
+### Occurrence Patterns
+
+Detect cyclical patterns (daily/weekly rhythms) and error bursts.
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_occurrence_patterns = true
+end
+```
+
+See [Occurrence Patterns Guide](../features/OCCURRENCE_PATTERNS.md) for details.
 
 ---
 
@@ -520,39 +753,123 @@ Here's a production-ready configuration combining multiple features:
 # config/initializers/rails_error_dashboard.rb
 
 RailsErrorDashboard.configure do |config|
-  # === Authentication ===
-  config.dashboard_username = "admin"
-  config.dashboard_password = ENV.fetch("ERROR_DASHBOARD_PASSWORD")
+  # ============================================================================
+  # AUTHENTICATION (Always Required)
+  # ============================================================================
+  config.dashboard_username = ENV.fetch("ERROR_DASHBOARD_USER", "gandalf")
+  config.dashboard_password = ENV.fetch("ERROR_DASHBOARD_PASSWORD", "youshallnotpass")
   config.require_authentication = true
+  config.require_authentication_in_development = false
 
-  # === Data Management ===
-  config.retention_days = 90
-  config.user_model = "User"
-
-  # === Custom Severity ===
-  config.custom_severity_rules = {
-    "Stripe::CardError" => :critical,
-    "PaymentProcessingError" => :critical,
-    "ActiveRecord::RecordInvalid" => :low
-  }
-
-  # === Ignored Exceptions ===
-  config.ignored_exceptions = [
-    "ActionController::RoutingError",
-    /ActionController::InvalidAuthenticityToken/,
-    /Rack::Timeout/
-  ]
-
-  # === Performance ===
-  config.sampling_rate = 0.1  # Log 10% of non-critical errors
-  config.max_backtrace_lines = 50
-
-  # === Features ===
+  # ============================================================================
+  # CORE FEATURES (Always Enabled)
+  # ============================================================================
   config.enable_middleware = true
   config.enable_error_subscriber = true
+  config.user_model = "User"
+  config.retention_days = 90
+
+  # ============================================================================
+  # NOTIFICATION SETTINGS
+  # ============================================================================
+
+  # Slack Notifications
+  config.enable_slack_notifications = true
+  config.slack_webhook_url = ENV["SLACK_WEBHOOK_URL"]
+
+  # Email Notifications
+  config.enable_email_notifications = true
+  config.notification_email_recipients = ENV.fetch("ERROR_NOTIFICATION_EMAILS", "").split(",").map(&:strip)
+  config.notification_email_from = ENV.fetch("ERROR_NOTIFICATION_FROM", "errors@example.com")
+
+  # Discord Notifications
+  config.enable_discord_notifications = true
+  config.discord_webhook_url = ENV["DISCORD_WEBHOOK_URL"]
+
+  # PagerDuty Integration (critical errors only)
+  config.enable_pagerduty_notifications = true
+  config.pagerduty_integration_key = ENV["PAGERDUTY_INTEGRATION_KEY"]
+
+  # Generic Webhook Notifications
+  config.enable_webhook_notifications = true
+  config.webhook_urls = ENV.fetch("WEBHOOK_URLS", "").split(",").map(&:strip).reject(&:empty?)
+
+  # Dashboard base URL (used in notification links)
+  config.dashboard_base_url = ENV["DASHBOARD_BASE_URL"]
+
+  # ============================================================================
+  # PERFORMANCE & SCALABILITY
+  # ============================================================================
+
+  # Async Error Logging
+  config.async_logging = true
+  config.async_adapter = :sidekiq  # Options: :sidekiq, :solid_queue, :async
+
+  # Backtrace size limiting
+  config.max_backtrace_lines = 50
+
+  # Error Sampling (10% - critical errors ALWAYS logged)
+  config.sampling_rate = 0.1
+
+  # Ignored exceptions
+  config.ignored_exceptions = [
+    "ActionController::RoutingError",
+    "ActionController::InvalidAuthenticityToken",
+    /^ActiveRecord::RecordNotFound/
+  ]
+
+  # ============================================================================
+  # DATABASE CONFIGURATION
+  # ============================================================================
+  config.use_separate_database = false
+
+  # ============================================================================
+  # ADVANCED ANALYTICS
+  # ============================================================================
+
+  # Baseline Anomaly Alerts
+  config.enable_baseline_alerts = true
+  config.baseline_alert_threshold_std_devs = 2.0
+  config.baseline_alert_severities = [:critical, :high]
+  config.baseline_alert_cooldown_minutes = 120
+
+  # Fuzzy Error Matching
+  config.enable_similar_errors = true
+
+  # Co-occurring Errors
+  config.enable_co_occurring_errors = true
+
+  # Error Cascade Detection
+  config.enable_error_cascades = true
+
+  # Error Correlation Analysis
+  config.enable_error_correlation = true
+
+  # Platform Comparison
+  config.enable_platform_comparison = true
+
+  # Occurrence Pattern Detection
+  config.enable_occurrence_patterns = true
+
+  # ============================================================================
+  # ADDITIONAL CONFIGURATION
+  # ============================================================================
+
+  # Custom severity rules
+  config.custom_severity_rules = {
+    "PaymentError" => :critical,
+    "ValidationError" => :low
+  }
+
+  # Enhanced metrics
+  config.app_version = ENV["APP_VERSION"]
+  config.git_sha = ENV["GIT_SHA"]
+  # config.total_users_for_impact = 10000  # For user impact % calculation
 end
 
-# === Notification Callbacks ===
+# ============================================================================
+# NOTIFICATION CALLBACKS
+# ============================================================================
 
 # Alert on critical errors
 RailsErrorDashboard.on_critical_error do |error_log|
@@ -582,7 +899,9 @@ RailsErrorDashboard.on_error_resolved do |error_log|
   )
 end
 
-# === ActiveSupport Notifications ===
+# ============================================================================
+# ACTIVESUPPORT NOTIFICATIONS
+# ============================================================================
 
 # Send to external logging service
 ActiveSupport::Notifications.subscribe("error_logged.rails_error_dashboard") do |*args|

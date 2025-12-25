@@ -1,6 +1,14 @@
-# Error Correlation Guide (Phase 4.6)
+# Error Correlation Guide
 
-This guide covers the error correlation analysis features introduced in Phase 4.6, including release correlation, user correlation, and time-based correlation.
+This guide covers the error correlation analysis features, including release correlation, user correlation, and time-based correlation.
+
+**⚙️ Optional Feature** - Error correlation is disabled by default. Enable it in your initializer:
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_error_correlation = true
+end
+```
 
 ## Table of Contents
 
