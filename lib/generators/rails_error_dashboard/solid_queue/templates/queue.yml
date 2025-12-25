@@ -1,0 +1,55 @@
+# Solid Queue configuration for RailsErrorDashboard
+#
+# This file configures workers for error logging and notifications.
+# Adjust threads and processes based on your application's needs.
+
+# Development environment - optimized for low resource usage
+development:
+  workers:
+    # Error notifications (Slack, Email, Discord, PagerDuty, Webhooks)
+    - queues: error_notifications
+      threads: 2
+      processes: 1
+      polling_interval: 1
+
+    # Default queue (includes async error logging)
+    - queues: default
+      threads: 3
+      processes: 1
+      polling_interval: 1
+
+# Test environment - minimal configuration
+test:
+  workers:
+    - queues: "*"
+      threads: 1
+      processes: 1
+      polling_interval: 0.1
+
+# Production environment - optimized for throughput
+production:
+  workers:
+    # Error notifications - lower concurrency (external API calls)
+    - queues: error_notifications
+      threads: 3
+      processes: 1
+      polling_interval: 0.5
+
+    # Default queue - higher concurrency (database operations)
+    - queues: default
+      threads: 5
+      processes: 2
+      polling_interval: 0.5
+
+# Staging environment - similar to production but scaled down
+staging:
+  workers:
+    - queues: error_notifications
+      threads: 2
+      processes: 1
+      polling_interval: 0.5
+
+    - queues: default
+      threads: 3
+      processes: 1
+      polling_interval: 0.5

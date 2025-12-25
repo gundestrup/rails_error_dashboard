@@ -2,9 +2,9 @@
 
 RailsErrorDashboard.configure do |config|
   # Dashboard authentication credentials
-  # Change these in production or use environment variables
-  config.dashboard_username = ENV.fetch("ERROR_DASHBOARD_USER", "admin")
-  config.dashboard_password = ENV.fetch("ERROR_DASHBOARD_PASSWORD", "password")
+  # ⚠️ CHANGE THESE BEFORE PRODUCTION! ⚠️
+  config.dashboard_username = ENV.fetch("ERROR_DASHBOARD_USER", "gandalf")
+  config.dashboard_password = ENV.fetch("ERROR_DASHBOARD_PASSWORD", "youshallnotpass")
 
   # Require authentication for dashboard access
   # Set to false to disable authentication (not recommended in production)
@@ -61,4 +61,34 @@ RailsErrorDashboard.configure do |config|
   # Enable/disable Rails.error subscriber
   # Set to false if you don't want to use Rails error reporting
   config.enable_error_subscriber = true
+
+  # === PHASE 2: PERFORMANCE & SCALABILITY ===
+
+  # Backtrace size limiting
+  # Limits stored backtrace to N lines to reduce database size
+  # Full backtraces can be 100+ lines, but first 50 usually have the relevant info
+  # Reduces storage by up to 80% with minimal information loss
+  # config.max_backtrace_lines = 50
+
+  # Async error logging
+  # Process error logging in background jobs for better performance
+  # Prevents errors from blocking your main request/response cycle
+  # config.async_logging = true
+  # config.async_adapter = :sidekiq  # or :solid_queue, :async
+
+  # Error sampling rate (0.0 to 1.0)
+  # Sample non-critical errors to reduce volume in high-traffic apps
+  # 1.0 = log all errors (default)
+  # 0.1 = log 10% of non-critical errors
+  # Critical errors (SecurityError, NoMemoryError, etc.) are ALWAYS logged
+  # config.sampling_rate = 1.0
+
+  # Ignored exceptions
+  # Skip logging certain exception types
+  # Supports exact class names and regex patterns
+  # config.ignored_exceptions = [
+  #   "ActionController::RoutingError",
+  #   "ActionController::InvalidAuthenticityToken",
+  #   /^ActiveRecord::RecordNotFound/
+  # ]
 end

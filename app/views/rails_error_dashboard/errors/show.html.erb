@@ -4,7 +4,19 @@
       <%= link_to errors_path, class: "btn btn-outline-secondary btn-sm mb-2" do %>
         <i class="bi bi-arrow-left"></i> Back to Errors
       <% end %>
-      <h2 class="mb-0">Error Details</h2>
+      <h2 class="mb-0">
+        Error Details
+        <% severity = @error.severity %>
+        <% if severity == :critical %>
+          <span class="badge bg-danger fs-5">CRITICAL</span>
+        <% elsif severity == :high %>
+          <span class="badge bg-warning text-dark fs-5">HIGH</span>
+        <% elsif severity == :medium %>
+          <span class="badge bg-info text-dark fs-5">MEDIUM</span>
+        <% else %>
+          <span class="badge bg-secondary fs-5">LOW</span>
+        <% end %>
+      </h2>
     </div>
     <div>
       <% if @error.resolved? %>
@@ -76,6 +88,149 @@
         </div>
       </div>
 
+      <!-- Similar Errors (Fuzzy Matching) - Phase 4.1.1 -->
+      <% if @error.respond_to?(:similar_errors) %>
+        <% similar = @error.similar_errors(threshold: 0.6, limit: 5) %>
+        <% if similar.any? %>
+          <div class="card mb-4">
+            <div class="card-header bg-white">
+              <h5 class="mb-0">
+                <i class="bi bi-diagram-3"></i> Similar Errors
+                <span class="badge bg-info text-dark">Phase 4.1: Fuzzy Matching</span>
+              </h5>
+              <small class="text-muted">Errors with similar backtraces and messages (60%+ similarity)</small>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Similarity</th>
+                      <th>Error Type</th>
+                      <th>Message</th>
+                      <th>Platform</th>
+                      <th>Occurrences</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% similar.each do |item| %>
+                      <% similar_error = item[:error] %>
+                      <% similarity_pct = (item[:similarity] * 100).round %>
+                      <tr>
+                        <td>
+                          <div class="progress" style="width: 60px; height: 20px;">
+                            <div class="progress-bar bg-success" role="progressbar"
+                                 style="width: <%= similarity_pct %>%"
+                                 aria-valuenow="<%= similarity_pct %>"
+                                 aria-valuemin="0"
+                                 aria-valuemax="100">
+                              <%= similarity_pct %>%
+                            </div>
+                          </div>
+                        </td>
+                        <td><code><%= similar_error.error_type %></code></td>
+                        <td>
+                          <div class="text-truncate" style="max-width: 300px;"
+                               data-bs-toggle="tooltip"
+                               title="<%= similar_error.message %>">
+                            <%= similar_error.message %>
+                          </div>
+                        </td>
+                        <td>
+                          <% if similar_error.platform == 'iOS' %>
+                            <span class="badge badge-ios">iOS</span>
+                          <% elsif similar_error.platform == 'Android' %>
+                            <span class="badge badge-android">Android</span>
+                          <% else %>
+                            <span class="badge badge-api"><%= similar_error.platform || 'API' %></span>
+                          <% end %>
+                        </td>
+                        <td><span class="badge bg-primary"><%= similar_error.occurrence_count %>x</span></td>
+                        <td>
+                          <%= link_to "View", error_path(similar_error), class: "btn btn-sm btn-outline-primary" %>
+                        </td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+
+      <!-- Phase 4.1.2: Co-occurring Errors -->
+      <% if @error.respond_to?(:co_occurring_errors) %>
+        <% co_occurring = @error.co_occurring_errors(window_minutes: 5, min_frequency: 2, limit: 5) %>
+        <% if co_occurring.any? %>
+          <div class="card mb-4">
+            <div class="card-header bg-white">
+              <h5 class="mb-0">
+                <i class="bi bi-clock-history"></i> Co-occurring Errors
+                <span class="badge bg-info text-dark">Phase 4.1.2: Time Patterns</span>
+              </h5>
+              <small class="text-muted">Errors that occur within 5 minutes of this error</small>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Error Type</th>
+                      <th>Message</th>
+                      <th>Platform</th>
+                      <th>Frequency</th>
+                      <th>Avg Delay</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% co_occurring.each do |result| %>
+                      <% error = result[:error] %>
+                      <% frequency = result[:frequency] %>
+                      <% avg_delay = result[:avg_delay_seconds] %>
+                      <tr>
+                        <td>
+                          <span class="badge bg-danger"><%= error.error_type %></span>
+                        </td>
+                        <td>
+                          <span data-bs-toggle="tooltip" title="<%= error.message %>">
+                            <%= truncate(error.message, length: 60) %>
+                          </span>
+                        </td>
+                        <td>
+                          <% if error.platform.present? %>
+                            <span class="badge bg-secondary"><%= error.platform %></span>
+                          <% end %>
+                        </td>
+                        <td>
+                          <span class="badge bg-info text-dark">
+                            <%= frequency %> time<%= frequency > 1 ? 's' : '' %>
+                          </span>
+                        </td>
+                        <td>
+                          <% if avg_delay < 0 %>
+                            <span class="text-warning"><%= number_to_human(avg_delay.abs, units: {unit: "s", thousand: "s"}, precision: 1) %> before</span>
+                          <% elsif avg_delay > 0 %>
+                            <span class="text-success"><%= number_to_human(avg_delay, units: {unit: "s", thousand: "s"}, precision: 1) %> after</span>
+                          <% else %>
+                            <span class="text-muted">simultaneous</span>
+                          <% end %>
+                        </td>
+                        <td class="text-end">
+                          <%= link_to "View", error_path(error), class: "btn btn-sm btn-outline-primary" %>
+                        </td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+
       <!-- Related Errors -->
       <% if @related_errors.any? %>
         <div class="card">
@@ -130,6 +285,146 @@
           </div>
         </div>
       <% end %>
+
+      <!-- Error Cascades (Phase 4.1.3) -->
+      <% cascades = @error.error_cascades %>
+      <% if cascades[:parents].any? || cascades[:children].any? %>
+        <div class="card">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">
+              <i class="bi bi-diagram-3"></i> Error Cascades
+              <small class="text-muted ms-2">Causal relationships between errors</small>
+            </h5>
+          </div>
+          <div class="card-body">
+            <!-- Parent Errors (What causes this error) -->
+            <% if cascades[:parents].any? %>
+              <div class="mb-4">
+                <h6 class="text-danger">
+                  <i class="bi bi-arrow-down-circle"></i> Triggered By
+                  <small class="text-muted">(errors that cause this one)</small>
+                </h6>
+                <div class="table-responsive">
+                  <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Error Type</th>
+                        <th>Message</th>
+                        <th>Probability</th>
+                        <th>Frequency</th>
+                        <th>Avg Delay</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <% cascades[:parents].each do |cascade| %>
+                        <% parent = cascade[:error] %>
+                        <tr>
+                          <td>
+                            <span class="badge bg-<%= severity_color(parent.severity) %>">
+                              <%= parent.error_type %>
+                            </span>
+                          </td>
+                          <td>
+                            <div class="text-truncate" style="max-width: 250px;">
+                              <%= parent.message %>
+                            </div>
+                          </td>
+                          <td>
+                            <% probability_pct = (cascade[:probability] * 100).round(1) %>
+                            <span class="badge <%= probability_pct >= 70 ? 'bg-danger' : 'bg-warning' %>">
+                              <%= probability_pct %>%
+                            </span>
+                          </td>
+                          <td>
+                            <span class="badge bg-secondary"><%= cascade[:frequency] %>x</span>
+                          </td>
+                          <td>
+                            <small class="text-muted">
+                              <%= cascade[:avg_delay_seconds].round(1) %>s
+                            </small>
+                          </td>
+                          <td>
+                            <%= link_to "View", error_path(parent), class: "btn btn-sm btn-outline-primary" %>
+                          </td>
+                        </tr>
+                      <% end %>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            <% end %>
+
+            <!-- Child Errors (What this error causes) -->
+            <% if cascades[:children].any? %>
+              <div>
+                <h6 class="text-warning">
+                  <i class="bi bi-arrow-up-circle"></i> Triggers
+                  <small class="text-muted">(errors caused by this one)</small>
+                </h6>
+                <div class="table-responsive">
+                  <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Error Type</th>
+                        <th>Message</th>
+                        <th>Probability</th>
+                        <th>Frequency</th>
+                        <th>Avg Delay</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <% cascades[:children].each do |cascade| %>
+                        <% child = cascade[:error] %>
+                        <tr>
+                          <td>
+                            <span class="badge bg-<%= severity_color(child.severity) %>">
+                              <%= child.error_type %>
+                            </span>
+                          </td>
+                          <td>
+                            <div class="text-truncate" style="max-width: 250px;">
+                              <%= child.message %>
+                            </div>
+                          </td>
+                          <td>
+                            <% probability_pct = (cascade[:probability] * 100).round(1) %>
+                            <span class="badge <%= probability_pct >= 70 ? 'bg-danger' : 'bg-warning' %>">
+                              <%= probability_pct %>%
+                            </span>
+                          </td>
+                          <td>
+                            <span class="badge bg-secondary"><%= cascade[:frequency] %>x</span>
+                          </td>
+                          <td>
+                            <small class="text-muted">
+                              +<%= cascade[:avg_delay_seconds].round(1) %>s
+                            </small>
+                          </td>
+                          <td>
+                            <%= link_to "View", error_path(child), class: "btn btn-sm btn-outline-primary" %>
+                          </td>
+                        </tr>
+                      <% end %>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            <% end %>
+
+            <div class="mt-3">
+              <small class="text-muted">
+                <i class="bi bi-info-circle"></i>
+                Cascade patterns show causal relationships. High probability (≥70%) and frequency (≥3) indicate strong cascades.
+              </small>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <!-- Phase 4.5: Occurrence Patterns and Bursts -->
+      <%= render "pattern_insights" %>
     </div>
 
     <!-- Sidebar -->
@@ -141,16 +436,37 @@
         </div>
         <div class="card-body">
           <div class="mb-3">
-            <small class="text-muted d-block mb-1">Occurred At</small>
-            <strong><%= @error.occurred_at.strftime("%B %d, %Y") %></strong><br>
-            <small><%= @error.occurred_at.strftime("%I:%M:%S %p %Z") %></small>
+            <small class="text-muted d-block mb-1">Occurrence Count</small>
+            <span class="badge bg-primary fs-5"><%= @error.occurrence_count %>x</span>
+            <% if @error.occurrence_count > 1 %>
+              <br><small class="text-muted">This error has occurred <%= @error.occurrence_count %> times</small>
+            <% end %>
           </div>
 
           <div class="mb-3">
-            <small class="text-muted d-block mb-1">Environment</small>
-            <span class="badge <%= @error.environment == 'production' ? 'bg-danger' : 'bg-info' %>">
-              <%= @error.environment.titleize %>
-            </span>
+            <small class="text-muted d-block mb-1">First Seen</small>
+            <strong><%= @error.first_seen_at&.strftime("%B %d, %Y") || 'N/A' %></strong><br>
+            <small><%= @error.first_seen_at&.strftime("%I:%M:%S %p %Z") || 'N/A' %></small>
+          </div>
+
+          <div class="mb-3">
+            <small class="text-muted d-block mb-1">Last Seen</small>
+            <strong><%= @error.last_seen_at&.strftime("%B %d, %Y") || 'N/A' %></strong><br>
+            <small><%= @error.last_seen_at&.strftime("%I:%M:%S %p %Z") || 'N/A' %></small>
+          </div>
+
+          <div class="mb-3">
+            <small class="text-muted d-block mb-1">Severity Level</small>
+            <% severity = @error.severity %>
+            <% if severity == :critical %>
+              <span class="badge bg-danger fs-6">CRITICAL</span>
+            <% elsif severity == :high %>
+              <span class="badge bg-warning text-dark fs-6">HIGH</span>
+            <% elsif severity == :medium %>
+              <span class="badge bg-info text-dark fs-6">MEDIUM</span>
+            <% else %>
+              <span class="badge bg-secondary fs-6">LOW</span>
+            <% end %>
           </div>
 
           <div class="mb-3">
@@ -222,6 +538,101 @@
           </div>
         </div>
       </div>
+
+      <!-- Phase 4.2: Baseline Statistics -->
+      <% baselines = @error.baselines %>
+      <% if baselines[:hourly].present? || baselines[:daily].present? || baselines[:weekly].present? %>
+        <div class="card mb-4">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">
+              <i class="bi bi-graph-up"></i> Baseline Statistics
+              <small class="text-muted ms-2">Historical patterns</small>
+            </h5>
+          </div>
+          <div class="card-body">
+            <% anomaly = @error.baseline_anomaly %>
+            <% if anomaly[:anomaly] %>
+              <div class="alert alert-<%= anomaly[:level] == :critical ? 'danger' : anomaly[:level] == :high ? 'warning' : 'info' %> mb-3">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <strong>Anomaly Detected!</strong><br>
+                <small>
+                  This error is <%= anomaly[:std_devs_above]&.round(1) %>σ above baseline
+                  (<%= anomaly[:level].to_s.upcase %>)
+                </small>
+              </div>
+            <% end %>
+
+            <% [:hourly, :daily, :weekly].each do |type| %>
+              <% baseline = baselines[type] %>
+              <% next unless baseline %>
+
+              <div class="mb-3">
+                <small class="text-muted d-block mb-1 text-capitalize">
+                  <i class="bi bi-<%= type == :hourly ? 'clock' : type == :daily ? 'calendar-day' : 'calendar-week' %>"></i>
+                  <%= type.to_s.capitalize %> Baseline
+                </small>
+
+                <div class="row g-2">
+                  <div class="col-6">
+                    <div class="text-center p-2 bg-light rounded">
+                      <small class="text-muted d-block">Mean</small>
+                      <strong><%= baseline.mean&.round(1) || 'N/A' %></strong>
+                    </div>
+                  </div>
+                  <div class="col-6">
+                    <div class="text-center p-2 bg-light rounded">
+                      <small class="text-muted d-block">Std Dev</small>
+                      <strong><%= baseline.std_dev&.round(1) || 'N/A' %></strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row g-2 mt-2">
+                  <div class="col-6">
+                    <div class="text-center p-2 bg-light rounded">
+                      <small class="text-muted d-block">95th %</small>
+                      <strong><%= baseline.percentile_95&.round(1) || 'N/A' %></strong>
+                    </div>
+                  </div>
+                  <div class="col-6">
+                    <div class="text-center p-2 bg-light rounded">
+                      <small class="text-muted d-block">99th %</small>
+                      <strong><%= baseline.percentile_99&.round(1) || 'N/A' %></strong>
+                    </div>
+                  </div>
+                </div>
+
+                <% if baseline.mean && baseline.std_dev %>
+                  <div class="mt-2">
+                    <small class="text-muted">
+                      Threshold (2σ): <strong><%= baseline.threshold(sensitivity: 2)&.round(1) %></strong>
+                    </small>
+                  </div>
+                <% end %>
+
+                <div class="mt-2">
+                  <small class="text-muted">
+                    Sample: <%= baseline.sample_size %> periods
+                    <span class="text-muted">|</span>
+                    Updated: <%= baseline.updated_at&.strftime("%m/%d %I:%M%p") %>
+                  </small>
+                </div>
+              </div>
+
+              <% unless baseline == baselines.values.compact.last %>
+                <hr>
+              <% end %>
+            <% end %>
+
+            <div class="mt-3">
+              <small class="text-muted">
+                <i class="bi bi-info-circle"></i>
+                Baselines establish "normal" error rates. Anomalies are detected when current rates exceed baseline + 2σ.
+              </small>
+            </div>
+          </div>
+        </div>
+      <% end %>
 
       <!-- Quick Actions -->
       <div class="card">

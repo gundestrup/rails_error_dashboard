@@ -6,7 +6,7 @@ module RailsErrorDashboard
     # Extracts and normalizes context information from various sources
     class ErrorContext
       attr_reader :user_id, :request_url, :request_params, :user_agent, :ip_address, :platform,
-                  :controller_name, :action_name
+                  :controller_name, :action_name, :request_id, :session_id
 
       def initialize(context, source = nil)
         @context = context
@@ -20,6 +20,8 @@ module RailsErrorDashboard
         @platform = detect_platform
         @controller_name = extract_controller_name
         @action_name = extract_action_name
+        @request_id = extract_request_id
+        @session_id = extract_session_id
       end
 
       def to_h
@@ -140,6 +142,30 @@ module RailsErrorDashboard
 
         # From action parameter
         return @context[:action] if @context[:action]
+
+        nil
+      end
+
+      def extract_request_id
+        # From Rails request
+        return @context[:request]&.request_id if @context[:request]&.respond_to?(:request_id)
+
+        # From explicit context
+        return @context[:request_id] if @context[:request_id]
+
+        # From job ID (for background jobs)
+        return @context[:job]&.job_id if @context[:job]
+        return @context[:jid] if @context[:jid]
+
+        nil
+      end
+
+      def extract_session_id
+        # From Rails session
+        return @context[:request]&.session&.id if @context[:request]&.session
+
+        # From explicit context
+        return @context[:session_id] if @context[:session_id]
 
         nil
       end

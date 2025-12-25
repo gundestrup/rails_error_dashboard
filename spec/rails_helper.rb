@@ -3,7 +3,9 @@
 require 'spec_helper'
 
 # Load the database schema if the database doesn't have tables yet
-ActiveRecord::Migration.maintain_test_schema!
+# Use schema.rb instead of maintaining migrations to avoid conflicts
+# between gem migrations and dummy app migrations
+ActiveRecord::Tasks::DatabaseTasks.load_schema_current
 
 RSpec.configure do |config|
   # Enable transactional fixtures
@@ -16,5 +18,11 @@ RSpec.configure do |config|
   config.before(:each) do
     clear_enqueued_jobs
     clear_performed_jobs
+  end
+
+  # ActionMailer configuration
+  config.before(:each) do
+    ActionMailer::Base.deliveries.clear
+    ActionMailer::Base.delivery_method = :test
   end
 end

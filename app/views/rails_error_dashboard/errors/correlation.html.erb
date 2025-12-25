@@ -1,0 +1,373 @@
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+      <i class="bi bi-diagram-3 me-2"></i>
+      Error Correlation Analysis
+    </h1>
+
+    <div class="btn-group" role="group">
+      <%= link_to correlation_errors_path(days: 7), class: "btn btn-sm #{@days == 7 ? 'btn-primary' : 'btn-outline-primary'}" do %>
+        7 Days
+      <% end %>
+      <%= link_to correlation_errors_path(days: 30), class: "btn btn-sm #{@days == 30 ? 'btn-primary' : 'btn-outline-primary'}" do %>
+        30 Days
+      <% end %>
+      <%= link_to correlation_errors_path(days: 90), class: "btn btn-sm #{@days == 90 ? 'btn-primary' : 'btn-outline-primary'}" do %>
+        90 Days
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Period Comparison -->
+  <% if @period_comparison.present? %>
+    <div class="card mb-4">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">
+          <i class="bi bi-graph-up-arrow me-2"></i>
+          Trend Analysis
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-4">
+            <h6 class="text-muted">Current Period</h6>
+            <div class="display-6"><%= @period_comparison[:current_period][:count] %></div>
+            <small class="text-muted">
+              <%= @period_comparison[:current_period][:start].strftime("%b %d") %> - <%= @period_comparison[:current_period][:end].strftime("%b %d") %>
+            </small>
+          </div>
+          <div class="col-md-4">
+            <h6 class="text-muted">Previous Period</h6>
+            <div class="display-6"><%= @period_comparison[:previous_period][:count] %></div>
+            <small class="text-muted">
+              <%= @period_comparison[:previous_period][:start].strftime("%b %d") %> - <%= @period_comparison[:previous_period][:end].strftime("%b %d") %>
+            </small>
+          </div>
+          <div class="col-md-4">
+            <h6 class="text-muted">Change</h6>
+            <div class="display-6 <%= @period_comparison[:change] > 0 ? 'text-danger' : 'text-success' %>">
+              <%= @period_comparison[:change] > 0 ? '+' : '' %><%= @period_comparison[:change] %>
+            </div>
+            <div>
+              <span class="badge bg-<%= @period_comparison[:change] > 0 ? 'danger' : 'success' %> fs-6">
+                <%= @period_comparison[:change_percentage] > 0 ? '+' : '' %><%= @period_comparison[:change_percentage] %>%
+              </span>
+              <span class="ms-2 text-muted text-capitalize"><%= @period_comparison[:trend].to_s.gsub('_', ' ') %></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Problematic Releases -->
+  <% if @problematic_releases.present? && @problematic_releases.any? %>
+    <div class="card mb-4 border-danger">
+      <div class="card-header bg-danger text-white">
+        <h5 class="mb-0">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>
+          Problematic Releases
+          <span class="badge bg-white text-danger"><%= @problematic_releases.count %></span>
+        </h5>
+        <small>Versions with more than 2x the average error rate</small>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Version</th>
+                <th>Error Count</th>
+                <th>Deviation from Avg</th>
+                <th>Critical Errors</th>
+                <th>Unique Error Types</th>
+                <th>Platforms</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @problematic_releases.each do |release| %>
+                <tr>
+                  <td><code><%= release[:version] %></code></td>
+                  <td><strong class="text-danger"><%= release[:error_count] %></strong></td>
+                  <td>
+                    <span class="badge bg-danger">
+                      +<%= release[:deviation_from_avg] %>%
+                    </span>
+                  </td>
+                  <td><%= release[:critical_count] %></td>
+                  <td><%= release[:error_types] %></td>
+                  <td>
+                    <% release[:platforms].each do |platform| %>
+                      <span class="badge bg-secondary text-capitalize me-1"><%= platform %></span>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="row mb-4">
+    <!-- Errors by Version -->
+    <% if @errors_by_version.present? && @errors_by_version.any? %>
+      <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">
+              <i class="bi bi-tag me-2"></i>
+              Errors by App Version
+            </h5>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm table-hover">
+                <thead>
+                  <tr>
+                    <th>Version</th>
+                    <th>Errors</th>
+                    <th>Types</th>
+                    <th>Critical</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @errors_by_version.sort_by { |_, v| -v[:count] }.first(10).each do |version, data| %>
+                    <tr>
+                      <td><code><%= version %></code></td>
+                      <td><%= data[:count] %></td>
+                      <td><%= data[:error_types] %></td>
+                      <td>
+                        <% if data[:critical_count] > 0 %>
+                          <span class="badge bg-danger"><%= data[:critical_count] %></span>
+                        <% else %>
+                          <span class="text-muted">0</span>
+                        <% end %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Errors by Git SHA -->
+    <% if @errors_by_git_sha.present? && @errors_by_git_sha.any? %>
+      <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">
+              <i class="bi bi-git me-2"></i>
+              Errors by Git SHA
+            </h5>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm table-hover">
+                <thead>
+                  <tr>
+                    <th>SHA</th>
+                    <th>Errors</th>
+                    <th>Types</th>
+                    <th>Versions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @errors_by_git_sha.sort_by { |_, v| -v[:count] }.first(10).each do |sha, data| %>
+                    <tr>
+                      <td><code class="small"><%= sha[0..7] %></code></td>
+                      <td><%= data[:count] %></td>
+                      <td><%= data[:error_types] %></td>
+                      <td>
+                        <% data[:app_versions].each do |version| %>
+                          <code class="small"><%= version %></code>
+                        <% end %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <!-- Multi-Error Users -->
+  <% if @multi_error_users.present? && @multi_error_users.any? %>
+    <div class="card mb-4">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">
+          <i class="bi bi-people-fill me-2"></i>
+          Users Affected by Multiple Error Types
+          <span class="badge bg-info"><%= @multi_error_users.count %></span>
+        </h5>
+        <small class="text-muted">Users experiencing 2+ different error types</small>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Different Error Types</th>
+                <th>Total Errors</th>
+                <th>Error Types</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @multi_error_users.first(20).each do |user_data| %>
+                <tr>
+                  <td><%= user_data[:user_email] %></td>
+                  <td>
+                    <span class="badge bg-warning text-dark">
+                      <%= user_data[:error_type_count] %> types
+                    </span>
+                  </td>
+                  <td><%= user_data[:total_errors] %></td>
+                  <td>
+                    <% user_data[:error_types].first(3).each do |error_type| %>
+                      <code class="small me-1"><%= error_type %></code>
+                    <% end %>
+                    <% if user_data[:error_types].count > 3 %>
+                      <span class="text-muted small">+<%= user_data[:error_types].count - 3 %> more</span>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        <% if @multi_error_users.count > 20 %>
+          <p class="text-muted small mb-0">
+            Showing 20 of <%= @multi_error_users.count %> users
+          </p>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Time-Correlated Errors -->
+  <% if @time_correlated_errors.present? && @time_correlated_errors.any? %>
+    <div class="card mb-4">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">
+          <i class="bi bi-clock-history me-2"></i>
+          Time-Correlated Errors
+          <span class="badge bg-info"><%= @time_correlated_errors.count %></span>
+        </h5>
+        <small class="text-muted">Error types that occur at similar times of day</small>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Error Type A</th>
+                <th></th>
+                <th>Error Type B</th>
+                <th>Correlation</th>
+                <th>Strength</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @time_correlated_errors.first(15).each do |_, data| %>
+                <tr>
+                  <td><code><%= data[:error_type_a] %></code></td>
+                  <td class="text-center"><i class="bi bi-arrow-left-right"></i></td>
+                  <td><code><%= data[:error_type_b] %></code></td>
+                  <td>
+                    <div class="progress" style="width: 100px; height: 20px;">
+                      <div class="progress-bar bg-info" role="progressbar"
+                           style="width: <%= (data[:correlation] * 100).round %>%">
+                        <%= (data[:correlation] * 100).round %>%
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <% case data[:strength] %>
+                    <% when :strong %>
+                      <span class="badge bg-success">Strong</span>
+                    <% when :moderate %>
+                      <span class="badge bg-info">Moderate</span>
+                    <% else %>
+                      <span class="badge bg-secondary">Weak</span>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        <% if @time_correlated_errors.count > 15 %>
+          <p class="text-muted small mb-0">
+            Showing 15 of <%= @time_correlated_errors.count %> correlated error pairs
+          </p>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Platform-Specific Errors -->
+  <% if @platform_specific_errors.present? && @platform_specific_errors.any? %>
+    <div class="card mb-4">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">
+          <i class="bi bi-phone me-2"></i>
+          Platform-Specific vs Cross-Platform Errors
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <% @platform_specific_errors.each do |platform, errors| %>
+            <div class="col-md-6 mb-3">
+              <h6 class="text-capitalize"><%= platform %></h6>
+              <div class="list-group">
+                <% errors.each do |error_data| %>
+                  <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-start">
+                      <div>
+                        <code class="small"><%= error_data[:error_type] %></code>
+                        <div class="small text-muted mt-1">
+                          <%= error_data[:count] %> occurrences
+                        </div>
+                      </div>
+                      <div>
+                        <% if error_data[:platform_specific] %>
+                          <span class="badge bg-primary">Platform-Specific</span>
+                        <% else %>
+                          <span class="badge bg-secondary">Cross-Platform</span>
+                          <div class="small text-muted mt-1">
+                            Also on: <%= error_data[:also_on].join(', ') %>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Empty State -->
+  <% if @errors_by_version.blank? && @multi_error_users.blank? && @time_correlated_errors.blank? %>
+    <div class="alert alert-info">
+      <i class="bi bi-info-circle me-2"></i>
+      Not enough data available for correlation analysis. Correlation analysis requires:
+      <ul class="mb-0 mt-2">
+        <li>App version tracking for release correlation</li>
+        <li>User tracking for user correlation</li>
+        <li>Multiple error types for time correlation</li>
+      </ul>
+    </div>
+  <% end %>
+</div>

@@ -16,7 +16,7 @@
 
   <!-- Summary Stats -->
   <div class="row g-4 mb-4">
-    <div class="col-md-3">
+    <div class="col-md-4">
       <div class="card stat-card border-primary">
         <div class="card-body">
           <div class="stat-label mb-2 text-primary">Total Errors</div>
@@ -24,7 +24,7 @@
         </div>
       </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-4">
       <div class="card stat-card border-danger">
         <div class="card-body">
           <div class="stat-label mb-2 text-danger">Unresolved</div>
@@ -32,20 +32,11 @@
         </div>
       </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-4">
       <div class="card stat-card border-success">
         <div class="card-body">
           <div class="stat-label mb-2 text-success">Resolution Rate</div>
           <div class="stat-value text-success"><%= @resolution_rate %>%</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card stat-card border-info">
-        <div class="card-body">
-          <div class="stat-label mb-2 text-info">Mobile Errors</div>
-          <div class="stat-value text-info"><%= @mobile_errors %></div>
-          <small class="text-muted">vs <%= @api_errors %> API</small>
         </div>
       </div>
     </div>
@@ -68,37 +59,26 @@
   </div>
 
   <!-- Charts Row 1 -->
-  <div class="row g-4 mb-4">
-    <div class="col-md-6">
-      <div class="card">
-        <div class="card-header bg-white">
-          <h5 class="mb-0"><i class="bi bi-phone"></i> Errors by Platform</h5>
-        </div>
-        <div class="card-body">
-          <%= pie_chart @errors_by_platform,
-              colors: ["#000000", "#3DDC84", "#3B82F6"],
-              height: "300px",
-              legend: "bottom",
-              donut: true %>
-        </div>
-      </div>
-    </div>
+  <% show_platform_chart = @errors_by_platform.size > 1 %>
 
-    <div class="col-md-6">
-      <div class="card">
-        <div class="card-header bg-white">
-          <h5 class="mb-0"><i class="bi bi-server"></i> Errors by Environment</h5>
-        </div>
-        <div class="card-body">
-          <%= pie_chart @errors_by_environment,
-              colors: ["#10B981", "#EF4444", "#F59E0B"],
-              height: "300px",
-              legend: "bottom",
-              donut: true %>
+  <% if show_platform_chart %>
+    <div class="row g-4 mb-4">
+      <div class="col-md-12">
+        <div class="card">
+          <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="bi bi-phone"></i> Errors by Platform</h5>
+          </div>
+          <div class="card-body">
+            <%= pie_chart @errors_by_platform,
+                colors: ["#000000", "#3DDC84", "#3B82F6"],
+                height: "300px",
+                legend: "bottom",
+                donut: true %>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  <% end %>
 
   <!-- Charts Row 2 -->
   <div class="row g-4 mb-4">

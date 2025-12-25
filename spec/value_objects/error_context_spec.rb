@@ -11,7 +11,9 @@ RSpec.describe RailsErrorDashboard::ValueObjects::ErrorContext do
           fullpath: '/users/123',
           params: ActionController::Parameters.new(id: 123, controller: 'users', action: 'show'),
           user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)',
-          remote_ip: '192.168.1.1'
+          remote_ip: '192.168.1.1',
+          request_id: 'req-abc-123',
+          session: double('Session', id: 'sess-xyz-456')
         )
       end
       let(:context) { { current_user: user, request: request } }

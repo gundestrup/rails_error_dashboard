@@ -15,6 +15,11 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartkick@5.0.1/dist/chartkick.min.js"></script>
 
+    <!-- Turbo for real-time updates -->
+    <script type="module">
+      import * as Turbo from 'https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/+esm'
+    </script>
+
     <style>
       :root {
         --primary-color: #8B5CF6;
@@ -231,10 +236,89 @@
         height: 300px;
         margin: 1rem 0;
       }
+
+      /* Real-time updates - new error animation */
+      @keyframes slideInFade {
+        0% {
+          transform: translateY(-20px);
+          opacity: 0;
+          background-color: #FEF3C7;
+        }
+        10% {
+          transform: translateY(0);
+          opacity: 1;
+          background-color: #FEF3C7;
+        }
+        100% {
+          background-color: transparent;
+        }
+      }
+
+      /* Highlight new errors */
+      #error_list tr:first-child.new-error {
+        animation: slideInFade 3s ease-out;
+      }
+
+      /* Live indicator pulse */
+      @keyframes pulse {
+        0%, 100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      #live-indicator {
+        animation: pulse 2s ease-in-out infinite;
+      }
+
+      /* Updated stat card pulse */
+      @keyframes statPulse {
+        0%, 100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.05);
+        }
+      }
+
+      .stat-card.updated {
+        animation: statPulse 0.5s ease-out;
+      }
+
+      /* Loading indicator */
+      #loading-indicator {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #8B5CF6 0%, #6D28D9 100%);
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.3s ease;
+        z-index: 9999;
+        display: none;
+      }
+
+      #loading-indicator.active {
+        display: block;
+        animation: loadingProgress 2s ease-in-out forwards;
+      }
+
+      @keyframes loadingProgress {
+        0% { transform: scaleX(0); }
+        50% { transform: scaleX(0.7); }
+        100% { transform: scaleX(1); opacity: 0; }
+      }
     </style>
   </head>
 
   <body>
+    <!-- Loading Indicator -->
+    <div id="loading-indicator"></div>
+
     <!-- Top Navbar -->
     <nav class="navbar navbar-dark">
       <div class="container-fluid">
@@ -274,6 +358,16 @@
                   <i class="bi bi-graph-up"></i> Analytics
                 <% end %>
               </li>
+              <li class="nav-item">
+                <%= link_to platform_comparison_errors_path, class: "nav-link #{request.path == platform_comparison_errors_path ? 'active' : ''}" do %>
+                  <i class="bi bi-phone"></i> Platform Health
+                <% end %>
+              </li>
+              <li class="nav-item">
+                <%= link_to correlation_errors_path, class: "nav-link #{request.path == correlation_errors_path ? 'active' : ''}" do %>
+                  <i class="bi bi-diagram-3"></i> Correlation
+                <% end %>
+              </li>
             </ul>
 
             <hr class="my-3">
@@ -295,11 +389,6 @@
               <li class="nav-item">
                 <%= link_to errors_path(platform: 'Android'), class: "nav-link" do %>
                   <i class="bi bi-phone"></i> Android Errors
-                <% end %>
-              </li>
-              <li class="nav-item">
-                <%= link_to errors_path(environment: 'production'), class: "nav-link" do %>
-                  <i class="bi bi-server"></i> Production
                 <% end %>
               </li>
             </ul>
@@ -346,6 +435,27 @@
           icon.className = 'bi bi-moon-fill';
         }
       }
+
+      // Loading indicator for form submissions and link clicks
+      const loadingIndicator = document.getElementById('loading-indicator');
+
+      // Show loading on form submit
+      document.addEventListener('submit', function() {
+        loadingIndicator.classList.add('active');
+      });
+
+      // Show loading on link clicks (except anchors)
+      document.addEventListener('click', function(e) {
+        const link = e.target.closest('a');
+        if (link && link.href && !link.href.startsWith('#') && !link.target) {
+          loadingIndicator.classList.add('active');
+        }
+      });
+
+      // Hide loading when page loads
+      window.addEventListener('load', function() {
+        loadingIndicator.classList.remove('active');
+      });
     </script>
   </body>
 </html>

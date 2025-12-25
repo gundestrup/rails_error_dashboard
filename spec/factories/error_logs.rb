@@ -2,7 +2,7 @@
 
 FactoryBot.define do
   factory :error_log, class: 'RailsErrorDashboard::ErrorLog' do
-    error_type { [ 'ActiveRecord::RecordNotFound', 'ArgumentError', 'NoMethodError', 'TypeError' ].sample }
+    error_type { 'StandardError' }
     message { Faker::Lorem.sentence }
     backtrace { "#{Faker::File.file_name}:#{Faker::Number.between(from: 1, to: 100)}:in `#{Faker::Hacker.verb}'\n" * 5 }
     user_id { nil }
@@ -10,8 +10,7 @@ FactoryBot.define do
     request_params { { controller: 'users', action: 'show', id: rand(1..100) }.to_json }
     user_agent { Faker::Internet.user_agent }
     ip_address { Faker::Internet.ip_v4_address }
-    environment { [ 'development', 'staging', 'production' ].sample }
-    platform { [ 'iOS', 'Android', 'API', 'Web' ].sample }
+    platform { 'Web' }
     resolved { false }
     occurred_at { Time.current }
 
@@ -38,12 +37,12 @@ FactoryBot.define do
       user_agent { 'Rails Application' }
     end
 
-    trait :production do
-      environment { 'production' }
-    end
-
     trait :with_user do
       user_id { rand(1..100) }
+    end
+
+    trait :with_backtrace do
+      backtrace { "app/models/user.rb:10:in `save'\napp/controllers/users_controller.rb:20:in `create'\napp/services/user_service.rb:5:in `process'" }
     end
   end
 end

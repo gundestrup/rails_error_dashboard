@@ -1,0 +1,34 @@
+<div class="row g-4">
+  <div class="col-md-3">
+    <div class="card stat-card">
+      <div class="card-body">
+        <div class="stat-label mb-2">Today</div>
+        <div class="stat-value text-info"><%= stats[:total_today] %></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card">
+      <div class="card-body">
+        <div class="stat-label mb-2">This Week</div>
+        <div class="stat-value text-primary"><%= stats[:total_week] %></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card">
+      <div class="card-body">
+        <div class="stat-label mb-2">Unresolved</div>
+        <div class="stat-value text-danger"><%= stats[:unresolved] %></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card">
+      <div class="card-body">
+        <div class="stat-label mb-2">Resolved</div>
+        <div class="stat-value text-success"><%= stats[:resolved] %></div>
+      </div>
+    </div>
+  </div>
+</div>

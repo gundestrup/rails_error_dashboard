@@ -55,11 +55,11 @@ module RailsErrorDashboard
 
         ticket_data = {
           project: { key: @jira_project_key },
-          summary: "[#{error_log.environment}] #{error_log.error_type}",
+          summary: "#{error_log.error_type}",
           description: build_description(error_log),
           issuetype: { name: "Bug" },
           priority: { name: jira_priority(error_log) },
-          labels: [ "rails-error-dashboard", error_log.platform, error_log.environment ]
+          labels: [ "rails-error-dashboard", error_log.platform ].compact
         }
 
         Rails.logger.info("Would create Jira ticket: #{ticket_data.to_json}")
@@ -81,7 +81,6 @@ module RailsErrorDashboard
           *Error Type:* #{error_log.error_type}
           *Message:* #{error_log.message}
           *Platform:* #{error_log.platform}
-          *Environment:* #{error_log.environment}
           *Severity:* #{error_log.severity}
           *Controller:* #{error_log.controller_name}
           *Action:* #{error_log.action_name}

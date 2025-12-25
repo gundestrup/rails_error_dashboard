@@ -3,10 +3,9 @@
 ==========================================
 
 Error Type: <%= @error_log.error_type %>
-Environment: <%= @error_log.environment.upcase %>
 <% if @error_log.platform.present? %>Platform: <%= @error_log.platform %><% end %>
 Occurred At: <%= @error_log.occurred_at.strftime('%B %d, %Y at %I:%M %p %Z') %>
-<% if @error_log.user.present? %>User: <%= @error_log.user.email %><% end %>
+<% if @error_log.user_id.present? %>User ID: <%= @error_log.user_id %><% end %>
 <% if @error_log.ip_address.present? %>IP Address: <%= @error_log.ip_address %><% end %>
 <% if @error_log.request_url.present? %>Request URL: <%= @error_log.request_url %><% end %>
 

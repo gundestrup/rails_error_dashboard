@@ -21,12 +21,6 @@ RSpec.describe RailsErrorDashboard::ErrorLog, type: :model do
       expect(error_log.errors[:message]).to include("can't be blank")
     end
 
-    it 'requires environment' do
-      error_log = build(:error_log, environment: nil)
-      error_log.valid? # Trigger before_validation callback
-      expect(error_log.environment).to be_present
-    end
-
     it 'requires occurred_at' do
       error_log = build(:error_log, occurred_at: nil)
       expect(error_log).not_to be_valid
@@ -39,7 +33,6 @@ RSpec.describe RailsErrorDashboard::ErrorLog, type: :model do
     let!(:unresolved_error) { create(:error_log) }
     let!(:ios_error) { create(:error_log, :ios) }
     let!(:android_error) { create(:error_log, :android) }
-    let!(:prod_error) { create(:error_log, :production) }
     let!(:old_error) { create(:error_log, occurred_at: 2.days.ago) }
     let!(:recent_error) { create(:error_log, occurred_at: 1.hour.ago) }
 
@@ -66,12 +59,6 @@ RSpec.describe RailsErrorDashboard::ErrorLog, type: :model do
       it 'filters by Android' do
         expect(described_class.by_platform('Android')).to include(android_error)
         expect(described_class.by_platform('Android')).not_to include(ios_error)
-      end
-    end
-
-    describe '.by_environment' do
-      it 'filters by environment' do
-        expect(described_class.by_environment('production')).to include(prod_error)
       end
     end
 
@@ -131,13 +118,6 @@ RSpec.describe RailsErrorDashboard::ErrorLog, type: :model do
   end
 
   describe 'default values' do
-    it 'sets environment from Rails.env by default' do
-      error_log = create(:error_log, environment: nil)
-      error_log.reload
-      # Environment is set in the factory, so we test that it's present
-      expect(error_log.environment).to be_present
-    end
-
     it 'sets platform to API by default' do
       error_log = build(:error_log, platform: nil)
       error_log.valid? # Trigger before_validation callback
@@ -275,8 +255,7 @@ RSpec.describe RailsErrorDashboard::ErrorLog, type: :model do
             resolved_error.error_hash,
             error_type: 'NoMethodError',
             message: 'undefined method',
-            occurred_at: Time.current,
-            environment: 'test'
+            occurred_at: Time.current
           )
         }.to change(described_class, :count).by(1)
       end
@@ -297,8 +276,7 @@ RSpec.describe RailsErrorDashboard::ErrorLog, type: :model do
             old_error.error_hash,
             error_type: 'NoMethodError',
             message: 'undefined method',
-            occurred_at: Time.current,
-            environment: 'test'
+            occurred_at: Time.current
           )
         }.to change(described_class, :count).by(1)
       end
@@ -311,8 +289,7 @@ RSpec.describe RailsErrorDashboard::ErrorLog, type: :model do
             'new_hash_12345678',
             error_type: 'ArgumentError',
             message: 'wrong number of arguments',
-            occurred_at: Time.current,
-            environment: 'test'
+            occurred_at: Time.current
           )
         }.to change(described_class, :count).by(1)
       end
@@ -338,24 +315,114 @@ RSpec.describe RailsErrorDashboard::ErrorLog, type: :model do
     end
 
     describe '#severity' do
-      it 'returns :critical for critical errors' do
-        error = build(:error_log, error_type: 'SecurityError')
-        expect(error.severity).to eq(:critical)
+      context 'with default classification' do
+        it 'returns :critical for critical errors' do
+          error = build(:error_log, error_type: 'SecurityError')
+          expect(error.severity).to eq(:critical)
+        end
+
+        it 'returns :high for high severity errors' do
+          error = build(:error_log, error_type: 'NoMethodError')
+          expect(error.severity).to eq(:high)
+        end
+
+        it 'returns :medium for medium severity errors' do
+          error = build(:error_log, error_type: 'Timeout::Error')
+          expect(error.severity).to eq(:medium)
+        end
+
+        it 'returns :low for other errors' do
+          error = build(:error_log, error_type: 'CustomError')
+          expect(error.severity).to eq(:low)
+        end
       end
 
-      it 'returns :high for high severity errors' do
-        error = build(:error_log, error_type: 'NoMethodError')
-        expect(error.severity).to eq(:high)
+      context 'with custom severity rules' do
+        before do
+          RailsErrorDashboard.configure do |config|
+            config.custom_severity_rules = {
+              'CustomPaymentError' => :critical,
+              'CustomValidationError' => :low,
+              'NoMethodError' => :medium # Override default high
+            }
+          end
+        end
+
+        after do
+          RailsErrorDashboard.reset_configuration!
+        end
+
+        it 'uses custom rule for CustomPaymentError' do
+          error = build(:error_log, error_type: 'CustomPaymentError')
+          expect(error.severity).to eq(:critical)
+        end
+
+        it 'uses custom rule for CustomValidationError' do
+          error = build(:error_log, error_type: 'CustomValidationError')
+          expect(error.severity).to eq(:low)
+        end
+
+        it 'overrides default classification with custom rule' do
+          # NoMethodError is normally :high, but custom rule makes it :medium
+          error = build(:error_log, error_type: 'NoMethodError')
+          expect(error.severity).to eq(:medium)
+        end
+
+        it 'falls back to default for errors not in custom rules' do
+          # SecurityError not in custom rules, should use default :critical
+          error = build(:error_log, error_type: 'SecurityError')
+          expect(error.severity).to eq(:critical)
+        end
+
+        it 'falls back to :low for unconfigured custom errors' do
+          # RandomError not in custom rules or defaults
+          error = build(:error_log, error_type: 'RandomError')
+          expect(error.severity).to eq(:low)
+        end
+
+        it 'handles multiple custom errors in same test' do
+          payment_error = build(:error_log, error_type: 'CustomPaymentError')
+          validation_error = build(:error_log, error_type: 'CustomValidationError')
+
+          expect(payment_error.severity).to eq(:critical)
+          expect(validation_error.severity).to eq(:low)
+        end
       end
 
-      it 'returns :medium for medium severity errors' do
-        error = build(:error_log, error_type: 'Timeout::Error')
-        expect(error.severity).to eq(:medium)
+      context 'with custom severity rules as strings' do
+        before do
+          RailsErrorDashboard.configure do |config|
+            config.custom_severity_rules = {
+              'TestError' => 'critical' # String instead of symbol
+            }
+          end
+        end
+
+        after do
+          RailsErrorDashboard.reset_configuration!
+        end
+
+        it 'converts string severity to symbol' do
+          error = build(:error_log, error_type: 'TestError')
+          expect(error.severity).to eq(:critical)
+        end
       end
 
-      it 'returns :low for other errors' do
-        error = build(:error_log, error_type: 'CustomError')
-        expect(error.severity).to eq(:low)
+      context 'with empty custom severity rules' do
+        before do
+          RailsErrorDashboard.configure do |config|
+            config.custom_severity_rules = {}
+          end
+        end
+
+        after do
+          RailsErrorDashboard.reset_configuration!
+        end
+
+        it 'falls back to default classification' do
+          error = build(:error_log, error_type: 'SecurityError')
+          expect(error.severity).to eq(:critical)
+        end
       end
     end
   end
@@ -447,6 +514,305 @@ RSpec.describe RailsErrorDashboard::ErrorLog, type: :model do
       6.times { create(:error_log, error_type: 'NoMethodError') }
       related = error1.related_errors(limit: 3)
       expect(related.size).to be <= 3
+    end
+  end
+
+  # Phase 4.1: Fuzzy Error Matching
+  describe '#backtrace_frames' do
+    it 'extracts file paths and method names from backtrace' do
+      error = create(:error_log, backtrace: "app/models/user.rb:10:in `save'\napp/controllers/users_controller.rb:20:in `create'")
+      frames = error.backtrace_frames
+
+      expect(frames).to include("user.rb:save")
+      expect(frames).to include("users_controller.rb:create")
+    end
+
+    it 'ignores line numbers' do
+      error = create(:error_log, backtrace: "app/models/user.rb:10:in `save'\napp/models/user.rb:50:in `validate'")
+      frames = error.backtrace_frames
+
+      expect(frames).to include("user.rb:save")
+      expect(frames).to include("user.rb:validate")
+      expect(frames.size).to eq(2)
+    end
+
+    it 'returns empty array for nil backtrace' do
+      error = create(:error_log, backtrace: nil)
+      expect(error.backtrace_frames).to eq([])
+    end
+
+    it 'returns empty array for empty backtrace' do
+      error = create(:error_log, backtrace: "")
+      expect(error.backtrace_frames).to eq([])
+    end
+
+    it 'handles array backtrace' do
+      error = create(:error_log, backtrace: ["app/models/user.rb:10:in `save'", "app/controllers/users_controller.rb:20:in `create'"])
+      frames = error.backtrace_frames
+
+      expect(frames).to include("user.rb:save")
+      expect(frames).to include("users_controller.rb:create")
+    end
+
+    it 'limits to first 20 frames' do
+      backtrace = (1..50).map { |i| "app/models/user.rb:#{i}:in `method_#{i}'" }.join("\n")
+      error = create(:error_log, backtrace: backtrace)
+      frames = error.backtrace_frames
+
+      expect(frames.size).to be <= 20
+    end
+
+    it 'returns unique frames' do
+      error = create(:error_log, backtrace: "app/models/user.rb:10:in `save'\napp/models/user.rb:20:in `save'")
+      frames = error.backtrace_frames
+
+      expect(frames.size).to eq(1)
+      expect(frames).to eq(["user.rb:save"])
+    end
+  end
+
+  describe '#calculate_backtrace_signature' do
+    it 'generates signature from backtrace frames' do
+      error = create(:error_log, backtrace: "app/models/user.rb:10:in `save'\napp/controllers/users_controller.rb:20:in `create'")
+      signature = error.calculate_backtrace_signature
+
+      expect(signature).to be_a(String)
+      expect(signature.length).to eq(16)
+    end
+
+    it 'returns nil for empty backtrace' do
+      error = create(:error_log, backtrace: nil)
+      expect(error.calculate_backtrace_signature).to be_nil
+    end
+
+    it 'returns nil when no frames extracted' do
+      error = create(:error_log, backtrace: "invalid backtrace format")
+      signature = error.calculate_backtrace_signature
+      expect(signature).to be_nil
+    end
+
+    it 'generates same signature for same file paths regardless of line numbers' do
+      error1 = create(:error_log, backtrace: "app/models/user.rb:10:in `save'\napp/controllers/users_controller.rb:20:in `create'")
+      error2 = create(:error_log, backtrace: "app/models/user.rb:50:in `save'\napp/controllers/users_controller.rb:100:in `create'")
+
+      expect(error1.calculate_backtrace_signature).to eq(error2.calculate_backtrace_signature)
+    end
+
+    it 'generates different signatures for different file paths' do
+      error1 = create(:error_log, backtrace: "app/models/user.rb:10:in `save'")
+      error2 = create(:error_log, backtrace: "app/models/post.rb:10:in `save'")
+
+      expect(error1.calculate_backtrace_signature).not_to eq(error2.calculate_backtrace_signature)
+    end
+
+    it 'is order-independent (sorted file paths)' do
+      error1 = create(:error_log, backtrace: "app/models/user.rb:10:in `save'\napp/controllers/users_controller.rb:20:in `create'")
+      error2 = create(:error_log, backtrace: "app/controllers/users_controller.rb:20:in `create'\napp/models/user.rb:10:in `save'")
+
+      expect(error1.calculate_backtrace_signature).to eq(error2.calculate_backtrace_signature)
+    end
+  end
+
+  describe '#similar_errors' do
+    let(:error1) do
+      create(:error_log,
+        error_type: "NoMethodError",
+        message: "undefined method 'name' for nil:NilClass",
+        backtrace: "app/models/user.rb:10:in `save'\napp/controllers/users_controller.rb:20:in `create'",
+        platform: "iOS"
+      )
+    end
+
+    it 'returns empty array for unsaved error' do
+      new_error = build(:error_log)
+      expect(new_error.similar_errors).to eq([])
+    end
+
+    it 'finds similar errors using SimilarErrors query' do
+      create(:error_log,
+        error_type: "NoMethodError",
+        message: "undefined method 'email' for nil:NilClass",
+        backtrace: error1.backtrace,
+        platform: "iOS"
+      )
+
+      similar = error1.similar_errors(threshold: 0.6)
+      expect(similar).to be_an(Array)
+
+      if similar.any?
+        expect(similar.first).to have_key(:error)
+        expect(similar.first).to have_key(:similarity)
+      end
+    end
+
+    it 'respects threshold parameter' do
+      create(:error_log,
+        error_type: error1.error_type,
+        message: error1.message,
+        backtrace: error1.backtrace,
+        platform: "iOS"
+      )
+
+      high_threshold = error1.similar_errors(threshold: 0.9)
+      low_threshold = error1.similar_errors(threshold: 0.3)
+
+      expect(low_threshold.size).to be >= high_threshold.size
+    end
+
+    it 'respects limit parameter' do
+      10.times do |i|
+        create(:error_log,
+          error_type: "NoMethodError",
+          message: "undefined method 'attr#{i}' for nil:NilClass",
+          backtrace: error1.backtrace,
+          platform: "iOS"
+        )
+      end
+
+      limited = error1.similar_errors(limit: 3)
+      expect(limited.size).to be <= 3
+    end
+
+    it 'uses default threshold of 0.6' do
+      expect(RailsErrorDashboard::Queries::SimilarErrors).to receive(:call)
+        .with(error1.id, threshold: 0.6, limit: 10)
+        .and_return([])
+
+      error1.similar_errors
+    end
+
+    it 'uses default limit of 10' do
+      expect(RailsErrorDashboard::Queries::SimilarErrors).to receive(:call)
+        .with(error1.id, threshold: 0.6, limit: 10)
+        .and_return([])
+
+      error1.similar_errors
+    end
+  end
+
+  # Phase 4.1.3: Cascade Pattern Associations and Methods
+  describe 'cascade pattern associations' do
+    it 'has many parent_cascade_patterns where this error is the child' do
+      parent_error = create(:error_log, error_type: "ParentError")
+      target_error = create(:error_log, error_type: "TargetError")
+
+      # Create a pattern where parent_error causes target_error
+      pattern = create(:cascade_pattern, parent_error: parent_error, child_error: target_error)
+
+      # Query from database to get fresh associations
+      error_from_db = RailsErrorDashboard::ErrorLog.find(target_error.id)
+
+      # parent_cascade_patterns should include patterns where target_error is the child
+      expect(error_from_db.parent_cascade_patterns.size).to eq(1)
+      expect(error_from_db.parent_cascade_patterns.first.id).to eq(pattern.id)
+      expect(error_from_db.parent_cascade_patterns.first.child_error_id).to eq(target_error.id)
+    end
+
+    it 'has many child_cascade_patterns where this error is the parent' do
+      target_error = create(:error_log, error_type: "TargetError")
+      child_error = create(:error_log, error_type: "ChildError")
+
+      # Create a pattern where target_error causes child_error
+      pattern = create(:cascade_pattern, parent_error: target_error, child_error: child_error)
+
+      # Query from database to get fresh associations
+      error_from_db = RailsErrorDashboard::ErrorLog.find(target_error.id)
+
+      # child_cascade_patterns should include patterns where target_error is the parent
+      expect(error_from_db.child_cascade_patterns.size).to eq(1)
+      expect(error_from_db.child_cascade_patterns.first.id).to eq(pattern.id)
+      expect(error_from_db.child_cascade_patterns.first.parent_error_id).to eq(target_error.id)
+    end
+
+    it 'has many cascade_parents through parent_cascade_patterns' do
+      parent_error = create(:error_log, error_type: "ParentError")
+      target_error = create(:error_log, error_type: "TargetError")
+
+      # Create a pattern where parent_error causes target_error
+      create(:cascade_pattern, parent_error: parent_error, child_error: target_error)
+
+      # Reload to get associations
+      target_error.reload
+
+      # cascade_parents should include parent_error
+      expect(target_error.cascade_parents.size).to eq(1)
+      expect(target_error.cascade_parents.first.id).to eq(parent_error.id)
+      expect(target_error.cascade_parents.first.error_type).to eq("ParentError")
+    end
+
+    it 'has many cascade_children through child_cascade_patterns' do
+      target_error = create(:error_log, error_type: "TargetError")
+      child_error = create(:error_log, error_type: "ChildError")
+
+      # Create a pattern where target_error causes child_error
+      create(:cascade_pattern, parent_error: target_error, child_error: child_error)
+
+      # Reload to get associations
+      target_error.reload
+
+      # cascade_children should include child_error
+      expect(target_error.cascade_children.size).to eq(1)
+      expect(target_error.cascade_children.first.id).to eq(child_error.id)
+      expect(target_error.cascade_children.first.error_type).to eq("ChildError")
+    end
+
+    it 'destroys cascade patterns when error is destroyed' do
+      parent_error = create(:error_log, error_type: "ParentError")
+      target_error = create(:error_log, error_type: "TargetError")
+      child_error = create(:error_log, error_type: "ChildError")
+
+      # Create both parent and child patterns
+      create(:cascade_pattern, parent_error: parent_error, child_error: target_error)
+      create(:cascade_pattern, parent_error: target_error, child_error: child_error)
+
+      expect {
+        target_error.destroy
+      }.to change { RailsErrorDashboard::CascadePattern.count }.by(-2)
+    end
+  end
+
+  describe '#error_cascades' do
+    let(:error) { create(:error_log) }
+
+    it 'delegates to ErrorCascades query object' do
+      expect(RailsErrorDashboard::Queries::ErrorCascades).to receive(:call)
+        .with(error_id: error.id, min_probability: 0.5)
+        .and_return({ parents: [], children: [] })
+
+      error.error_cascades
+    end
+
+    it 'returns hash with parents and children keys' do
+      result = error.error_cascades
+      expect(result).to be_a(Hash)
+      expect(result).to have_key(:parents)
+      expect(result).to have_key(:children)
+    end
+
+    it 'returns empty arrays if not persisted' do
+      new_error = build(:error_log)
+      result = new_error.error_cascades
+      expect(result[:parents]).to eq([])
+      expect(result[:children]).to eq([])
+    end
+
+    # Note: Testing defined?(Queries::ErrorCascades) is complex because defined? is a keyword
+    # The backward compatibility check in the code ensures it works when the feature is disabled
+
+    it 'passes min_probability parameter' do
+      expect(RailsErrorDashboard::Queries::ErrorCascades).to receive(:call)
+        .with(error_id: error.id, min_probability: 0.8)
+        .and_return({ parents: [], children: [] })
+
+      error.error_cascades(min_probability: 0.8)
+    end
+
+    it 'uses default min_probability of 0.5' do
+      expect(RailsErrorDashboard::Queries::ErrorCascades).to receive(:call)
+        .with(error_id: error.id, min_probability: 0.5)
+        .and_return({ parents: [], children: [] })
+
+      error.error_cascades
     end
   end
 end

@@ -27,7 +27,6 @@ module RailsErrorDashboard
         increment_counter("errors.new", error_log)
         increment_counter("errors.by_type.#{sanitize_metric_name(error_log.error_type)}", error_log)
         increment_counter("errors.by_platform.#{error_log.platform || 'unknown'}", error_log)
-        increment_counter("errors.by_environment.#{error_log.environment}", error_log)
       end
 
       def on_error_recurred(error_log)
@@ -65,7 +64,6 @@ module RailsErrorDashboard
 
         [
           "platform:#{data.platform || 'unknown'}",
-          "environment:#{data.environment}",
           "severity:#{data.severity}"
         ]
       end

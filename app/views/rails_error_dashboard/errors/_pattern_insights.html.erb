@@ -1,0 +1,208 @@
+<%
+  # Phase 4.5: Display occurrence patterns and bursts for an error
+  # This partial shows cyclical patterns and burst detection
+  pattern_data = @error.occurrence_pattern(days: 30)
+  bursts = @error.error_bursts(days: 7)
+%>
+
+<% if pattern_data.present? && pattern_data[:total_errors] > 0 %>
+  <div class="card mb-4">
+    <div class="card-header bg-white">
+      <h5 class="mb-0">
+        <i class="bi bi-graph-up"></i> Occurrence Patterns
+        <small class="text-muted">(Last 30 days)</small>
+      </h5>
+    </div>
+    <div class="card-body">
+      <!-- Pattern Type Summary -->
+      <div class="row mb-4">
+        <div class="col-md-6">
+          <h6 class="text-muted mb-2">Pattern Type</h6>
+          <% case pattern_data[:pattern_type] %>
+          <% when :business_hours %>
+            <span class="badge bg-info fs-6">
+              <i class="bi bi-clock"></i> Business Hours Pattern
+            </span>
+            <p class="small text-muted mt-2">
+              Errors peak during business hours (9am-5pm), suggesting user activity correlation
+            </p>
+          <% when :night %>
+            <span class="badge bg-dark fs-6">
+              <i class="bi bi-moon-fill"></i> Night Pattern
+            </span>
+            <p class="small text-muted mt-2">
+              Errors peak during night hours (midnight-6am), possibly from background jobs or automated tasks
+            </p>
+          <% when :weekend %>
+            <span class="badge bg-primary fs-6">
+              <i class="bi bi-calendar-week"></i> Weekend Pattern
+            </span>
+            <p class="small text-muted mt-2">
+              Most errors occur on weekends, suggesting weekend-specific usage patterns
+            </p>
+          <% when :uniform %>
+            <span class="badge bg-secondary fs-6">
+              <i class="bi bi-distribute-horizontal"></i> Uniform Pattern
+            </span>
+            <p class="small text-muted mt-2">
+              Errors distributed evenly throughout the day with no clear pattern
+            </p>
+          <% else %>
+            <span class="badge bg-light text-dark fs-6">
+              <i class="bi bi-question-circle"></i> No Pattern Detected
+            </span>
+            <p class="small text-muted mt-2">
+              Not enough data to identify a clear occurrence pattern
+            </p>
+          <% end %>
+        </div>
+
+        <div class="col-md-6">
+          <h6 class="text-muted mb-2">Pattern Strength</h6>
+          <div class="d-flex align-items-center">
+            <div class="progress flex-grow-1" style="height: 25px;">
+              <div class="progress-bar <%= pattern_data[:pattern_strength] >= 0.7 ? 'bg-success' : pattern_data[:pattern_strength] >= 0.4 ? 'bg-warning' : 'bg-secondary' %>"
+                   role="progressbar"
+                   style="width: <%= (pattern_data[:pattern_strength] * 100).round %>%">
+                <%= (pattern_data[:pattern_strength] * 100).round %>%
+              </div>
+            </div>
+            <span class="ms-2 fw-bold"><%= (pattern_data[:pattern_strength] * 100).round %>%</span>
+          </div>
+          <p class="small text-muted mt-2">
+            <% if pattern_data[:pattern_strength] >= 0.7 %>
+              <strong>Strong pattern</strong> - Errors highly concentrated in specific hours
+            <% elsif pattern_data[:pattern_strength] >= 0.4 %>
+              <strong>Moderate pattern</strong> - Some concentration in specific hours
+            <% else %>
+              <strong>Weak pattern</strong> - Errors distributed fairly evenly
+            <% end %>
+          </p>
+        </div>
+      </div>
+
+      <!-- Hourly Distribution Heatmap -->
+      <% if pattern_data[:hourly_distribution].present? %>
+        <h6 class="text-muted mb-3">Hourly Distribution Heatmap</h6>
+        <div class="mb-4">
+          <div class="d-flex flex-wrap">
+            <% (0..23).each do |hour| %>
+              <% count = pattern_data[:hourly_distribution][hour] || 0 %>
+              <% max_count = pattern_data[:hourly_distribution].values.max || 1 %>
+              <% intensity = max_count > 0 ? (count.to_f / max_count * 100).round : 0 %>
+              <% is_peak = pattern_data[:peak_hours].include?(hour) %>
+              <div class="text-center m-1" style="width: 45px;">
+                <div class="rounded p-2 <%= is_peak ? 'border border-danger border-2' : '' %>"
+                     style="background-color: rgba(220, 53, 69, <%= intensity / 100.0 %>); min-height: 50px; display: flex; align-items: center; justify-content: center;"
+                     title="<%= hour %>:00 - <%= count %> errors">
+                  <small class="fw-bold <%= intensity > 50 ? 'text-white' : 'text-dark' %>">
+                    <%= count %>
+                  </small>
+                </div>
+                <small class="text-muted"><%= hour %></small>
+              </div>
+            <% end %>
+          </div>
+          <div class="mt-2 small text-muted">
+            <i class="bi bi-info-circle"></i>
+            Darker cells = more errors. Red borders indicate peak hours (>2x average).
+          </div>
+        </div>
+      <% end %>
+
+      <!-- Peak Hours -->
+      <% if pattern_data[:peak_hours].present? %>
+        <div class="alert alert-info">
+          <strong><i class="bi bi-clock-fill"></i> Peak Hours:</strong>
+          <%= pattern_data[:peak_hours].map { |h| "#{h}:00" }.join(", ") %>
+          <br>
+          <small>
+            These hours have more than 2x the average error rate. Consider monitoring deployments or load during these times.
+          </small>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>
+
+<!-- Error Bursts -->
+<% if bursts.present? && bursts.any? %>
+  <div class="card mb-4">
+    <div class="card-header bg-white">
+      <h5 class="mb-0">
+        <i class="bi bi-lightning-charge-fill text-warning"></i> Error Bursts
+        <span class="badge bg-warning text-dark"><%= bursts.count %></span>
+        <small class="text-muted">(Last 7 days)</small>
+      </h5>
+    </div>
+    <div class="card-body">
+      <p class="text-muted">
+        Error bursts are rapid sequences where multiple errors occur within minutes. This may indicate cascading failures or load spikes.
+      </p>
+
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Start Time</th>
+              <th>Duration</th>
+              <th>Error Count</th>
+              <th>Intensity</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% bursts.first(10).each do |burst| %>
+              <tr>
+                <td>
+                  <%= burst[:start_time].strftime("%b %d, %Y %I:%M %p") %>
+                </td>
+                <td>
+                  <% duration_minutes = (burst[:duration_seconds] / 60.0).round(1) %>
+                  <%= duration_minutes %> min
+                  <small class="text-muted">(<%= burst[:duration_seconds].round %>s)</small>
+                </td>
+                <td>
+                  <strong><%= burst[:error_count] %></strong> errors
+                </td>
+                <td>
+                  <% case burst[:burst_intensity] %>
+                  <% when :high %>
+                    <span class="badge bg-danger">High (20+ errors)</span>
+                  <% when :medium %>
+                    <span class="badge bg-warning text-dark">Medium (10-19 errors)</span>
+                  <% when :low %>
+                    <span class="badge bg-info">Low (5-9 errors)</span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+
+      <% if bursts.count > 10 %>
+        <p class="text-muted small mb-0">
+          Showing 10 of <%= bursts.count %> detected bursts
+        </p>
+      <% end %>
+
+      <div class="alert alert-warning mt-3">
+        <strong><i class="bi bi-exclamation-triangle"></i> Recommendation:</strong>
+        Multiple error bursts detected. Investigate:
+        <ul class="mb-0 mt-2">
+          <li>Recent deployments or configuration changes around burst times</li>
+          <li>Load spikes or traffic patterns</li>
+          <li>Cascading failures from related errors</li>
+          <li>Background job failures or retry storms</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+<% end %>
+
+<% if (pattern_data.blank? || pattern_data[:total_errors] == 0) && bursts.blank? %>
+  <div class="alert alert-info">
+    <i class="bi bi-info-circle"></i>
+    No occurrence patterns or bursts detected. More data may be needed for pattern analysis.
+  </div>
+<% end %>

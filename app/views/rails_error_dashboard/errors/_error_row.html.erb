@@ -1,0 +1,76 @@
+<tr id="error_<%= error.id %>">
+  <td onclick="event.stopPropagation();">
+    <input type="checkbox" class="error-checkbox form-check-input" value="<%= error.id %>" data-error-id="<%= error.id %>">
+  </td>
+  <td onclick="window.location='<%= error_path(error) %>';">
+    <% severity = error.severity %>
+    <% if severity == :critical %>
+      <span class="badge bg-danger" data-bs-toggle="tooltip" title="Critical severity - requires immediate attention">CRITICAL</span>
+    <% elsif severity == :high %>
+      <span class="badge bg-warning text-dark" data-bs-toggle="tooltip" title="High severity - should be fixed soon">HIGH</span>
+    <% elsif severity == :medium %>
+      <span class="badge bg-info text-dark" data-bs-toggle="tooltip" title="Medium severity - fix when possible">MEDIUM</span>
+    <% else %>
+      <span class="badge bg-secondary" data-bs-toggle="tooltip" title="Low severity - minor issue">LOW</span>
+    <% end %>
+    <% if error.respond_to?(:priority_score) && error.priority_score %>
+      <br><small class="text-muted" data-bs-toggle="tooltip" title="Priority score (0-100) based on severity, frequency, recency, and user impact">P<%= error.priority_score %></small>
+    <% end %>
+  </td>
+  <td onclick="window.location='<%= error_path(error) %>';">
+    <code class="text-danger" data-bs-toggle="tooltip" title="<%= error.error_type %>"><%= error.error_type.split('::').last %></code>
+    <% if error.respond_to?(:app_version) && error.app_version.present? %>
+      <br><small class="badge bg-light text-dark" data-bs-toggle="tooltip" title="App version when error occurred">v<%= error.app_version %></small>
+    <% end %>
+  </td>
+  <td onclick="window.location='<%= error_path(error) %>';">
+    <div class="text-truncate" style="max-width: 300px;" title="<%= error.message %>">
+      <%= error.message %>
+    </div>
+  </td>
+  <td onclick="window.location='<%= error_path(error) %>';">
+    <span class="badge bg-primary"><%= error.occurrence_count %>x</span>
+  </td>
+  <td onclick="window.location='<%= error_path(error) %>';">
+    <small>
+      <strong>First:</strong> <%= error.first_seen_at&.strftime("%m/%d %I:%M%p") || 'N/A' %><br>
+      <strong>Last:</strong> <%= error.last_seen_at&.strftime("%m/%d %I:%M%p") || 'N/A' %>
+    </small>
+  </td>
+  <% if local_assigns[:show_platform] %>
+    <td onclick="window.location='<%= error_path(error) %>';">
+      <% if error.platform == 'iOS' %>
+        <span class="badge badge-ios">iOS</span>
+      <% elsif error.platform == 'Android' %>
+        <span class="badge badge-android">Android</span>
+      <% else %>
+        <span class="badge badge-api"><%= error.platform || 'API' %></span>
+      <% end %>
+    </td>
+  <% end %>
+  <td onclick="window.location='<%= error_path(error) %>';">
+    <% if error.user_id %>
+      <small data-bs-toggle="tooltip" title="User affected by this error">User #<%= error.user_id %></small>
+      <% if error.respond_to?(:user_impact_percentage) %>
+        <% impact = error.user_impact_percentage %>
+        <% if impact > 0 %>
+          <br><small class="badge bg-warning text-dark" data-bs-toggle="tooltip" title="Percentage of users affected by this error type"><%= impact %>% impact</small>
+        <% end %>
+      <% end %>
+    <% else %>
+      <small class="text-muted" data-bs-toggle="tooltip" title="No specific user affected">-</small>
+    <% end %>
+  </td>
+  <td onclick="window.location='<%= error_path(error) %>';">
+    <% if error.resolved? %>
+      <i class="bi bi-check-circle-fill text-success" title="Resolved"></i>
+    <% else %>
+      <i class="bi bi-exclamation-circle-fill text-danger" title="Unresolved"></i>
+    <% end %>
+  </td>
+  <td onclick="event.stopPropagation();">
+    <%= link_to error_path(error), class: "btn btn-sm btn-outline-primary" do %>
+      <i class="bi bi-eye"></i>
+    <% end %>
+  </td>
+</tr>

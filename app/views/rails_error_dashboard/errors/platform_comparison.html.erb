@@ -1,0 +1,388 @@
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+      <i class="bi bi-phone me-2"></i>
+      Platform Health Comparison
+    </h1>
+
+    <div class="btn-group" role="group">
+      <%= link_to platform_comparison_errors_path(days: 7), class: "btn btn-sm #{@days == 7 ? 'btn-primary' : 'btn-outline-primary'}" do %>
+        7 Days
+      <% end %>
+      <%= link_to platform_comparison_errors_path(days: 14), class: "btn btn-sm #{@days == 14 ? 'btn-primary' : 'btn-outline-primary'}" do %>
+        14 Days
+      <% end %>
+      <%= link_to platform_comparison_errors_path(days: 30), class: "btn btn-sm #{@days == 30 ? 'btn-primary' : 'btn-outline-primary'}" do %>
+        30 Days
+      <% end %>
+    </div>
+  </div>
+
+  <% if @platform_health.empty? %>
+    <div class="alert alert-info">
+      <i class="bi bi-info-circle me-2"></i>
+      No platform data available for the selected time period.
+    </div>
+  <% else %>
+    <!-- Platform Health Summary Cards -->
+    <div class="row mb-4">
+      <% @platform_health.each do |platform, health| %>
+        <div class="col-md-6 col-lg-3 mb-3">
+          <div class="card h-100 <%= health[:health_status] == :healthy ? 'border-success' : health[:health_status] == :warning ? 'border-warning' : 'border-danger' %>">
+            <div class="card-body">
+              <h5 class="card-title text-capitalize">
+                <%= platform || 'Unknown' %>
+                <% if health[:health_status] == :healthy %>
+                  <span class="badge bg-success float-end">Healthy</span>
+                <% elsif health[:health_status] == :warning %>
+                  <span class="badge bg-warning float-end">Warning</span>
+                <% else %>
+                  <span class="badge bg-danger float-end">Critical</span>
+                <% end %>
+              </h5>
+
+              <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <small class="text-muted">Stability Score</small>
+                  <strong><%= health[:stability_score] %>/100</strong>
+                </div>
+                <div class="progress" style="height: 8px;">
+                  <div class="progress-bar <%= health[:stability_score] >= 80 ? 'bg-success' : health[:stability_score] >= 60 ? 'bg-warning' : 'bg-danger' %>"
+                       role="progressbar"
+                       style="width: <%= health[:stability_score] %>%">
+                  </div>
+                </div>
+              </div>
+
+              <div class="small">
+                <div class="d-flex justify-content-between mb-1">
+                  <span class="text-muted">Total Errors:</span>
+                  <strong><%= health[:total_errors] %></strong>
+                </div>
+                <div class="d-flex justify-content-between mb-1">
+                  <span class="text-muted">Critical:</span>
+                  <strong class="text-danger"><%= health[:critical_errors] %></strong>
+                </div>
+                <div class="d-flex justify-content-between mb-1">
+                  <span class="text-muted">Unresolved:</span>
+                  <strong><%= health[:unresolved_errors] %></strong>
+                </div>
+                <div class="d-flex justify-content-between mb-1">
+                  <span class="text-muted">Resolution Rate:</span>
+                  <strong><%= health[:resolution_rate] %>%</strong>
+                </div>
+                <div class="d-flex justify-content-between">
+                  <span class="text-muted">Error Velocity:</span>
+                  <strong class="<%= health[:error_velocity] > 0 ? 'text-danger' : 'text-success' %>">
+                    <%= health[:error_velocity] > 0 ? '+' : '' %><%= health[:error_velocity] %>%
+                  </strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <!-- Error Rate Comparison Chart -->
+    <div class="card mb-4">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">
+          <i class="bi bi-bar-chart me-2"></i>
+          Error Rate by Platform
+        </h5>
+      </div>
+      <div class="card-body">
+        <canvas id="errorRateChart" height="80"></canvas>
+      </div>
+    </div>
+
+    <!-- Daily Trend Charts -->
+    <div class="card mb-4">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">
+          <i class="bi bi-graph-up me-2"></i>
+          Daily Error Trends
+        </h5>
+      </div>
+      <div class="card-body">
+        <canvas id="dailyTrendChart" height="80"></canvas>
+      </div>
+    </div>
+
+    <div class="row mb-4">
+      <!-- Severity Distribution -->
+      <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              Severity Distribution
+            </h5>
+          </div>
+          <div class="card-body">
+            <% @severity_distribution.each do |platform, severities| %>
+              <div class="mb-3">
+                <h6 class="text-capitalize"><%= platform || 'Unknown' %></h6>
+                <% total = severities.values.sum %>
+                <% if total > 0 %>
+                  <div class="progress" style="height: 25px;">
+                    <% if severities[:critical].to_i > 0 %>
+                      <div class="progress-bar bg-danger"
+                           role="progressbar"
+                           style="width: <%= (severities[:critical].to_f / total * 100).round(1) %>%"
+                           title="Critical: <%= severities[:critical] %>">
+                        <%= severities[:critical] if (severities[:critical].to_f / total) > 0.1 %>
+                      </div>
+                    <% end %>
+                    <% if severities[:high].to_i > 0 %>
+                      <div class="progress-bar bg-warning"
+                           role="progressbar"
+                           style="width: <%= (severities[:high].to_f / total * 100).round(1) %>%"
+                           title="High: <%= severities[:high] %>">
+                        <%= severities[:high] if (severities[:high].to_f / total) > 0.1 %>
+                      </div>
+                    <% end %>
+                    <% if severities[:medium].to_i > 0 %>
+                      <div class="progress-bar bg-info"
+                           role="progressbar"
+                           style="width: <%= (severities[:medium].to_f / total * 100).round(1) %>%"
+                           title="Medium: <%= severities[:medium] %>">
+                        <%= severities[:medium] if (severities[:medium].to_f / total) > 0.1 %>
+                      </div>
+                    <% end %>
+                    <% if severities[:low].to_i > 0 %>
+                      <div class="progress-bar bg-secondary"
+                           role="progressbar"
+                           style="width: <%= (severities[:low].to_f / total * 100).round(1) %>%"
+                           title="Low: <%= severities[:low] %>">
+                        <%= severities[:low] if (severities[:low].to_f / total) > 0.1 %>
+                      </div>
+                    <% end %>
+                  </div>
+                  <div class="small text-muted mt-1">
+                    Critical: <%= severities[:critical] || 0 %> |
+                    High: <%= severities[:high] || 0 %> |
+                    Medium: <%= severities[:medium] || 0 %> |
+                    Low: <%= severities[:low] || 0 %>
+                  </div>
+                <% else %>
+                  <p class="text-muted small mb-0">No errors</p>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resolution Time Comparison -->
+      <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">
+              <i class="bi bi-clock-history me-2"></i>
+              Average Resolution Time
+            </h5>
+          </div>
+          <div class="card-body">
+            <canvas id="resolutionTimeChart" height="200"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cross-Platform Errors -->
+    <% if @cross_platform_errors.any? %>
+      <div class="card mb-4">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">
+            <i class="bi bi-layers me-2"></i>
+            Cross-Platform Errors
+            <span class="badge bg-secondary ms-2"><%= @cross_platform_errors.count %></span>
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>Error Type</th>
+                  <th>Platforms</th>
+                  <th>Total Occurrences</th>
+                  <th>Breakdown</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @cross_platform_errors.first(10).each do |error| %>
+                  <tr>
+                    <td>
+                      <code class="small"><%= error[:error_type] %></code>
+                    </td>
+                    <td>
+                      <% error[:platforms].each do |platform| %>
+                        <span class="badge bg-secondary text-capitalize me-1"><%= platform %></span>
+                      <% end %>
+                    </td>
+                    <td>
+                      <strong><%= error[:total_occurrences] %></strong>
+                    </td>
+                    <td class="small text-muted">
+                      <% error[:platform_breakdown].each do |platform, count| %>
+                        <%= platform %>: <%= count %> &nbsp;
+                      <% end %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Top Errors by Platform -->
+    <div class="row">
+      <% @top_errors_by_platform.each do |platform, errors| %>
+        <div class="col-lg-6 mb-4">
+          <div class="card h-100">
+            <div class="card-header bg-white">
+              <h5 class="mb-0 text-capitalize">
+                <i class="bi bi-bug me-2"></i>
+                Top Errors - <%= platform || 'Unknown' %>
+              </h5>
+            </div>
+            <div class="card-body">
+              <% if errors.any? %>
+                <div class="list-group list-group-flush">
+                  <% errors.first(5).each do |error| %>
+                    <%= link_to error_path(error[:id]), class: "list-group-item list-group-item-action" do %>
+                      <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                          <code class="small"><%= error[:error_type] %></code>
+                          <p class="mb-1 small text-muted"><%= error[:message] %></p>
+                        </div>
+                        <span class="badge bg-primary rounded-pill ms-2">
+                          <%= error[:occurrence_count] %>
+                        </span>
+                      </div>
+                    <% end %>
+                  <% end %>
+                </div>
+              <% else %>
+                <p class="text-muted mb-0">No errors found</p>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>
+
+<script>
+  // Error Rate Chart
+  const errorRateCtx = document.getElementById('errorRateChart');
+  if (errorRateCtx) {
+    new Chart(errorRateCtx, {
+      type: 'bar',
+      data: {
+        labels: <%= raw @error_rate_by_platform.keys.map { |k| k.to_s.capitalize }.to_json %>,
+        datasets: [{
+          label: 'Total Errors',
+          data: <%= raw @error_rate_by_platform.values.to_json %>,
+          backgroundColor: 'rgba(54, 162, 235, 0.5)',
+          borderColor: 'rgba(54, 162, 235, 1)',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: { beginAtZero: true }
+        }
+      }
+    });
+  }
+
+  // Daily Trend Chart
+  const dailyTrendCtx = document.getElementById('dailyTrendChart');
+  if (dailyTrendCtx) {
+    const colors = {
+      ios: 'rgba(255, 99, 132, 1)',
+      android: 'rgba(75, 192, 192, 1)',
+      api: 'rgba(255, 206, 86, 1)',
+      web: 'rgba(153, 102, 255, 1)',
+      unknown: 'rgba(201, 203, 207, 1)'
+    };
+
+    const datasets = <%= raw @daily_trends.map { |platform, data|
+      {
+        label: platform.to_s.capitalize,
+        data: data.values,
+        borderColor: "colors['#{platform}'] || 'rgba(75, 192, 192, 1)'",
+        backgroundColor: "colors['#{platform}'] ? colors['#{platform}'].replace('1)', '0.1)') : 'rgba(75, 192, 192, 0.1)'",
+        tension: 0.1
+      }
+    }.to_json %>;
+
+    // Replace string placeholders with actual colors
+    datasets.forEach(ds => {
+      const platform = ds.label.toLowerCase();
+      ds.borderColor = colors[platform] || 'rgba(75, 192, 192, 1)';
+      ds.backgroundColor = colors[platform] ? colors[platform].replace('1)', '0.1)') : 'rgba(75, 192, 192, 0.1)';
+    });
+
+    new Chart(dailyTrendCtx, {
+      type: 'line',
+      data: {
+        labels: <%= raw @daily_trends.values.first&.keys&.map { |d| d.strftime('%b %d') }&.to_json || [].to_json %>,
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { position: 'top' }
+        },
+        scales: {
+          y: { beginAtZero: true }
+        }
+      }
+    });
+  }
+
+  // Resolution Time Chart
+  const resolutionTimeCtx = document.getElementById('resolutionTimeChart');
+  if (resolutionTimeCtx) {
+    const platforms = <%= raw @resolution_times.keys.map { |k| k.to_s.capitalize }.to_json %>;
+    const times = <%= raw @resolution_times.values.map { |v| v || 0 }.to_json %>;
+
+    new Chart(resolutionTimeCtx, {
+      type: 'horizontalBar',
+      data: {
+        labels: platforms,
+        datasets: [{
+          label: 'Hours to Resolve',
+          data: times,
+          backgroundColor: 'rgba(255, 159, 64, 0.5)',
+          borderColor: 'rgba(255, 159, 64, 1)',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: { beginAtZero: true, title: { display: true, text: 'Hours' } }
+        }
+      }
+    });
+  }
+</script>

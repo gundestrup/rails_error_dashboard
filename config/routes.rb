@@ -7,6 +7,8 @@ RailsErrorDashboard::Engine.routes.draw do
     end
     collection do
       get :analytics
+      get :platform_comparison
+      get :correlation
       post :batch_action
     end
   end

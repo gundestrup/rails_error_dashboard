@@ -136,13 +136,6 @@
         <div class="label">Error Type:</div>
         <div class="value"><code><%= @error_log.error_type %></code></div>
 
-        <div class="label">Environment:</div>
-        <div class="value">
-          <span class="badge badge-<%= @error_log.environment %>">
-            <%= @error_log.environment.upcase %>
-          </span>
-        </div>
-
         <% if @error_log.platform.present? %>
           <div class="label">Platform:</div>
           <div class="value">
@@ -155,9 +148,9 @@
         <div class="label">Occurred At:</div>
         <div class="value"><%= @error_log.occurred_at.strftime('%B %d, %Y at %I:%M %p %Z') %></div>
 
-        <% if @error_log.user.present? %>
-          <div class="label">User:</div>
-          <div class="value"><%= @error_log.user.email %></div>
+        <% if @error_log.user_id.present? %>
+          <div class="label">User ID:</div>
+          <div class="value"><%= @error_log.user_id %></div>
         <% end %>
 
         <% if @error_log.ip_address.present? %>

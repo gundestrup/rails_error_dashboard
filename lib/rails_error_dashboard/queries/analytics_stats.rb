@@ -21,12 +21,12 @@ module RailsErrorDashboard
           errors_over_time: errors_over_time,
           errors_by_type: errors_by_type,
           errors_by_platform: errors_by_platform,
-          errors_by_environment: errors_by_environment,
           errors_by_hour: errors_by_hour,
           top_users: top_affected_users,
           resolution_rate: resolution_rate,
           mobile_errors: mobile_errors_count,
-          api_errors: api_errors_count
+          api_errors: api_errors_count,
+          pattern_insights: pattern_insights
         }
       end
 
@@ -59,10 +59,6 @@ module RailsErrorDashboard
 
       def errors_by_platform
         base_query.group(:platform).count
-      end
-
-      def errors_by_environment
-        base_query.group(:environment).count
       end
 
       def errors_by_hour
@@ -102,6 +98,48 @@ module RailsErrorDashboard
 
       def api_errors_count
         base_query.where("platform IS NULL OR platform = ?", "API").count
+      end
+
+      # Phase 4.5: Pattern insights for top error types
+      # Analyzes occurrence patterns and bursts for top 5 error types
+      def pattern_insights
+        return {} unless defined?(Services::PatternDetector)
+
+        # Get top 5 error types by count
+        top_errors = errors_by_type.first(5)
+
+        insights = {}
+        top_errors.each do |error_type, _count|
+          # Get platform for this error type (most common platform)
+          platform = base_query.where(error_type: error_type)
+                              .group(:platform)
+                              .count
+                              .max_by { |_, count| count }
+                              &.first || "API"
+
+          # Analyze pattern for this error type
+          pattern = Services::PatternDetector.analyze_cyclical_pattern(
+            error_type: error_type,
+            platform: platform,
+            days: @days
+          )
+
+          # Detect bursts
+          bursts = Services::PatternDetector.detect_bursts(
+            error_type: error_type,
+            platform: platform,
+            days: [7, @days].min # Use 7 days for burst detection, or less if analyzing shorter period
+          )
+
+          insights[error_type] = {
+            pattern: pattern,
+            bursts: bursts,
+            has_pattern: pattern[:pattern_type] != :none,
+            has_bursts: bursts.any?
+          }
+        end
+
+        insights
       end
     end
   end

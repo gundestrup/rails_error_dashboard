@@ -40,11 +40,6 @@ module RailsErrorDashboard
               inline: true
             },
             {
-              name: "Environment",
-              value: error_log.environment || "Unknown",
-              inline: true
-            },
-            {
               name: "Occurrences",
               value: error_log.occurrence_count.to_s,
               inline: true

@@ -11,7 +11,6 @@ module RailsErrorDashboard
 
       def call
         {
-          environments: ErrorLog.distinct.pluck(:environment).compact,
           error_types: ErrorLog.distinct.pluck(:error_type).compact.sort,
           platforms: ErrorLog.distinct.pluck(:platform).compact
         }

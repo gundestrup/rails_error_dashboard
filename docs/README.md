@@ -1,0 +1,100 @@
+# Rails Error Dashboard Documentation
+
+Welcome to the Rails Error Dashboard documentation! This guide will help you get started, customize your setup, and make the most of the advanced features.
+
+## 📚 Documentation Structure
+
+### Getting Started
+- **[Quickstart Guide](QUICKSTART.md)** - Get up and running in 5 minutes
+- **[Installation](../README.md#installation)** - Detailed installation instructions
+- **[Configuration](guides/CONFIGURATION.md)** - Complete configuration reference
+
+### Core Features
+- **[Dashboard Overview](guides/DASHBOARD_OVERVIEW.md)** - Understanding the main dashboard
+- **[Error Management](guides/ERROR_MANAGEMENT.md)** - Managing and resolving errors
+- **[Notifications](guides/NOTIFICATIONS.md)** - Setting up alerts (Slack, Email, Discord, PagerDuty)
+
+### Advanced Features
+- **[Advanced Error Grouping](features/ADVANCED_ERROR_GROUPING.md)** - Fuzzy matching, co-occurring errors, cascades
+- **[Baseline Monitoring](features/BASELINE_MONITORING.md)** - Statistical anomaly detection and alerts
+- **[Platform Comparison](features/PLATFORM_COMPARISON.md)** - iOS vs Android vs API health analysis
+- **[Occurrence Patterns](features/OCCURRENCE_PATTERNS.md)** - Cyclical patterns and burst detection
+- **[Error Correlation](features/ERROR_CORRELATION.md)** - Release and user correlation analysis
+
+### Customization
+- **[Customization Guide](CUSTOMIZATION.md)** - Customize views, severity rules, and behavior
+- **[Plugin System](PLUGIN_SYSTEM.md)** - Build custom plugins and integrations
+- **[Database Options](guides/DATABASE_OPTIONS.md)** - Using a separate database
+
+### Integration
+- **[Mobile App Integration](guides/MOBILE_APP_INTEGRATION.md)** - Integrate with React Native, Flutter, etc.
+- **[Batch Operations](guides/BATCH_OPERATIONS.md)** - Bulk error management
+- **[API Reference](API_REFERENCE.md)** - Complete API documentation
+
+### Development
+- **[Contributing](../CONTRIBUTING.md)** - How to contribute to the project
+- **[Changelog](../CHANGELOG.md)** - Version history and updates
+- **[Testing](development/TESTING.md)** - Running and writing tests
+
+## 🚀 Quick Links
+
+### For New Users
+1. [Quickstart Guide](QUICKSTART.md) - 5-minute setup
+2. [Configuration](guides/CONFIGURATION.md) - Basic configuration
+3. [Notifications](guides/NOTIFICATIONS.md) - Set up Slack alerts
+
+### For Advanced Users
+1. [Baseline Monitoring](features/BASELINE_MONITORING.md) - Proactive alerting
+2. [Platform Comparison](features/PLATFORM_COMPARISON.md) - Cross-platform analysis
+3. [Plugin System](PLUGIN_SYSTEM.md) - Custom integrations
+
+### For Developers
+1. [API Reference](API_REFERENCE.md) - Complete API docs
+2. [Plugin Development](PLUGIN_SYSTEM.md#creating-plugins) - Build plugins
+3. [Testing Guide](development/TESTING.md) - Test your setup
+
+## 📖 Documentation by Use Case
+
+### "I want to get started quickly"
+→ [Quickstart Guide](QUICKSTART.md)
+
+### "I need to customize error severity levels"
+→ [Customization Guide](CUSTOMIZATION.md#custom-severity-rules)
+
+### "I want Slack notifications for critical errors"
+→ [Notifications Guide](guides/NOTIFICATIONS.md#slack-setup)
+
+### "I need to track errors by app version"
+→ [Error Correlation](features/ERROR_CORRELATION.md#release-correlation)
+
+### "I want to build a custom integration"
+→ [Plugin System Guide](PLUGIN_SYSTEM.md)
+
+### "I need to understand platform stability"
+→ [Platform Comparison](features/PLATFORM_COMPARISON.md)
+
+### "I want proactive alerting for anomalies"
+→ [Baseline Monitoring](features/BASELINE_MONITORING.md)
+
+## 🔍 Searching the Documentation
+
+- **Configuration options**: See [Configuration Guide](guides/CONFIGURATION.md)
+- **API methods**: See [API Reference](API_REFERENCE.md)
+- **Code examples**: Most guides include code examples
+- **Troubleshooting**: Each guide has a troubleshooting section
+
+## 💡 Getting Help
+
+- **Issues**: [GitHub Issues](https://github.com/yourusername/rails_error_dashboard/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/yourusername/rails_error_dashboard/discussions)
+- **Stack Overflow**: Tag your questions with `rails-error-dashboard`
+
+## 📝 Documentation Versions
+
+This documentation is for **Rails Error Dashboard v1.0.0** (Phase 4 Complete).
+
+For older versions, see the [Changelog](../CHANGELOG.md).
+
+---
+
+**Need help?** Check the [Troubleshooting](#) section or [open an issue](https://github.com/yourusername/rails_error_dashboard/issues).

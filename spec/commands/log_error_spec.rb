@@ -57,7 +57,16 @@ RSpec.describe RailsErrorDashboard::Commands::LogError do
     end
 
     context 'with request context' do
-      let(:request) { double('Request', fullpath: '/users/1', params: { id: 1 }, user_agent: 'Chrome', remote_ip: '127.0.0.1') }
+      let(:request) do
+        double('Request',
+          fullpath: '/users/1',
+          params: { id: 1 },
+          user_agent: 'Chrome',
+          remote_ip: '127.0.0.1',
+          request_id: 'req-test-123',
+          session: double('Session', id: 'sess-test-456')
+        )
+      end
       let(:context) { { request: request } }
 
       before do

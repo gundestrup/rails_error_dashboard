@@ -8,7 +8,7 @@ module RailsErrorDashboard
 
       mail(
         to: recipients,
-        subject: "🚨 [#{error_log.environment.upcase}] #{error_log.error_type}: #{truncate_subject(error_log.message)}"
+        subject: "🚨 #{error_log.error_type}: #{truncate_subject(error_log.message)}"
       )
     end
 

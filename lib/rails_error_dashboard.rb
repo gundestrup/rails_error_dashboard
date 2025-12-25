@@ -11,6 +11,16 @@ require "httparty"
 # Core library files
 require "rails_error_dashboard/value_objects/error_context"
 require "rails_error_dashboard/services/platform_detector"
+require "rails_error_dashboard/services/similarity_calculator"
+require "rails_error_dashboard/services/cascade_detector"
+require "rails_error_dashboard/services/baseline_calculator"
+require "rails_error_dashboard/services/baseline_alert_throttler"
+require "rails_error_dashboard/services/pattern_detector"
+require "rails_error_dashboard/queries/co_occurring_errors"
+require "rails_error_dashboard/queries/error_cascades"
+require "rails_error_dashboard/queries/baseline_stats"
+require "rails_error_dashboard/queries/platform_comparison"
+require "rails_error_dashboard/queries/error_correlation"
 require "rails_error_dashboard/commands/log_error"
 require "rails_error_dashboard/commands/resolve_error"
 require "rails_error_dashboard/commands/batch_resolve_errors"
@@ -19,6 +29,7 @@ require "rails_error_dashboard/queries/errors_list"
 require "rails_error_dashboard/queries/dashboard_stats"
 require "rails_error_dashboard/queries/analytics_stats"
 require "rails_error_dashboard/queries/filter_options"
+require "rails_error_dashboard/queries/similar_errors"
 require "rails_error_dashboard/error_reporter"
 require "rails_error_dashboard/middleware/error_catcher"
 
@@ -28,12 +39,22 @@ require "rails_error_dashboard/plugin_registry"
 
 module RailsErrorDashboard
   class << self
-    attr_accessor :configuration
-  end
+    attr_writer :configuration
 
-  def self.configure
-    self.configuration ||= Configuration.new
-    yield(configuration)
+    # Get or initialize configuration
+    def configuration
+      @configuration ||= Configuration.new
+    end
+
+    # Configure the gem
+    def configure
+      yield(configuration)
+    end
+
+    # Reset configuration to defaults
+    def reset_configuration!
+      @configuration = Configuration.new
+    end
   end
 
   # Register a plugin
@@ -55,6 +76,33 @@ module RailsErrorDashboard
     PluginRegistry.plugins
   end
 
-  # Initialize with default configuration
-  self.configuration = Configuration.new
+  # Register a callback for when any error is logged
+  # @param block [Proc] The callback to execute, receives error_log as parameter
+  # @example
+  #   RailsErrorDashboard.on_error_logged do |error_log|
+  #     puts "Error logged: #{error_log.error_type}"
+  #   end
+  def self.on_error_logged(&block)
+    configuration.notification_callbacks[:error_logged] << block if block_given?
+  end
+
+  # Register a callback for when a critical error is logged
+  # @param block [Proc] The callback to execute, receives error_log as parameter
+  # @example
+  #   RailsErrorDashboard.on_critical_error do |error_log|
+  #     PagerDuty.trigger(error_log)
+  #   end
+  def self.on_critical_error(&block)
+    configuration.notification_callbacks[:critical_error] << block if block_given?
+  end
+
+  # Register a callback for when an error is resolved
+  # @param block [Proc] The callback to execute, receives error_log as parameter
+  # @example
+  #   RailsErrorDashboard.on_error_resolved do |error_log|
+  #     Slack.notify("Error #{error_log.id} resolved")
+  #   end
+  def self.on_error_resolved(&block)
+    configuration.notification_callbacks[:error_resolved] << block if block_given?
+  end
 end

@@ -24,18 +24,12 @@ module RailsErrorDashboard
       private
 
       def apply_filters(query)
-        query = filter_by_environment(query)
         query = filter_by_error_type(query)
         query = filter_by_resolved(query)
         query = filter_by_platform(query)
         query = filter_by_search(query)
+        query = filter_by_severity(query)
         query
-      end
-
-      def filter_by_environment(query)
-        return query unless @filters[:environment].present?
-
-        query.where(environment: @filters[:environment])
       end
 
       def filter_by_error_type(query)
@@ -59,7 +53,47 @@ module RailsErrorDashboard
       def filter_by_search(query)
         return query unless @filters[:search].present?
 
-        query.where("message ILIKE ?", "%#{@filters[:search]}%")
+        # Use PostgreSQL full-text search if available (much faster with GIN index)
+        # Otherwise fall back to LIKE query
+        if postgresql?
+          # Use to_tsquery for full-text search with GIN index
+          # This is dramatically faster on large datasets
+          search_term = @filters[:search].split.map { |word| "#{word}:*" }.join(' & ')
+          query.where("to_tsvector('english', message) @@ to_tsquery('english', ?)", search_term)
+        else
+          # Fall back to LIKE for SQLite/MySQL
+          # Use LOWER() for case-insensitive search
+          query.where("LOWER(message) LIKE LOWER(?)", "%#{@filters[:search]}%")
+        end
+      end
+
+      def postgresql?
+        ActiveRecord::Base.connection.adapter_name.downcase == 'postgresql'
+      end
+
+      def filter_by_severity(query)
+        return query unless @filters[:severity].present?
+
+        # Map severity levels to error types
+        error_types = case @filters[:severity].to_sym
+        when :critical
+          ErrorLog::CRITICAL_ERROR_TYPES
+        when :high
+          ErrorLog::HIGH_SEVERITY_ERROR_TYPES
+        when :medium
+          ErrorLog::MEDIUM_SEVERITY_ERROR_TYPES
+        when :low
+          # Low severity = everything NOT in the other categories
+          all_categorized = ErrorLog::CRITICAL_ERROR_TYPES +
+                           ErrorLog::HIGH_SEVERITY_ERROR_TYPES +
+                           ErrorLog::MEDIUM_SEVERITY_ERROR_TYPES
+          # Use NOT IN to filter out categorized errors
+          return query.where.not(error_type: all_categorized)
+        else
+          return query
+        end
+
+        query.where(error_type: error_types)
       end
     end
   end

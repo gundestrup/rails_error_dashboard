@@ -18,7 +18,6 @@ module RailsErrorDashboard
 
       # Get filter options using Query
       filter_options = Queries::FilterOptions.call
-      @environments = filter_options[:environments]
       @error_types = filter_options[:error_types]
       @platforms = filter_options[:platforms]
     end
@@ -54,12 +53,29 @@ module RailsErrorDashboard
       @errors_over_time = analytics[:errors_over_time]
       @errors_by_type = analytics[:errors_by_type]
       @errors_by_platform = analytics[:errors_by_platform]
-      @errors_by_environment = analytics[:errors_by_environment]
       @errors_by_hour = analytics[:errors_by_hour]
       @top_users = analytics[:top_users]
       @resolution_rate = analytics[:resolution_rate]
       @mobile_errors = analytics[:mobile_errors]
       @api_errors = analytics[:api_errors]
+    end
+
+    # Phase 4.4: Platform comparison analytics
+    def platform_comparison
+      days = (params[:days] || 7).to_i
+      @days = days
+
+      # Use Query to get platform comparison data
+      comparison = Queries::PlatformComparison.new(days: days)
+
+      @error_rate_by_platform = comparison.error_rate_by_platform
+      @severity_distribution = comparison.severity_distribution_by_platform
+      @resolution_times = comparison.resolution_time_by_platform
+      @top_errors_by_platform = comparison.top_errors_by_platform
+      @stability_scores = comparison.platform_stability_scores
+      @cross_platform_errors = comparison.cross_platform_errors
+      @daily_trends = comparison.daily_trend_by_platform
+      @platform_health = comparison.platform_health_summary
     end
 
     def batch_action
@@ -88,15 +104,30 @@ module RailsErrorDashboard
       redirect_to errors_path
     end
 
+    # Phase 4.6: Error Correlation Analysis
+    def correlation
+      days = (params[:days] || 30).to_i
+      @days = days
+      correlation = Queries::ErrorCorrelation.new(days: days)
+
+      @errors_by_version = correlation.errors_by_version
+      @errors_by_git_sha = correlation.errors_by_git_sha
+      @problematic_releases = correlation.problematic_releases
+      @multi_error_users = correlation.multi_error_users(min_error_types: 2)
+      @time_correlated_errors = correlation.time_correlated_errors
+      @period_comparison = correlation.period_comparison
+      @platform_specific_errors = correlation.platform_specific_errors
+    end
+
     private
 
     def filter_params
       {
-        environment: params[:environment],
         error_type: params[:error_type],
         unresolved: params[:unresolved],
         platform: params[:platform],
-        search: params[:search]
+        search: params[:search],
+        severity: params[:severity]
       }
     end
 

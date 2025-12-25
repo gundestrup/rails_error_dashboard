@@ -33,7 +33,6 @@ module RailsErrorDashboard
           error_id: error_log.id,
           error_type: error_log.error_type,
           platform: error_log.platform,
-          environment: error_log.environment,
           timestamp: Time.current
         )
       end

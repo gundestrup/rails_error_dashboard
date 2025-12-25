@@ -6,11 +6,12 @@ Gem::Specification.new do |spec|
   spec.authors     = [ "Anjan Jagirdar" ]
   spec.email       = [ "anjan.jagirdar@gmail.com" ]
   spec.homepage    = "https://github.com/AnjanJ/rails_error_dashboard"
-  spec.summary     = "Beautiful error tracking dashboard for Rails applications (BETA)"
-  spec.description = "⚠️ BETA: Rails Error Dashboard provides error tracking with a beautiful UI, " \
-                     "multi-channel notifications (Slack, Email, Discord, PagerDuty), platform detection " \
-                     "(iOS/Android/Web/API), analytics, and optional separate database support. " \
-                     "Works with Rails 7.0-8.0. API may change before v1.0.0."
+  spec.summary     = "Self-hosted Rails error monitoring — free, forever. Zero SaaS fees, zero lock-in."
+  spec.description = "Own your errors. Own your stack. A fully open-source, self-hosted error dashboard " \
+                     "for solo founders, indie hackers, and small teams. Professional error tracking with " \
+                     "beautiful UI, multi-channel notifications (Slack, Email, Discord, PagerDuty), " \
+                     "platform detection (iOS/Android/Web/API), and analytics. 5-minute setup, works " \
+                     "out-of-the-box. Rails 7.0-8.1 compatible. ⚠️ BETA: API may change before v1.0.0."
   spec.license     = "MIT"
   spec.required_ruby_version = ">= 3.2.0"
 
@@ -36,6 +37,9 @@ Gem::Specification.new do |spec|
 
   # HTTP client for notifications (Discord, PagerDuty, Webhooks)
   spec.add_dependency "httparty", "~> 0.21"
+
+  # Real-time updates via Turbo Streams
+  spec.add_dependency "turbo-rails", "~> 2.0"
 
   # Pin concurrent-ruby for Rails 7.0 compatibility
   # Rails 7.0 has issues with concurrent-ruby 1.3.5+ which removed logger dependency

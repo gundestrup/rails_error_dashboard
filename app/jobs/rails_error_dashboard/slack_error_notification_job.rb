@@ -38,7 +38,7 @@ module RailsErrorDashboard
 
     def slack_payload(error_log)
       {
-        text: "🚨 New Error in #{error_log.environment.titleize} Environment",
+        text: "🚨 New Error Alert",
         blocks: [
           {
             type: "header",
@@ -54,10 +54,6 @@ module RailsErrorDashboard
               {
                 type: "mrkdwn",
                 text: "*Error Type:*\n`#{error_log.error_type}`"
-              },
-              {
-                type: "mrkdwn",
-                text: "*Environment:*\n#{error_log.environment.titleize}"
               },
               {
                 type: "mrkdwn",

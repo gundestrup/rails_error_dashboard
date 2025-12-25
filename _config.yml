@@ -1,0 +1,41 @@
+theme: jekyll-theme-minimal
+title: Rails Error Dashboard
+description: Advanced error tracking and monitoring for Ruby on Rails applications
+show_downloads: true
+
+# GitHub metadata
+github:
+  repository_url: https://github.com/yourusername/rails_error_dashboard
+  is_project_page: true
+
+# Navigation (for Jekyll themes that support it)
+navigation:
+  - name: Home
+    url: /
+  - name: Quickstart
+    url: /docs/QUICKSTART
+  - name: Documentation
+    url: /docs/
+  - name: API Reference
+    url: /docs/API_REFERENCE
+  - name: Customization
+    url: /docs/CUSTOMIZATION
+  - name: Plugins
+    url: /docs/PLUGIN_SYSTEM
+
+# Plugins
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
+
+# Exclude from processing
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor
+  - spec
+  - tmp
+  - log
+  - coverage
+  - .git
