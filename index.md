@@ -8,7 +8,7 @@ title: Rails Error Dashboard
 **Advanced error tracking and monitoring for Ruby on Rails applications**
 
 [![Gem Version](https://badge.fury.io/rb/rails_error_dashboard.svg)](https://badge.fury.io/rb/rails_error_dashboard)
-[![Build Status](https://github.com/yourusername/rails_error_dashboard/workflows/CI/badge.svg)](https://github.com/yourusername/rails_error_dashboard/actions)
+[![Build Status](https://github.com/AnjanJ/rails_error_dashboard/workflows/CI/badge.svg)](https://github.com/AnjanJ/rails_error_dashboard/actions)
 
 ## Features
 
@@ -103,8 +103,8 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/rails_error_dashboard/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/rails_error_dashboard/discussions)
+- **Issues**: [GitHub Issues](https://github.com/AnjanJ/rails_error_dashboard/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/AnjanJ/rails_error_dashboard/discussions)
 - **Documentation**: [docs/](docs/README.md)
 
 ---

@@ -5,7 +5,7 @@ show_downloads: true
 
 # GitHub metadata
 github:
-  repository_url: https://github.com/yourusername/rails_error_dashboard
+  repository_url: https://github.com/AnjanJ/rails_error_dashboard
   is_project_page: true
 
 # Navigation (for Jekyll themes that support it)
