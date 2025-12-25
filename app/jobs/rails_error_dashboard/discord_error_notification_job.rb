@@ -18,11 +18,12 @@ module RailsErrorDashboard
       HTTParty.post(
         webhook_url,
         body: payload.to_json,
-        headers: { "Content-Type" => "application/json" }
+        headers: { "Content-Type" => "application/json" },
+        timeout: 10  # CRITICAL: 10 second timeout to prevent hanging
       )
     rescue StandardError => e
-      Rails.logger.error("Failed to send Discord notification: #{e.message}")
-      Rails.logger.error(e.backtrace.join("\n"))
+      Rails.logger.error("[RailsErrorDashboard] Failed to send Discord notification: #{e.message}")
+      Rails.logger.error(e.backtrace&.first(5)&.join("\n")) if e.backtrace
     end
 
     private

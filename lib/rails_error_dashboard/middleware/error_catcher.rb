@@ -23,17 +23,24 @@ module RailsErrorDashboard
         @app.call(env)
       rescue => exception
         # Report to Rails.error (will be logged by our ErrorReporter)
-        Rails.error.report(exception,
-          handled: false,
-          severity: :error,
-          context: {
-            request: ActionDispatch::Request.new(env),
-            middleware: true
-          },
-          source: "rack.middleware"
-        )
+        # CRITICAL: Wrap in rescue to ensure gem failures don't break the app
+        begin
+          Rails.error.report(exception,
+            handled: false,
+            severity: :error,
+            context: {
+              request: ActionDispatch::Request.new(env),
+              middleware: true
+            },
+            source: "rack.middleware"
+          )
+        rescue => e
+          # If error reporting fails, log it but DON'T break the app
+          Rails.logger.error("[RailsErrorDashboard] Middleware error reporting failed: #{e.class} - #{e.message}")
+          Rails.logger.error(e.backtrace&.first(5)&.join("\n")) if e.backtrace
+        end
 
-        # Re-raise to let Rails handle the response
+        # Re-raise original exception to let Rails handle the response
         raise exception
       end
     end

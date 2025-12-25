@@ -22,14 +22,22 @@ module RailsErrorDashboard
       # Skip low-severity warnings
       return if handled && severity == :warning
 
-      # Extract context information
-      error_context = ValueObjects::ErrorContext.new(context, source)
+      # CRITICAL: Wrap entire process in rescue to ensure failures don't break the app
+      begin
+        # Extract context information
+        error_context = ValueObjects::ErrorContext.new(context, source)
 
-      # Log to our error dashboard using Command
-      Commands::LogError.call(error, error_context.to_h.merge(source: source))
-    rescue => e
-      # Don't let error logging cause more errors
-      Rails.logger.error("ErrorReporter failed: #{e.message}")
+        # Log to our error dashboard using Command
+        Commands::LogError.call(error, error_context.to_h.merge(source: source))
+      rescue => e
+        # Don't let error logging cause more errors - fail silently
+        # Log failure for debugging but NEVER propagate exception
+        Rails.logger.error("[RailsErrorDashboard] ErrorReporter failed: #{e.class} - #{e.message}")
+        Rails.logger.error("Original error: #{error.class} - #{error.message}") if error
+        Rails.logger.error("Context: #{context.inspect}") if context
+        Rails.logger.error(e.backtrace&.first(5)&.join("\n")) if e.backtrace
+        nil # Explicitly return nil, never raise
+      end
     end
   end
 end

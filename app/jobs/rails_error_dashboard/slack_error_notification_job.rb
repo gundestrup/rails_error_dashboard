@@ -26,14 +26,22 @@ module RailsErrorDashboard
       http = Net::HTTP.new(uri.host, uri.port)
       http.use_ssl = true
 
+      # CRITICAL: Add timeouts to prevent hanging the job queue
+      http.open_timeout = 5  # 5 seconds to establish connection
+      http.read_timeout = 10  # 10 seconds to read response
+
       request = Net::HTTP::Post.new(uri.path, { "Content-Type" => "application/json" })
       request.body = slack_payload(error_log).to_json
 
       response = http.request(request)
 
       unless response.is_a?(Net::HTTPSuccess)
-        Rails.logger.error("Slack notification failed: #{response.code} - #{response.body}")
+        Rails.logger.error("[RailsErrorDashboard] Slack notification failed: #{response.code} - #{response.body}")
       end
+    rescue Timeout::Error, Errno::ECONNREFUSED, SocketError, Net::OpenTimeout, Net::ReadTimeout => e
+      # Network errors - log and fail gracefully
+      Rails.logger.error("[RailsErrorDashboard] Slack HTTP request failed: #{e.class} - #{e.message}")
+      nil
     end
 
     def slack_payload(error_log)
