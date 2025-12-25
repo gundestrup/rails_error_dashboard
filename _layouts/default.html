@@ -10,229 +10,159 @@
     <link rel="stylesheet" href="{{ '/assets/css/style.css?v=' | append: site.github.build_revision | relative_url }}">
 
     <style>
-      /* Auto Dark/Light Theme based on system preference */
+      /* Dark Theme (Default) */
       :root {
-        color-scheme: light dark;
+        color-scheme: dark;
       }
 
-      /* Light mode (default) */
-      @media (prefers-color-scheme: light) {
-        body {
-          background-color: #fff;
-          color: #222;
-        }
-
-        a {
-          color: #267CB9;
-        }
-
-        a:hover {
-          color: #069;
-        }
-
-        code {
-          background-color: #f3f3f3;
-          color: #222;
-        }
-
-        pre {
-          background-color: #f3f3f3;
-          border: 1px solid #ccc;
-        }
-
-        blockquote {
-          border-left: 3px solid #d0d0d0;
-          color: #777;
-        }
-
-        table {
-          border-color: #e5e5e5;
-        }
-
-        th, td {
-          border-color: #e5e5e5;
-        }
-
-        hr {
-          border-color: #e5e5e5;
-        }
+      body {
+        background-color: #0d1117 !important;
+        color: #e6edf3 !important;
       }
 
-      /* Dark mode */
-      @media (prefers-color-scheme: dark) {
-        body {
-          background-color: #0d1117 !important;
-          color: #e6edf3 !important;
-        }
-
-        /* Override minimal theme styles */
-        header p, section p, section li, footer p {
-          color: #e6edf3 !important;
-        }
-
-        /* Headings with excellent contrast */
-        h1, h2, h3, h4, h5, h6 {
-          color: #f0f6fc !important;
-          font-weight: 600;
-        }
-
-        /* Bright, readable links */
-        a {
-          color: #58a6ff !important;
-          text-decoration: none;
-        }
-
-        a:hover {
-          color: #79c0ff !important;
-          text-decoration: underline;
-        }
-
-        /* Strong/bold text */
-        strong, b {
-          color: #f0f6fc !important;
-        }
-
-        /* Code blocks */
-        code {
-          background-color: #161b22 !important;
-          color: #f0f6fc !important;
-          border: 1px solid #30363d;
-        }
-
-        pre {
-          background-color: #161b22 !important;
-          border: 1px solid #30363d;
-        }
-
-        pre code {
-          background-color: transparent !important;
-          border: none;
-        }
-
-        /* Blockquotes */
-        blockquote {
-          border-left: 3px solid #3b434b;
-          color: #c9d1d9 !important;
-        }
-
-        /* Tables */
-        table {
-          border-color: #30363d;
-        }
-
-        th {
-          background-color: #161b22 !important;
-          border-color: #30363d;
-          color: #f0f6fc !important;
-        }
-
-        td {
-          border-color: #30363d;
-          color: #e6edf3 !important;
-        }
-
-        tr:nth-child(even) {
-          background-color: #0d1117;
-        }
-
-        /* Horizontal rules */
-        hr {
-          background-color: #30363d;
-          border-color: #30363d;
-        }
-
-        /* List items */
-        ul, ol {
-          color: #e6edf3 !important;
-        }
-
-        li {
-          color: #e6edf3 !important;
-        }
-
-        /* Badges - make them brighter */
-        img[src*="badge.fury.io"],
-        img[src*="shields.io"],
-        img[src*="github.com/workflows"] {
-          filter: brightness(1.1) contrast(1.1);
-        }
-
-        /* Better contrast for inline code */
-        p code, li code, td code {
-          padding: 2px 6px;
-          border-radius: 3px;
-        }
-
-        /* Header and footer text */
-        header {
-          background-color: #0d1117 !important;
-        }
-
-        header p {
-          color: #8b949e !important;
-        }
-
-        header p.view a {
-          color: #58a6ff !important;
-        }
-
-        header p.view a small {
-          color: #8b949e !important;
-        }
-
-        footer {
-          background-color: #0d1117 !important;
-        }
-
-        footer p, footer small {
-          color: #8b949e !important;
-        }
-
-        /* Emoji visibility */
-        .emoji {
-          filter: brightness(1.2);
-        }
+      /* Override minimal theme styles */
+      header p, section p, section li, footer p {
+        color: #e6edf3 !important;
       }
 
-      /* Common styles for both themes */
+      /* Headings with excellent contrast */
+      h1, h2, h3, h4, h5, h6 {
+        color: #f0f6fc !important;
+        font-weight: 600;
+      }
+
+      /* Bright, readable links */
+      a {
+        color: #58a6ff !important;
+        text-decoration: none;
+      }
+
+      a:hover {
+        color: #79c0ff !important;
+        text-decoration: underline;
+      }
+
+      /* Strong/bold text */
+      strong, b {
+        color: #f0f6fc !important;
+      }
+
+      /* Code blocks */
       code {
+        background-color: #161b22 !important;
+        color: #f0f6fc !important;
+        border: 1px solid #30363d;
         padding: 2px 6px;
         font-size: 90%;
         border-radius: 3px;
       }
 
       pre {
+        background-color: #161b22 !important;
+        border: 1px solid #30363d;
         padding: 16px;
         overflow: auto;
         border-radius: 6px;
       }
 
       pre code {
-        padding: 0;
+        background-color: transparent !important;
         border: none;
-        background: transparent;
+        padding: 0;
       }
 
+      /* Blockquotes */
       blockquote {
+        border-left: 3px solid #3b434b;
+        color: #c9d1d9 !important;
         padding: 0 1em;
         margin: 0 0 16px 0;
       }
 
+      /* Tables */
       table {
+        border-color: #30363d;
         width: 100%;
         overflow: auto;
         border-collapse: collapse;
         margin-bottom: 16px;
       }
 
-      th, td {
+      th {
+        background-color: #161b22 !important;
+        border-color: #30363d;
+        color: #f0f6fc !important;
         padding: 6px 13px;
         border: 1px solid;
       }
 
-      /* Smooth transitions for theme changes */
-      body, a, code, pre, blockquote, table, th, td {
-        transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+      td {
+        border-color: #30363d;
+        color: #e6edf3 !important;
+        padding: 6px 13px;
+        border: 1px solid;
+      }
+
+      tr:nth-child(even) {
+        background-color: #0d1117;
+      }
+
+      /* Horizontal rules */
+      hr {
+        background-color: #30363d;
+        border-color: #30363d;
+      }
+
+      /* List items */
+      ul, ol {
+        color: #e6edf3 !important;
+      }
+
+      li {
+        color: #e6edf3 !important;
+      }
+
+      /* Badges - make them brighter */
+      img[src*="badge.fury.io"],
+      img[src*="shields.io"],
+      img[src*="github.com/workflows"] {
+        filter: brightness(1.1) contrast(1.1);
+      }
+
+      /* Better contrast for inline code */
+      p code, li code, td code {
+        padding: 2px 6px;
+        border-radius: 3px;
+      }
+
+      /* Header and footer text */
+      header {
+        background-color: #0d1117 !important;
+      }
+
+      header p {
+        color: #8b949e !important;
+      }
+
+      header p.view a {
+        color: #58a6ff !important;
+      }
+
+      header p.view a small {
+        color: #8b949e !important;
+      }
+
+      footer {
+        background-color: #0d1117 !important;
+      }
+
+      footer p, footer small {
+        color: #8b949e !important;
+      }
+
+      /* Emoji visibility */
+      .emoji {
+        filter: brightness(1.2);
       }
     </style>
 
