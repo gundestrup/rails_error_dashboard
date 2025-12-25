@@ -158,7 +158,7 @@ module RailsErrorDashboard
             @selected_features[feature[:key]] = true
             say "    ✓ Enabled (via --#{feature[:key]} flag)", :green
           else
-            response = ask("    Enable? (y/N):", :yellow, limited_to: ["y", "Y", "n", "N", ""])
+            response = ask("    Enable? (y/N):", :yellow, limited_to: [ "y", "Y", "n", "N", "" ])
             @selected_features[feature[:key]] = response.downcase == "y"
 
             if @selected_features[feature[:key]]
