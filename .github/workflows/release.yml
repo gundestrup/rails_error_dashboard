@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write      # Create releases and tags
+  pull-requests: write # Create/update release PRs
+  id-token: write      # Required for trusted publishing (OIDC)
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # Full history for changelog generation
+
+      # Step 1: Release Please manages versioning and changelog
+      # This will create/update a Release PR when commits are pushed to main
+      # When the Release PR is merged, it will create a GitHub release
+      - name: Create Release PR or Publish Release
+        uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Steps below only run if a release was created (Release PR was merged)
+
+      - name: Set up Ruby
+        if: ${{ steps.release.outputs.release_created }}
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+
+      - name: Run tests before publishing
+        if: ${{ steps.release.outputs.release_created }}
+        run: bundle exec rspec
+
+      - name: Run RuboCop before publishing
+        if: ${{ steps.release.outputs.release_created }}
+        run: bundle exec rubocop
+
+      # Step 2: Publish to RubyGems using Trusted Publishing
+      # This requires setting up a Trusted Publisher on RubyGems.org
+      # See: https://guides.rubygems.org/trusted-publishing/
+      - name: Publish to RubyGems
+        if: ${{ steps.release.outputs.release_created }}
+        uses: rubygems/release-gem@v1
+        # No API key needed! Trusted publishing handles authentication via OIDC

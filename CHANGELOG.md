@@ -7,44 +7,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### 🔧 Changed
-- **Interactive Installer with Feature Selection** (2024-12-25)
-  - Installer now presents all 16 optional features during installation
-  - Features organized in 3 categories: Notifications, Performance, Advanced Analytics
-  - Interactive prompts guide users through opt-in feature selection
-  - All notification channels now disabled by default (opt-in)
-  - All advanced analytics features now disabled by default (opt-in)
-  - Initializer template dynamically generated based on user selections
-  - Users can enable/disable any feature at any time by editing the initializer
+## [0.1.1] - 2025-12-25
 
-- **Opt-in Architecture Enforcement** (2024-12-25)
-  - Core features (Tier 1) always enabled: error capture, dashboard UI, real-time updates, basic analytics
-  - All optional features disabled by default, requiring explicit enablement
-  - Runtime guards added to all Phase 4 features (similar_errors, co_occurring_errors, error_cascades, etc.)
-  - Controller actions redirect with message if feature disabled
-  - View sections only render if feature enabled
-  - Navigation links hidden if feature disabled
+### 🐛 Bug Fixes
 
-### 🧹 Improved
-- **Documentation Updates** (2024-12-25)
-  - Updated README.md with interactive installer information
-  - Updated QUICKSTART.md with 16 optional features and installation flow
-  - Updated CONFIGURATION.md with all configurable features organized by category
-  - Updated FEATURES.md to clarify Tier 1 vs optional features
-  - Updated all advanced feature guides (BASELINE_MONITORING.md, ADVANCED_ERROR_GROUPING.md, ERROR_CORRELATION.md, PLATFORM_COMPARISON.md, OCCURRENCE_PATTERNS.md) with configuration requirements
-  - All documentation now reflects opt-in architecture
+#### UI & User Experience
+- **Dark Mode Persistence** - Fixed dark mode theme resetting to light on page navigation
+  - Theme now applied immediately before page render (no flash of light mode)
+  - Dual selector approach (`body.dark-mode` + `html[data-theme="dark"]`)
+  - Theme preference preserved across all page loads and form submissions
 
-- **Code Cleanup** (2024-12-25)
-  - Removed all "Phase X" development comments from production code
-  - Removed 4 pending tests with timing issues (now 847 tests, 0 pending)
-  - Cleaner, more professional codebase
+- **Dark Mode Contrast** - Improved text visibility in dark mode
+  - Changed text color from `#9CA3AF` to `#D1D5DB` for better contrast
+  - Text now clearly readable against dark backgrounds
 
-### 🧪 Testing
-- **Test Coverage** (2024-12-25)
-  - 847 RSpec examples, all passing
-  - 15 CI matrix combinations (Ruby 3.2/3.3/3.4 × Rails 7.0/7.1/7.2/8.0/8.1)
-  - Updated tests to enable features before testing Phase 4 functionality
-  - Zero pending tests
+- **Error Resolution** - Fixed resolve button not marking errors as resolved
+  - Corrected form HTTP method from PATCH to POST to match route definition
+  - Resolve action now works correctly with 200 OK response
+
+- **Error Filtering** - Fixed unresolved checkbox and default filter behavior
+  - Dashboard now shows only unresolved errors by default (cleaner view)
+  - Unresolved checkbox properly toggles between unresolved-only and all errors
+  - Added hidden field for proper false value submission
+
+- **User Association** - Fixed crashes when User model not defined in host app
+  - Added `respond_to?(:user)` checks before accessing user associations
+  - Graceful fallback to user_id display when User model unavailable
+  - Error show page no longer crashes on apps without User model
+
+#### Code Quality & CI
+- **RuboCop Compliance** - Fixed Style/RedundantReturn violation
+  - Removed redundant `return` statement in ErrorsList query object
+  - All 132 files now pass lint checks with zero offenses
+
+- **Test Suite Stability** - Updated tests to match new default behavior
+  - Fixed 5 failing tests in errors_list_spec.rb
+  - Updated expectations to reflect unresolved-only default filtering
+  - Enhanced filter logic to handle boolean false, string "false", and string "0"
+  - All 847 RSpec examples now passing with 0 failures
+
+#### Dependencies
+- **Missing Gem Dependencies** - Added required dependencies for dashboard features
+  - Added `turbo-rails` dependency for real-time updates
+  - Added `chartkick` dependency for dashboard charts
+  - Dashboard now works out-of-the-box without manual dependency installation
+
+### 🧹 Code Cleanup
+
+- **Removed Unused Code**
+  - Deleted `DeveloperInsights` query class (278 lines, unused)
+  - Deleted `ApplicationRecord` model (5 lines, unused)
+  - Removed build artifact `rails_error_dashboard-0.1.0.gem`
+  - Cleaner, leaner codebase with zero orphaned files
+
+- **Internal Documentation** - Moved development docs to knowledge base
+  - Relocated `docs/internal/` to external knowledge base
+  - Repository now contains only public-facing documentation
+  - Cleaner repo structure for open source contributors
+
+### ✨ Enhancements
+
+- **Helper Methods** - Added missing severity_color helper
+  - Returns Bootstrap color classes for error severity levels
+  - Supports critical (danger), high (warning), medium (info), low (secondary)
+  - Fixes 500 errors when rendering severity badges
+
+### 🧪 Testing & CI
+
+- **CI Reliability** - Fixed recurring CI failures
+  - All RuboCop violations resolved
+  - All test suite failures fixed
+  - 15 CI matrix combinations now passing consistently
+  - Ruby 3.2/3.3/3.4 × Rails 7.0/7.1/7.2/8.0/8.1
+  - 847 examples, 0 failures, 0 pending
+
+### 📚 Documentation
+
+- **Installation Testing** - Verified gem installation in test app
+  - Tested uninstall → reinstall → migration → dashboard workflow
+  - Confirmed all features work correctly in production-like environment
+  - Dashboard loads successfully with all charts and real-time updates
+
+### 🔧 Technical Details
+
+This patch release focuses entirely on bug fixes and stability improvements. No breaking changes or new features introduced.
+
+**Upgrade Instructions:**
+```ruby
+# Gemfile
+gem "rails_error_dashboard", "~> 0.1.1"
+```
+
+Then run:
+```bash
+bundle update rails_error_dashboard
+```
+
+No migrations or configuration changes required.
 
 ## [0.1.0] - 2024-12-24
 
@@ -210,7 +269,9 @@ Thanks to the Rails community for the excellent tools and libraries that made th
 
 ## Version History
 
+- **0.1.1** (2025-12-25) - Bug fixes and stability improvements
 - **0.1.0** (2024-12-24) - Initial beta release with complete feature set
 
-[Unreleased]: https://github.com/AnjanJ/rails_error_dashboard/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/AnjanJ/rails_error_dashboard/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/AnjanJ/rails_error_dashboard/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/AnjanJ/rails_error_dashboard/releases/tag/v0.1.0
