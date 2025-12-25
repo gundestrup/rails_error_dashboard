@@ -83,13 +83,13 @@ module RailsErrorDashboard
 
       @user_model = "User"
 
-      # Notification settings
+      # Notification settings (disabled by default - enable during installation or in initializer)
       @slack_webhook_url = ENV["SLACK_WEBHOOK_URL"]
       @notification_email_recipients = ENV.fetch("ERROR_NOTIFICATION_EMAILS", "").split(",").map(&:strip)
       @notification_email_from = ENV.fetch("ERROR_NOTIFICATION_FROM", "errors@example.com")
       @dashboard_base_url = ENV["DASHBOARD_BASE_URL"]
-      @enable_slack_notifications = true
-      @enable_email_notifications = true
+      @enable_slack_notifications = false
+      @enable_email_notifications = false
 
       # Discord notification settings
       @discord_webhook_url = ENV["DISCORD_WEBHOOK_URL"]
