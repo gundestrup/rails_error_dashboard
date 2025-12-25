@@ -24,13 +24,13 @@ rails generate rails_error_dashboard:install
 rails db:migrate
 ```
 
-That's it! The dashboard is now available at `/errors` in your Rails app.
+That's it! The dashboard is now available at `/error_dashboard` in your Rails app.
 
 ## First Steps
 
 ### Access the Dashboard
 
-Visit `http://localhost:3000/errors` to see the error dashboard.
+Visit `http://localhost:3000/error_dashboard` to see the error dashboard.
 
 Initially, you won't see any errors. Let's create one to test:
 
@@ -174,7 +174,7 @@ rails routes | grep error
 **Should see**:
 ```
 Rails.application.routes.draw do
-  mount RailsErrorDashboard::Engine => "/errors"
+  mount RailsErrorDashboard::Engine => "/error_dashboard"
 end
 ```
 

@@ -45,7 +45,7 @@ rails generate rails_error_dashboard:install
 rails db:migrate
 ```
 
-Visit `http://localhost:3000/errors` 🎉
+Visit `http://localhost:3000/error_dashboard` 🎉
 
 ## Screenshots
 
