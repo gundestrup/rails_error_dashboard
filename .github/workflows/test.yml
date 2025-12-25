@@ -12,8 +12,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ruby: ['3.2', '3.3']
-        rails: ['7.0', '7.1', '7.2', '8.0']
+        ruby: ['3.2', '3.3', '3.4']
+        rails: ['7.0', '7.1', '7.2', '8.0', '8.1']
 
     name: Ruby ${{ matrix.ruby }} / Rails ${{ matrix.rails }}
 
@@ -49,8 +49,8 @@ jobs:
         COVERAGE: false
       run: bundle exec rspec
 
-    - name: Upload coverage reports (Ruby 3.3 / Rails 8.0 only)
-      if: matrix.ruby == '3.3' && matrix.rails == '8.0'
+    - name: Upload coverage reports (Ruby 3.4 / Rails 8.1 only)
+      if: matrix.ruby == '3.4' && matrix.rails == '8.1'
       uses: codecov/codecov-action@v3
       with:
         files: ./coverage/coverage.xml
