@@ -7,7 +7,7 @@ RSpec.describe RailsErrorDashboard::Commands::BatchDeleteErrors do
     let!(:error1) { create(:error_log) }
     let!(:error2) { create(:error_log) }
     let!(:error3) { create(:error_log) }
-    let(:error_ids) { [error1.id, error2.id, error3.id] }
+    let(:error_ids) { [ error1.id, error2.id, error3.id ] }
 
     context "with valid error IDs" do
       it "deletes all errors" do
@@ -86,7 +86,7 @@ RSpec.describe RailsErrorDashboard::Commands::BatchDeleteErrors do
 
     context "with non-existent error IDs" do
       it "handles gracefully" do
-        result = described_class.call([99999, 88888])
+        result = described_class.call([ 99999, 88888 ])
 
         expect(result[:success]).to be true
         expect(result[:count]).to eq(0)
@@ -95,7 +95,7 @@ RSpec.describe RailsErrorDashboard::Commands::BatchDeleteErrors do
 
       it "does not raise error" do
         expect {
-          described_class.call([99999])
+          described_class.call([ 99999 ])
         }.not_to raise_error
       end
     end
@@ -103,12 +103,12 @@ RSpec.describe RailsErrorDashboard::Commands::BatchDeleteErrors do
     context "with mix of valid and invalid IDs" do
       it "deletes only valid errors" do
         expect {
-          described_class.call([error1.id, 99999, error2.id])
+          described_class.call([ error1.id, 99999, error2.id ])
         }.to change { RailsErrorDashboard::ErrorLog.count }.by(-2)
       end
 
       it "returns correct count" do
-        result = described_class.call([error1.id, 99999, error2.id])
+        result = described_class.call([ error1.id, 99999, error2.id ])
 
         expect(result[:count]).to eq(2)
         expect(result[:total]).to eq(3)
@@ -120,9 +120,9 @@ RSpec.describe RailsErrorDashboard::Commands::BatchDeleteErrors do
           deleted_ids = ids if event == :on_errors_batch_deleted
         end
 
-        described_class.call([error1.id, 99999, error2.id])
+        described_class.call([ error1.id, 99999, error2.id ])
 
-        expect(deleted_ids).to match_array([error1.id, error2.id])
+        expect(deleted_ids).to match_array([ error1.id, error2.id ])
         expect(deleted_ids).not_to include(99999)
       end
     end
@@ -130,12 +130,12 @@ RSpec.describe RailsErrorDashboard::Commands::BatchDeleteErrors do
     context "with duplicate error IDs" do
       it "deletes each error once" do
         expect {
-          described_class.call([error1.id, error1.id, error2.id])
+          described_class.call([ error1.id, error1.id, error2.id ])
         }.to change { RailsErrorDashboard::ErrorLog.count }.by(-2)
       end
 
       it "returns correct count" do
-        result = described_class.call([error1.id, error1.id, error2.id])
+        result = described_class.call([ error1.id, error1.id, error2.id ])
 
         expect(result[:count]).to eq(2)
       end
@@ -143,7 +143,7 @@ RSpec.describe RailsErrorDashboard::Commands::BatchDeleteErrors do
 
     context "with error IDs as strings" do
       it "handles string IDs" do
-        result = described_class.call([error1.id.to_s, error2.id.to_s])
+        result = described_class.call([ error1.id.to_s, error2.id.to_s ])
 
         expect(result[:success]).to be true
         expect(result[:count]).to eq(2)
@@ -151,7 +151,7 @@ RSpec.describe RailsErrorDashboard::Commands::BatchDeleteErrors do
 
       it "deletes the errors" do
         expect {
-          described_class.call([error1.id.to_s, error2.id.to_s])
+          described_class.call([ error1.id.to_s, error2.id.to_s ])
         }.to change { RailsErrorDashboard::ErrorLog.count }.by(-2)
       end
     end
@@ -188,12 +188,12 @@ RSpec.describe RailsErrorDashboard::Commands::BatchDeleteErrors do
     context "with single error ID" do
       it "deletes one error" do
         expect {
-          described_class.call([error1.id])
+          described_class.call([ error1.id ])
         }.to change { RailsErrorDashboard::ErrorLog.count }.by(-1)
       end
 
       it "returns success" do
-        result = described_class.call([error1.id])
+        result = described_class.call([ error1.id ])
 
         expect(result[:success]).to be true
         expect(result[:count]).to eq(1)
@@ -217,7 +217,7 @@ RSpec.describe RailsErrorDashboard::Commands::BatchDeleteErrors do
 
       it "deletes resolved errors" do
         expect {
-          described_class.call([error1.id])
+          described_class.call([ error1.id ])
         }.to change { RailsErrorDashboard::ErrorLog.count }.by(-1)
       end
     end
@@ -229,7 +229,7 @@ RSpec.describe RailsErrorDashboard::Commands::BatchDeleteErrors do
 
       it "deletes unresolved errors" do
         expect {
-          described_class.call([error1.id])
+          described_class.call([ error1.id ])
         }.to change { RailsErrorDashboard::ErrorLog.count }.by(-1)
       end
     end

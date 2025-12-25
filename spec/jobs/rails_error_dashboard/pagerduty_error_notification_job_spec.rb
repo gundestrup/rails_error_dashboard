@@ -370,7 +370,7 @@ RSpec.describe RailsErrorDashboard::PagerdutyErrorNotificationJob, type: :job do
     context "when PagerDuty API returns error" do
       it "logs the error" do
         stub_request(:post, pagerduty_api_url)
-          .to_return(status: 400, body: { status: "invalid event", errors: ["routing_key is invalid"] }.to_json)
+          .to_return(status: 400, body: { status: "invalid event", errors: [ "routing_key is invalid" ] }.to_json)
 
         allow(Rails.logger).to receive(:error)
 

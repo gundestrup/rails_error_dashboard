@@ -36,14 +36,14 @@ module RailsErrorDashboard
     # Update cascade pattern stats
     def increment_detection!(delay_seconds)
       self.frequency += 1
-      
+
       # Update average delay using incremental formula
       if avg_delay_seconds.present?
         self.avg_delay_seconds = ((avg_delay_seconds * (frequency - 1)) + delay_seconds) / frequency
       else
         self.avg_delay_seconds = delay_seconds
       end
-      
+
       self.last_detected_at = Time.current
       save
     end

@@ -38,15 +38,15 @@ module RailsErrorDashboard
         occurrences.each do |parent_occ|
           # Find occurrences within detection window
           potential_children = ErrorOccurrence
-            .where("occurred_at > ? AND occurred_at <= ?", 
-                   parent_occ.occurred_at, 
+            .where("occurred_at > ? AND occurred_at <= ?",
+                   parent_occ.occurred_at,
                    parent_occ.occurred_at + DETECTION_WINDOW)
             .where.not(error_log_id: parent_occ.error_log_id)
 
           potential_children.each do |child_occ|
-            key = [parent_occ.error_log_id, child_occ.error_log_id]
+            key = [ parent_occ.error_log_id, child_occ.error_log_id ]
             delay = (child_occ.occurred_at - parent_occ.occurred_at).to_f
-            
+
             patterns_found[key][:delays] << delay
             patterns_found[key][:count] += 1
           end
@@ -64,7 +64,7 @@ module RailsErrorDashboard
           )
 
           avg_delay = data[:delays].sum / data[:delays].size
-          
+
           if pattern.new_record?
             pattern.frequency = data[:count]
             pattern.avg_delay_seconds = avg_delay

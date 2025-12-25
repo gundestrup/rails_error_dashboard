@@ -4,7 +4,7 @@ require "rails_helper"
 
 RSpec.describe RailsErrorDashboard::EmailErrorNotificationJob, type: :job do
   let(:error_log) { create(:error_log) }
-  let(:recipients) { ["dev@example.com", "admin@example.com"] }
+  let(:recipients) { [ "dev@example.com", "admin@example.com" ] }
 
   before do
     RailsErrorDashboard.configuration.notification_email_recipients = recipients

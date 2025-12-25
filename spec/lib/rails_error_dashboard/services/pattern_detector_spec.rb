@@ -21,7 +21,7 @@ RSpec.describe RailsErrorDashboard::Services::PatternDetector do
       freeze_time do
         # Create errors during business hours (9am-5pm)
         30.times do
-          hour = [9, 10, 11, 14, 15, 16].sample
+          hour = [ 9, 10, 11, 14, 15, 16 ].sample
           create(:error_log,
             error_type: "BusinessError",
             platform: "ios",
@@ -30,7 +30,7 @@ RSpec.describe RailsErrorDashboard::Services::PatternDetector do
 
         # Create few errors outside business hours
         5.times do
-          hour = [0, 1, 2, 22, 23].sample
+          hour = [ 0, 1, 2, 22, 23 ].sample
           create(:error_log,
             error_type: "BusinessError",
             platform: "ios",
@@ -54,7 +54,7 @@ RSpec.describe RailsErrorDashboard::Services::PatternDetector do
       freeze_time do
         # Create errors during night hours
         25.times do
-          hour = [0, 1, 2, 3, 4, 5].sample
+          hour = [ 0, 1, 2, 3, 4, 5 ].sample
           create(:error_log,
             error_type: "NightError",
             platform: "api",
@@ -63,7 +63,7 @@ RSpec.describe RailsErrorDashboard::Services::PatternDetector do
 
         # Create few errors during day
         5.times do
-          hour = [12, 13, 14].sample
+          hour = [ 12, 13, 14 ].sample
           create(:error_log,
             error_type: "NightError",
             platform: "api",
@@ -89,7 +89,7 @@ RSpec.describe RailsErrorDashboard::Services::PatternDetector do
           days_offset = rand(0..29)
           time = days_offset.days.ago
           # Find next Saturday or Sunday
-          until time.wday.in?([0, 6])
+          until time.wday.in?([ 0, 6 ])
             time += 1.day
           end
 
@@ -104,7 +104,7 @@ RSpec.describe RailsErrorDashboard::Services::PatternDetector do
           days_offset = rand(0..29)
           time = days_offset.days.ago
           # Find next weekday
-          until time.wday.in?([1, 2, 3, 4, 5])
+          until time.wday.in?([ 1, 2, 3, 4, 5 ])
             time += 1.day
           end
 
@@ -338,7 +338,7 @@ RSpec.describe RailsErrorDashboard::Services::PatternDetector do
         )
 
         expect(result.count).to eq(2)
-        expect(result.map { |b| b[:error_count] }).to match_array([6, 8])
+        expect(result.map { |b| b[:error_count] }).to match_array([ 6, 8 ])
       end
     end
 

@@ -8,7 +8,7 @@ RSpec.describe RailsErrorDashboard::AsyncErrorLoggingJob, type: :job do
       {
         class_name: "StandardError",
         message: "Test async error",
-        backtrace: ["app/controllers/test_controller.rb:10:in `index'"]
+        backtrace: [ "app/controllers/test_controller.rb:10:in `index'" ]
       }
     end
     let(:context) { { user_id: 1, platform: "API" } }

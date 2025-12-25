@@ -13,7 +13,7 @@ class CreateErrorOccurrences < ActiveRecord::Migration[8.0]
     end
 
     # Index for finding co-occurring errors by time window
-    add_index :rails_error_dashboard_error_occurrences, [:occurred_at, :error_log_id],
+    add_index :rails_error_dashboard_error_occurrences, [ :occurred_at, :error_log_id ],
               name: 'index_error_occurrences_on_time_and_error'
 
     # Index for finding all occurrences of a specific error

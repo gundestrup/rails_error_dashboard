@@ -221,7 +221,7 @@ RSpec.describe RailsErrorDashboard::BaselineAlertJob, type: :job do
       context "with email notifications enabled" do
         before do
           RailsErrorDashboard.configuration.enable_email_notifications = true
-          RailsErrorDashboard.configuration.notification_email_recipients = ["admin@example.com"]
+          RailsErrorDashboard.configuration.notification_email_recipients = [ "admin@example.com" ]
         end
 
         it "logs that email would be sent" do
@@ -295,7 +295,7 @@ RSpec.describe RailsErrorDashboard::BaselineAlertJob, type: :job do
         # Don't clear throttler cache in this test - we need to set specific times
       end
 
-      it "uses custom cooldown period", :skip => "Timing issues with test setup" do
+      it "uses custom cooldown period", skip: "Timing issues with test setup" do
         freeze_time do
           # Test 1: Within cooldown period
           RailsErrorDashboard::Services::BaselineAlertThrottler.instance_variable_set(:@last_alert_times, {

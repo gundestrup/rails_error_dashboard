@@ -547,7 +547,7 @@ RSpec.describe RailsErrorDashboard::ErrorLog, type: :model do
     end
 
     it 'handles array backtrace' do
-      error = create(:error_log, backtrace: ["app/models/user.rb:10:in `save'", "app/controllers/users_controller.rb:20:in `create'"])
+      error = create(:error_log, backtrace: [ "app/models/user.rb:10:in `save'", "app/controllers/users_controller.rb:20:in `create'" ])
       frames = error.backtrace_frames
 
       expect(frames).to include("user.rb:save")
@@ -567,7 +567,7 @@ RSpec.describe RailsErrorDashboard::ErrorLog, type: :model do
       frames = error.backtrace_frames
 
       expect(frames.size).to eq(1)
-      expect(frames).to eq(["user.rb:save"])
+      expect(frames).to eq([ "user.rb:save" ])
     end
   end
 

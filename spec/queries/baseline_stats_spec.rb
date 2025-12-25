@@ -23,7 +23,7 @@ RSpec.describe RailsErrorDashboard::Queries::BaselineStats do
     it "detects anomaly when count exceeds threshold" do
       result = stats.check_anomaly(15) # 10 + 2.5*2 = 15
       expect(result[:anomaly]).to be true
-      expect(result[:level]).to be_in([:elevated, :high, :critical])
+      expect(result[:level]).to be_in([ :elevated, :high, :critical ])
     end
 
     it "returns no anomaly for normal count" do

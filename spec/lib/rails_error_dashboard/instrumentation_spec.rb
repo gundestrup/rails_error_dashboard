@@ -78,7 +78,7 @@ RSpec.describe "ActiveSupport::Notifications Integration" do
       end
 
       error = StandardError.new("Same error")
-      error.set_backtrace(["test.rb:1"])
+      error.set_backtrace([ "test.rb:1" ])
 
       # First occurrence
       RailsErrorDashboard::Commands::LogError.call(error, {})

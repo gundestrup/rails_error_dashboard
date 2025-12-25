@@ -20,7 +20,7 @@ class RemoveEnvironmentFromErrorLogs < ActiveRecord::Migration[8.1]
 
     # Recreate indexes
     add_index :rails_error_dashboard_error_logs, :environment
-    add_index :rails_error_dashboard_error_logs, [:environment, :occurred_at],
+    add_index :rails_error_dashboard_error_logs, [ :environment, :occurred_at ],
               name: 'index_error_logs_on_environment_and_occurred_at'
   end
 end

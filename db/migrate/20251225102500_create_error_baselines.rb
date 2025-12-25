@@ -22,12 +22,12 @@ class CreateErrorBaselines < ActiveRecord::Migration[8.0]
 
     # Composite index for efficient baseline lookups
     add_index :rails_error_dashboard_error_baselines,
-              [:error_type, :platform, :baseline_type, :period_start],
+              [ :error_type, :platform, :baseline_type, :period_start ],
               name: 'index_error_baselines_on_type_platform_baseline_period'
 
     # Index for querying by error_type and platform
     add_index :rails_error_dashboard_error_baselines,
-              [:error_type, :platform],
+              [ :error_type, :platform ],
               name: 'index_error_baselines_on_error_type_and_platform'
 
     # Index for cleaning up old baselines

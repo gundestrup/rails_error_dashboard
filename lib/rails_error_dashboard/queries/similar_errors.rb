@@ -74,7 +74,7 @@ module RailsErrorDashboard
         # Strategy 3: Same platform + same first word in error type
         # (catches similar errors like NoMethodError vs NameError)
         if candidates.size < 20 && target_error.platform.present?
-          error_prefix = target_error.error_type&.split("::")&.last&.split(/(?=[A-Z])/,2)&.first
+          error_prefix = target_error.error_type&.split("::")&.last&.split(/(?=[A-Z])/, 2)&.first
           if error_prefix.present?
             candidates += ErrorLog
                             .where(platform: target_error.platform)

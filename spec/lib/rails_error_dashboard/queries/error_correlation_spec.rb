@@ -45,7 +45,7 @@ RSpec.describe RailsErrorDashboard::Queries::ErrorCorrelation do
         correlation = described_class.new(days: 30)
         result = correlation.errors_by_version
 
-        expect(result["1.0.0"][:platforms]).to match_array(["ios", "android"])
+        expect(result["1.0.0"][:platforms]).to match_array([ "ios", "android" ])
         expect(result["1.0.0"][:first_seen]).to eq(5.days.ago)
         expect(result["1.0.0"][:last_seen]).to eq(2.days.ago)
       end
@@ -82,7 +82,7 @@ RSpec.describe RailsErrorDashboard::Queries::ErrorCorrelation do
       correlation = described_class.new(days: 30)
       result = correlation.errors_by_git_sha
 
-      expect(result["abc123"][:app_versions]).to match_array(["1.0.0", "1.0.1"])
+      expect(result["abc123"][:app_versions]).to match_array([ "1.0.0", "1.0.1" ])
     end
   end
 
@@ -317,7 +317,7 @@ RSpec.describe RailsErrorDashboard::Queries::ErrorCorrelation do
 
       if result.any?
         first_correlation = result.values.first
-        expect(first_correlation[:strength]).to be_in([:weak, :moderate, :strong])
+        expect(first_correlation[:strength]).to be_in([ :weak, :moderate, :strong ])
       end
     end
   end
@@ -350,7 +350,7 @@ RSpec.describe RailsErrorDashboard::Queries::ErrorCorrelation do
         correlation = described_class.new(days: 30)
         result = correlation.period_comparison
 
-        expect(result[:trend]).to be_in([:increasing, :increasing_significantly])
+        expect(result[:trend]).to be_in([ :increasing, :increasing_significantly ])
       end
     end
 

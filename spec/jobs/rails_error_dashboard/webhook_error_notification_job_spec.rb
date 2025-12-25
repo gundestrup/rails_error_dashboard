@@ -294,7 +294,7 @@ RSpec.describe RailsErrorDashboard::WebhookErrorNotificationJob, type: :job do
     end
 
     context "with multiple webhook URLs" do
-      let(:webhook_urls) { ["https://example.com/webhook1", "https://example.com/webhook2"] }
+      let(:webhook_urls) { [ "https://example.com/webhook1", "https://example.com/webhook2" ] }
 
       before do
         RailsErrorDashboard.configuration.webhook_urls = webhook_urls

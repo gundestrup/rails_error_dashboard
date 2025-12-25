@@ -14,7 +14,7 @@ class CreateCascadePatterns < ActiveRecord::Migration[8.0]
     end
 
     # Composite index for finding cascade patterns
-    add_index :rails_error_dashboard_cascade_patterns, [:parent_error_id, :child_error_id],
+    add_index :rails_error_dashboard_cascade_patterns, [ :parent_error_id, :child_error_id ],
               name: 'index_cascade_patterns_on_parent_and_child',
               unique: true
 

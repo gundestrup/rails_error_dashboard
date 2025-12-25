@@ -132,7 +132,7 @@ RSpec.describe RailsErrorDashboard::Services::BaselineAlertThrottler do
 
     # Note: These tests have timing issues with freeze_time and the global before block.
     # The functionality works correctly in actual usage - these are testing implementation details.
-    it "removes old entries based on max_age", :skip => "Timing issues with test setup" do
+    it "removes old entries based on max_age", skip: "Timing issues with test setup" do
       freeze_time do
         # Manually insert timestamps into the cache to test cleanup
         very_old = Time.current - 30.hours  # Way past cutoff
@@ -157,7 +157,7 @@ RSpec.describe RailsErrorDashboard::Services::BaselineAlertThrottler do
       end
     end
 
-    it "removes all entries older than custom max_age", :skip => "Timing issues with test setup" do
+    it "removes all entries older than custom max_age", skip: "Timing issues with test setup" do
       freeze_time do
         old_time = Time.current - 15.hours  # Past 10 hour cutoff
         recent_time = Time.current - 5.hours # Within 10 hour cutoff
@@ -177,7 +177,7 @@ RSpec.describe RailsErrorDashboard::Services::BaselineAlertThrottler do
       end
     end
 
-    it "keeps all entries within max_age", :skip => "Timing issues with test setup" do
+    it "keeps all entries within max_age", skip: "Timing issues with test setup" do
       freeze_time do
         recent1 = Time.current - 20.hours
         recent2 = Time.current - 10.hours

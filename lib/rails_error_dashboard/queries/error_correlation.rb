@@ -165,7 +165,7 @@ module RailsErrorDashboard
           users_a_count: users_a.count,
           users_b_count: users_b.count,
           overlap_count: overlap.count,
-          overlap_percentage: calculate_percentage(overlap.count, [users_a.count, users_b.count].min),
+          overlap_percentage: calculate_percentage(overlap.count, [ users_a.count, users_b.count ].min),
           overlapping_user_ids: overlap.first(10) # Sample of overlapping users
         }
       end

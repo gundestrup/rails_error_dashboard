@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_25_102500) do
+ActiveRecord::Schema.define(version: 2025_12_25_102500) do
   create_table "rails_error_dashboard_error_logs", force: :cascade do |t|
     t.string "error_type", null: false
     t.text "message", null: false
@@ -69,10 +69,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_102500) do
     t.string "session_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["error_log_id"], name: "index_error_occurrences_on_error_log"
-    t.index ["occurred_at", "error_log_id"], name: "index_error_occurrences_on_time_and_error"
-    t.index ["request_id"], name: "index_error_occurrences_on_request"
-    t.index ["user_id"], name: "index_error_occurrences_on_user"
+    t.index [ "error_log_id" ], name: "index_error_occurrences_on_error_log"
+    t.index [ "occurred_at", "error_log_id" ], name: "index_error_occurrences_on_time_and_error"
+    t.index [ "request_id" ], name: "index_error_occurrences_on_request"
+    t.index [ "user_id" ], name: "index_error_occurrences_on_user"
   end
 
   add_foreign_key "rails_error_dashboard_error_occurrences", "rails_error_dashboard_error_logs", column: "error_log_id"
@@ -86,10 +86,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_102500) do
     t.datetime "last_detected_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["cascade_probability"], name: "index_cascade_patterns_on_probability"
-    t.index ["child_error_id"], name: "index_cascade_patterns_on_child"
-    t.index ["parent_error_id", "child_error_id"], name: "index_cascade_patterns_on_parent_and_child", unique: true
-    t.index ["parent_error_id"], name: "index_cascade_patterns_on_parent"
+    t.index [ "cascade_probability" ], name: "index_cascade_patterns_on_probability"
+    t.index [ "child_error_id" ], name: "index_cascade_patterns_on_child"
+    t.index [ "parent_error_id", "child_error_id" ], name: "index_cascade_patterns_on_parent_and_child", unique: true
+    t.index [ "parent_error_id" ], name: "index_cascade_patterns_on_parent"
   end
 
   create_table "rails_error_dashboard_error_baselines", force: :cascade do |t|
@@ -106,9 +106,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_102500) do
     t.integer "sample_size", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["error_type", "platform", "baseline_type", "period_start"], name: "index_error_baselines_on_type_platform_baseline_period"
-    t.index ["error_type", "platform"], name: "index_error_baselines_on_error_type_and_platform"
-    t.index ["period_end"], name: "index_error_baselines_on_period_end"
+    t.index [ "error_type", "platform", "baseline_type", "period_start" ], name: "index_error_baselines_on_type_platform_baseline_period"
+    t.index [ "error_type", "platform" ], name: "index_error_baselines_on_error_type_and_platform"
+    t.index [ "period_end" ], name: "index_error_baselines_on_period_end"
   end
 
   add_foreign_key "rails_error_dashboard_cascade_patterns", "rails_error_dashboard_error_logs", column: "child_error_id"

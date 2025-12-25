@@ -128,7 +128,7 @@ module RailsErrorDashboard
           bursts = Services::PatternDetector.detect_bursts(
             error_type: error_type,
             platform: platform,
-            days: [7, @days].min # Use 7 days for burst detection, or less if analyzing shorter period
+            days: [ 7, @days ].min # Use 7 days for burst detection, or less if analyzing shorter period
           )
 
           insights[error_type] = {

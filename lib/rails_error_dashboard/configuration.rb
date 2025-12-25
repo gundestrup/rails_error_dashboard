@@ -126,7 +126,7 @@ module RailsErrorDashboard
       # Phase 4.3: Baseline Alert Defaults
       @enable_baseline_alerts = ENV.fetch("ENABLE_BASELINE_ALERTS", "true") == "true"
       @baseline_alert_threshold_std_devs = ENV.fetch("BASELINE_ALERT_THRESHOLD", "2.0").to_f
-      @baseline_alert_severities = [:critical, :high] # Alert on critical and high severity anomalies
+      @baseline_alert_severities = [ :critical, :high ] # Alert on critical and high severity anomalies
       @baseline_alert_cooldown_minutes = ENV.fetch("BASELINE_ALERT_COOLDOWN", "120").to_i
 
       @notification_callbacks = {

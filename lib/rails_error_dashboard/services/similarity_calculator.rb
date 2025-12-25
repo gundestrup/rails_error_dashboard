@@ -71,7 +71,7 @@ module RailsErrorDashboard
         return 0.0 if msg1.empty? || msg2.empty?
 
         distance = levenshtein_distance(msg1, msg2)
-        max_length = [msg1.length, msg2.length].max
+        max_length = [ msg1.length, msg2.length ].max
 
         return 0.0 if max_length.zero?
 

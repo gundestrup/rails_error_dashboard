@@ -58,7 +58,7 @@ module RailsErrorDashboard
         if postgresql?
           # Use to_tsquery for full-text search with GIN index
           # This is dramatically faster on large datasets
-          search_term = @filters[:search].split.map { |word| "#{word}:*" }.join(' & ')
+          search_term = @filters[:search].split.map { |word| "#{word}:*" }.join(" & ")
           query.where("to_tsvector('english', message) @@ to_tsquery('english', ?)", search_term)
         else
           # Fall back to LIKE for SQLite/MySQL
@@ -68,7 +68,7 @@ module RailsErrorDashboard
       end
 
       def postgresql?
-        ActiveRecord::Base.connection.adapter_name.downcase == 'postgresql'
+        ActiveRecord::Base.connection.adapter_name.downcase == "postgresql"
       end
 
       def filter_by_severity(query)

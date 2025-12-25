@@ -134,7 +134,7 @@ module RailsErrorDashboard
             if current_burst.nil?
               current_burst = {
                 start_time: timestamps[i - 1],
-                timestamps: [timestamps[i - 1], timestamp]
+                timestamps: [ timestamps[i - 1], timestamp ]
               }
             else
               current_burst[:timestamps] << timestamp
@@ -234,7 +234,7 @@ module RailsErrorDashboard
         # Normalize to 0-1 scale (coefficient of variation)
         # Divide by sqrt(mean) to get a rough 0-1 scale
         cv = mean > 0 ? std_dev / mean : 0
-        [cv.round(2), 1.0].min
+        [ cv.round(2), 1.0 ].min
       end
 
       # Finalize burst metadata

@@ -7,7 +7,7 @@ RSpec.describe RailsErrorDashboard::Commands::BatchResolveErrors do
     let!(:error1) { create(:error_log, resolved: false) }
     let!(:error2) { create(:error_log, resolved: false) }
     let!(:error3) { create(:error_log, resolved: false) }
-    let(:error_ids) { [error1.id, error2.id, error3.id] }
+    let(:error_ids) { [ error1.id, error2.id, error3.id ] }
 
     context "with valid error IDs" do
       it "resolves all errors" do
@@ -122,7 +122,7 @@ RSpec.describe RailsErrorDashboard::Commands::BatchResolveErrors do
 
     context "with non-existent error IDs" do
       it "handles gracefully" do
-        result = described_class.call([99999, 88888])
+        result = described_class.call([ 99999, 88888 ])
 
         expect(result[:success]).to be true
         expect(result[:count]).to eq(0)
@@ -132,7 +132,7 @@ RSpec.describe RailsErrorDashboard::Commands::BatchResolveErrors do
 
     context "with mix of valid and invalid IDs" do
       it "resolves only valid errors" do
-        result = described_class.call([error1.id, 99999, error2.id])
+        result = described_class.call([ error1.id, 99999, error2.id ])
 
         expect(result[:success]).to be true
         expect(result[:count]).to eq(2)
@@ -144,7 +144,7 @@ RSpec.describe RailsErrorDashboard::Commands::BatchResolveErrors do
 
     context "with duplicate error IDs" do
       it "resolves each error once" do
-        result = described_class.call([error1.id, error1.id, error2.id])
+        result = described_class.call([ error1.id, error1.id, error2.id ])
 
         expect(result[:count]).to eq(2)
         expect(error1.reload.resolved).to be true
@@ -154,7 +154,7 @@ RSpec.describe RailsErrorDashboard::Commands::BatchResolveErrors do
 
     context "with error IDs as strings" do
       it "handles string IDs" do
-        result = described_class.call([error1.id.to_s, error2.id.to_s])
+        result = described_class.call([ error1.id.to_s, error2.id.to_s ])
 
         expect(result[:success]).to be true
         expect(result[:count]).to eq(2)
@@ -190,7 +190,7 @@ RSpec.describe RailsErrorDashboard::Commands::BatchResolveErrors do
       end
 
       it "updates resolution details" do
-        described_class.call([error1.id], resolution_comment: "New resolution")
+        described_class.call([ error1.id ], resolution_comment: "New resolution")
 
         expect(error1.reload.resolution_comment).to eq("New resolution")
       end

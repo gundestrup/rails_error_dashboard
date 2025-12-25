@@ -7,7 +7,8 @@ RSpec.describe RailsErrorDashboard::Configuration do
 
   describe "initialization" do
     describe "existing configuration defaults" do
-      it { expect(config.dashboard_username).to eq("admin") }
+      it { expect(config.dashboard_username).to eq("gandalf") }
+      it { expect(config.dashboard_password).to eq("youshallnotpass") }
       it { expect(config.require_authentication).to be true }
       it { expect(config.user_model).to eq("User") }
       it { expect(config.retention_days).to eq(90) }
@@ -66,7 +67,7 @@ RSpec.describe RailsErrorDashboard::Configuration do
       end
 
       it "sets baseline_alert_severities to [:critical, :high]" do
-        expect(config.baseline_alert_severities).to eq([:critical, :high])
+        expect(config.baseline_alert_severities).to eq([ :critical, :high ])
       end
 
       it "sets baseline_alert_cooldown_minutes to 120" do
@@ -80,7 +81,7 @@ RSpec.describe RailsErrorDashboard::Configuration do
       config.sampling_rate = 0.5
       config.async_logging = true
       config.custom_severity_rules = { "CustomError" => :critical }
-      config.ignored_exceptions = ["TestError"]
+      config.ignored_exceptions = [ "TestError" ]
 
       config.reset!
 
@@ -111,7 +112,7 @@ RSpec.describe RailsErrorDashboard::Configuration do
 
     describe "ignored_exceptions" do
       it "can be set to an array" do
-        ignored = ["ActionController::RoutingError", /Custom.*Error/]
+        ignored = [ "ActionController::RoutingError", /Custom.*Error/ ]
         config.ignored_exceptions = ignored
 
         expect(config.ignored_exceptions).to eq(ignored)
@@ -195,13 +196,13 @@ RSpec.describe RailsErrorDashboard::Configuration do
 
       describe "baseline_alert_severities" do
         it "can be set to an array of symbols" do
-          config.baseline_alert_severities = [:critical]
-          expect(config.baseline_alert_severities).to eq([:critical])
+          config.baseline_alert_severities = [ :critical ]
+          expect(config.baseline_alert_severities).to eq([ :critical ])
         end
 
         it "can be set to multiple severities" do
-          config.baseline_alert_severities = [:critical, :high, :elevated]
-          expect(config.baseline_alert_severities).to eq([:critical, :high, :elevated])
+          config.baseline_alert_severities = [ :critical, :high, :elevated ]
+          expect(config.baseline_alert_severities).to eq([ :critical, :high, :elevated ])
         end
       end
 

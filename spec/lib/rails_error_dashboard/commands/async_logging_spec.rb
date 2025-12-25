@@ -57,13 +57,13 @@ RSpec.describe "Async Error Logging", type: :integration do
 
     it "serializes exception data correctly" do
       error = StandardError.new("Async error")
-      error.set_backtrace(["test.rb:1"])
+      error.set_backtrace([ "test.rb:1" ])
 
       expect(RailsErrorDashboard::AsyncErrorLoggingJob).to receive(:perform_later).with(
         hash_including(
           class_name: "StandardError",
           message: "Async error",
-          backtrace: ["test.rb:1"]
+          backtrace: [ "test.rb:1" ]
         ),
         {}
       )
@@ -85,7 +85,7 @@ RSpec.describe "Async Error Logging", type: :integration do
 
     it "works with different queue adapters" do
       # Just verify job is enqueued - the adapter handles the rest
-      [:sidekiq, :solid_queue, :async].each do |adapter|
+      [ :sidekiq, :solid_queue, :async ].each do |adapter|
         RailsErrorDashboard.configure { |c| c.async_adapter = adapter }
 
         error = StandardError.new("Adapter test")
@@ -106,7 +106,7 @@ RSpec.describe "Async Error Logging", type: :integration do
 
     it "logs error when job is performed" do
       error = StandardError.new("E2E async error")
-      error.set_backtrace(["test.rb:1"])
+      error.set_backtrace([ "test.rb:1" ])
 
       # Enqueue the job
       RailsErrorDashboard::Commands::LogError.call(error, { user_id: 456 })
@@ -140,7 +140,7 @@ RSpec.describe "Async Error Logging", type: :integration do
       RailsErrorDashboard.configure do |config|
         config.async_logging = true
         config.async_adapter = :async
-        config.ignored_exceptions = ["ActionController::RoutingError"]
+        config.ignored_exceptions = [ "ActionController::RoutingError" ]
       end
     end
 

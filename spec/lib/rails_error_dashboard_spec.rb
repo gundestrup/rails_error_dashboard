@@ -54,7 +54,7 @@ RSpec.describe RailsErrorDashboard do
 
     it "allows setting ignored exceptions" do
       described_class.configure do |config|
-        config.ignored_exceptions = ["ActionController::RoutingError"]
+        config.ignored_exceptions = [ "ActionController::RoutingError" ]
       end
 
       expect(described_class.configuration.ignored_exceptions).to eq([
@@ -175,7 +175,7 @@ RSpec.describe RailsErrorDashboard do
         described_class.on_error_logged { |_| call_count += 1 }
 
         error = StandardError.new("Same error")
-        error.set_backtrace(["test.rb:1"])
+        error.set_backtrace([ "test.rb:1" ])
 
         # First occurrence - should trigger callback
         RailsErrorDashboard::Commands::LogError.call(error, {})

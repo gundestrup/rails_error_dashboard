@@ -184,7 +184,7 @@ RSpec.describe RailsErrorDashboard::Queries::PlatformComparison do
 
       expect(result.count).to eq(1)
       expect(result.first[:error_type]).to eq("NetworkError")
-      expect(result.first[:platforms]).to match_array(["ios", "android"])
+      expect(result.first[:platforms]).to match_array([ "ios", "android" ])
       expect(result.first[:total_occurrences]).to eq(25)
       expect(result.first[:platform_breakdown]["ios"]).to eq(10)
       expect(result.first[:platform_breakdown]["android"]).to eq(15)
@@ -279,7 +279,7 @@ RSpec.describe RailsErrorDashboard::Queries::PlatformComparison do
         expect(ios_health[:resolution_rate]).to eq(70.0)
         expect(ios_health[:stability_score]).to be_present
         expect(ios_health[:error_velocity]).to be_present
-        expect(ios_health[:health_status]).to be_in([:healthy, :warning, :critical])
+        expect(ios_health[:health_status]).to be_in([ :healthy, :warning, :critical ])
       end
     end
 

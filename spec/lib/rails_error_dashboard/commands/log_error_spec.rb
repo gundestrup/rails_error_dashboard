@@ -8,7 +8,7 @@ RSpec.describe RailsErrorDashboard::Commands::LogError do
     error = klass.new(message)
     # Set a unique backtrace so deduplication doesn't kick in
     # Vary both file AND line to ensure truly unique errors
-    error.set_backtrace(["#{Rails.root}/app/controllers/test_#{index}_controller.rb:#{index + 10}:in `action#{index}'"])
+    error.set_backtrace([ "#{Rails.root}/app/controllers/test_#{index}_controller.rb:#{index + 10}:in `action#{index}'" ])
     error
   end
 
@@ -24,7 +24,7 @@ RSpec.describe RailsErrorDashboard::Commands::LogError do
       context "when exception class is in ignored_exceptions list" do
         before do
           RailsErrorDashboard.configure do |config|
-            config.ignored_exceptions = ["ActionController::RoutingError"]
+            config.ignored_exceptions = [ "ActionController::RoutingError" ]
           end
         end
 
@@ -55,7 +55,7 @@ RSpec.describe RailsErrorDashboard::Commands::LogError do
       context "with regex patterns in ignored_exceptions" do
         before do
           RailsErrorDashboard.configure do |config|
-            config.ignored_exceptions = [/Custom.*Error/]
+            config.ignored_exceptions = [ /Custom.*Error/ ]
           end
         end
 
@@ -139,7 +139,7 @@ RSpec.describe RailsErrorDashboard::Commands::LogError do
       context "with invalid class name in ignored_exceptions" do
         before do
           RailsErrorDashboard.configure do |config|
-            config.ignored_exceptions = ["NonExistentError"]
+            config.ignored_exceptions = [ "NonExistentError" ]
           end
         end
 
@@ -155,7 +155,7 @@ RSpec.describe RailsErrorDashboard::Commands::LogError do
       context "with exception inheritance" do
         before do
           RailsErrorDashboard.configure do |config|
-            config.ignored_exceptions = ["StandardError"]
+            config.ignored_exceptions = [ "StandardError" ]
           end
         end
 
@@ -392,7 +392,7 @@ RSpec.describe RailsErrorDashboard::Commands::LogError do
           RailsErrorDashboard.configure do |config|
             config.enable_baseline_alerts = true
             config.baseline_alert_threshold_std_devs = 2.0
-            config.baseline_alert_severities = [:critical, :high]
+            config.baseline_alert_severities = [ :critical, :high ]
           end
         end
 
@@ -435,7 +435,7 @@ RSpec.describe RailsErrorDashboard::Commands::LogError do
           context "when anomaly level is not in alert severities" do
             before do
               RailsErrorDashboard.configure do |config|
-                config.baseline_alert_severities = [:critical] # Only critical
+                config.baseline_alert_severities = [ :critical ] # Only critical
               end
 
               # Stub with elevated anomaly (not in alert severities)

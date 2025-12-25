@@ -411,7 +411,7 @@ RSpec.describe RailsErrorDashboard::DiscordErrorNotificationJob, type: :job do
     end
 
     it "extracts first line from array backtrace" do
-      backtrace = ["app/controllers/users_controller.rb:42:in `show`", "app/middleware/auth.rb:10"]
+      backtrace = [ "app/controllers/users_controller.rb:42:in `show`", "app/middleware/auth.rb:10" ]
       result = job.send(:extract_first_backtrace_line, backtrace)
       expect(result).to eq("app/controllers/users_controller.rb:42:in `show`")
     end

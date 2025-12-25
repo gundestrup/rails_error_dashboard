@@ -16,7 +16,7 @@ RSpec.describe "Optimized Indexes Migration", type: :migration do
       index = indexes.find { |i| i.name == 'index_error_logs_on_resolved_and_occurred_at' }
 
       expect(index).to be_present
-      expect(index.columns).to eq(['resolved', 'occurred_at'])
+      expect(index.columns).to eq([ 'resolved', 'occurred_at' ])
     end
 
     it "creates index on error_type and occurred_at" do
@@ -24,7 +24,7 @@ RSpec.describe "Optimized Indexes Migration", type: :migration do
       index = indexes.find { |i| i.name == 'index_error_logs_on_error_type_and_occurred_at' }
 
       expect(index).to be_present
-      expect(index.columns).to eq(['error_type', 'occurred_at'])
+      expect(index.columns).to eq([ 'error_type', 'occurred_at' ])
     end
 
     it "creates index on platform and occurred_at" do
@@ -32,7 +32,7 @@ RSpec.describe "Optimized Indexes Migration", type: :migration do
       index = indexes.find { |i| i.name == 'index_error_logs_on_platform_and_occurred_at' }
 
       expect(index).to be_present
-      expect(index.columns).to eq(['platform', 'occurred_at'])
+      expect(index.columns).to eq([ 'platform', 'occurred_at' ])
     end
 
     it "creates index on error_hash, resolved, and occurred_at" do
@@ -40,7 +40,7 @@ RSpec.describe "Optimized Indexes Migration", type: :migration do
       index = indexes.find { |i| i.name == 'index_error_logs_on_hash_resolved_occurred' }
 
       expect(index).to be_present
-      expect(index.columns).to eq(['error_hash', 'resolved', 'occurred_at'])
+      expect(index.columns).to eq([ 'error_hash', 'resolved', 'occurred_at' ])
     end
   end
 

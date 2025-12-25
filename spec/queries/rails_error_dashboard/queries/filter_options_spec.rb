@@ -86,8 +86,8 @@ RSpec.describe RailsErrorDashboard::Queries::FilterOptions do
       it "returns single values" do
         result = described_class.call
 
-        expect(result[:error_types]).to eq(["StandardError"])
-        expect(result[:platforms]).to eq(["Web"])
+        expect(result[:error_types]).to eq([ "StandardError" ])
+        expect(result[:platforms]).to eq([ "Web" ])
       end
     end
   end
