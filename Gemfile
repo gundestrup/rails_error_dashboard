@@ -4,9 +4,9 @@ source "https://rubygems.org"
 gemspec
 
 # Allow testing against different Rails versions via RAILS_VERSION env var
-# Use pessimistic version to get latest patch versions (e.g. ~> 7.0.1 gets latest 7.0.x)
+# Use pessimistic version to get latest patch versions (e.g. ~> 7.0.0 gets latest 7.0.x)
 rails_version = ENV["RAILS_VERSION"] || "~> 8.0.0"
-rails_version = "~> #{rails_version}.1" if rails_version =~ /^\d+\.\d+$/
+rails_version = "~> #{rails_version}.0" if rails_version =~ /^\d+\.\d+$/
 gem "rails", rails_version
 
 gem "puma"
