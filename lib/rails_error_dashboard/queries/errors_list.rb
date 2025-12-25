@@ -39,14 +39,23 @@ module RailsErrorDashboard
       end
 
       def filter_by_resolved(query)
-        # Default to unresolved only if no explicit filter is set
-        # If unresolved param is explicitly false (boolean, string, or "0"), show all errors
-        # Otherwise, default to showing only unresolved errors
-        if @filters[:unresolved] == false || @filters[:unresolved] == "false" || @filters[:unresolved] == "0"
-          # Show all errors (resolved and unresolved)
+        # Handle unresolved filter with explicit true/false values
+        # When checkbox is unchecked: unresolved=false → show all errors
+        # When checkbox is checked: unresolved=true → show only unresolved errors
+        # When no filter: nil → default to unresolved only
+
+        case @filters[:unresolved]
+        when false, "false", "0"
+          # Explicitly show all errors (resolved and unresolved)
           query
+        when true, "true", "1"
+          # Explicitly show only unresolved errors
+          query.unresolved
+        when nil, ""
+          # Default: show only unresolved errors when no filter is set
+          query.unresolved
         else
-          # Default: show only unresolved errors
+          # Fallback: show only unresolved errors
           query.unresolved
         end
       end

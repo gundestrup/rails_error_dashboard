@@ -109,4 +109,4 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
-**Made with ❤️ for the Rails community**
+**Made with ❤️ by Anjan for the Rails community**

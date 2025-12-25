@@ -68,14 +68,47 @@ RSpec.describe RailsErrorDashboard::Queries::ErrorsList do
         expect(result).not_to include(resolved_error)
       end
 
+      it "filters unresolved errors with string '1'" do
+        result = described_class.call(unresolved: "1")
+
+        expect(result.count).to eq(3)
+        expect(result).not_to include(resolved_error)
+      end
+
       it "shows all errors when unresolved is false" do
         result = described_class.call(unresolved: false)
 
         expect(result.count).to eq(4)
       end
 
+      it "shows all errors when unresolved is string 'false'" do
+        result = described_class.call(unresolved: "false")
+
+        expect(result.count).to eq(4)
+      end
+
+      it "shows all errors when unresolved is string '0'" do
+        result = described_class.call(unresolved: "0")
+
+        expect(result.count).to eq(4)
+      end
+
       it "shows only unresolved errors when unresolved is not provided (default)" do
         result = described_class.call
+
+        expect(result.count).to eq(3)
+        expect(result).not_to include(resolved_error)
+      end
+
+      it "shows only unresolved errors when unresolved is nil" do
+        result = described_class.call(unresolved: nil)
+
+        expect(result.count).to eq(3)
+        expect(result).not_to include(resolved_error)
+      end
+
+      it "shows only unresolved errors when unresolved is empty string" do
+        result = described_class.call(unresolved: "")
 
         expect(result.count).to eq(3)
         expect(result).not_to include(resolved_error)
