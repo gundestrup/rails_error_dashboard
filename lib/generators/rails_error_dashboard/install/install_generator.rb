@@ -44,6 +44,7 @@ module RailsErrorDashboard
 
       def select_optional_features
         return unless options[:interactive] && behavior == :invoke
+        return unless $stdin.tty?  # Skip interactive mode if not running in a terminal
 
         say "Let's configure optional features...\n", :cyan
         say "(You can always enable/disable these later in the initializer)\n\n", :yellow
