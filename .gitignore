@@ -27,3 +27,19 @@ log/
 
 # Ignore Claude IDE settings
 .claude/settings.local.json
+
+# Temporary development files
+.sass-cache/
+*_BACKUP*.md
+*_COMPLETE*.md
+*_PLAN*.md
+*_GUIDE*.md
+*_SUMMARY*.md
+*_APPLIED*.md
+*_SOLUTION*.md
+scripts/compile_scss.sh
+app/views/layouts/*_old_backup.html.erb
+
+# SCSS source files (using inline CSS instead)
+app/assets/stylesheets/rails_error_dashboard/*.scss
+app/assets/stylesheets/rails_error_dashboard/*.css.map
