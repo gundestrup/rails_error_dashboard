@@ -290,8 +290,16 @@
         datasets: [{
           label: 'Total Errors',
           data: <%= raw @error_rate_by_platform.values.to_json %>,
-          backgroundColor: 'rgba(54, 162, 235, 0.5)',
-          borderColor: 'rgba(54, 162, 235, 1)',
+          backgroundColor: (function() {
+            const isDark = document.body.classList.contains('dark-mode');
+            const config = getCatppuccinChartConfig(isDark);
+            return config.colors.blue.replace('rgb', 'rgba').replace(')', ', 0.5)');
+          })(),
+          borderColor: (function() {
+            const isDark = document.body.classList.contains('dark-mode');
+            const config = getCatppuccinChartConfig(isDark);
+            return config.colors.blue;
+          })(),
           borderWidth: 1
         }]
       },
@@ -311,29 +319,24 @@
   // Daily Trend Chart
   const dailyTrendCtx = document.getElementById('dailyTrendChart');
   if (dailyTrendCtx) {
-    const colors = {
-      ios: 'rgba(255, 99, 132, 1)',
-      android: 'rgba(75, 192, 192, 1)',
-      api: 'rgba(255, 206, 86, 1)',
-      web: 'rgba(153, 102, 255, 1)',
-      unknown: 'rgba(201, 203, 207, 1)'
-    };
+    // Use Catppuccin colors from global theme config
+    const isDark = document.body.classList.contains('dark-mode');
 
     const datasets = <%= raw @daily_trends.map { |platform, data|
       {
         label: platform.to_s.capitalize,
         data: data.values,
-        borderColor: "colors['#{platform}'] || 'rgba(75, 192, 192, 1)'",
-        backgroundColor: "colors['#{platform}'] ? colors['#{platform}'].replace('1)', '0.1)') : 'rgba(75, 192, 192, 0.1)'",
-        tension: 0.1
+        platform: platform.to_s.downcase,
+        tension: 0.4
       }
     }.to_json %>;
 
-    // Replace string placeholders with actual colors
+    // Apply Catppuccin platform colors
     datasets.forEach(ds => {
-      const platform = ds.label.toLowerCase();
-      ds.borderColor = colors[platform] || 'rgba(75, 192, 192, 1)';
-      ds.backgroundColor = colors[platform] ? colors[platform].replace('1)', '0.1)') : 'rgba(75, 192, 192, 0.1)';
+      const color = getPlatformColor(ds.platform, isDark);
+      ds.borderColor = color;
+      // Add transparency for background
+      ds.backgroundColor = color.replace('rgb', 'rgba').replace(')', ', 0.1)');
     });
 
     new Chart(dailyTrendCtx, {
@@ -368,8 +371,16 @@
         datasets: [{
           label: 'Hours to Resolve',
           data: times,
-          backgroundColor: 'rgba(255, 159, 64, 0.5)',
-          borderColor: 'rgba(255, 159, 64, 1)',
+          backgroundColor: (function() {
+            const isDark = document.body.classList.contains('dark-mode');
+            const config = getCatppuccinChartConfig(isDark);
+            return config.colors.orange.replace('rgb', 'rgba').replace(')', ', 0.5)');
+          })(),
+          borderColor: (function() {
+            const isDark = document.body.classList.contains('dark-mode');
+            const config = getCatppuccinChartConfig(isDark);
+            return config.colors.orange;
+          })(),
           borderWidth: 1
         }]
       },

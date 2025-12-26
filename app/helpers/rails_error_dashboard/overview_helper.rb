@@ -2,6 +2,11 @@
 
 module RailsErrorDashboard
   module OverviewHelper
+    # All helper methods return Bootstrap semantic classes (success, warning, danger)
+    # These automatically map to Catppuccin Mocha colors in dark theme via CSS variables:
+    # - success → --ctp-green
+    # - warning → --ctp-peach
+    # - danger → --ctp-red
     def error_rate_border_class(rate)
       return "border-success" if rate < 1.0
       return "border-warning" if rate < 5.0

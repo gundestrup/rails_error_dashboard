@@ -91,15 +91,15 @@
               <% max_count = pattern_data[:hourly_distribution].values.max || 1 %>
               <% intensity = max_count > 0 ? (count.to_f / max_count * 100).round : 0 %>
               <% is_peak = pattern_data[:peak_hours].include?(hour) %>
-              <div class="text-center m-1" style="width: 45px;">
-                <div class="rounded p-2 <%= is_peak ? 'border border-danger border-2' : '' %>"
+              <div class="text-center m-1 heatmap-cell-wrapper" style="width: 45px;">
+                <div class="rounded p-2 heatmap-cell <%= is_peak ? 'border border-danger border-2' : '' %>"
                      style="background-color: rgba(220, 53, 69, <%= intensity / 100.0 %>); min-height: 50px; display: flex; align-items: center; justify-content: center;"
                      title="<%= hour %>:00 - <%= count %> errors">
-                  <small class="fw-bold <%= intensity > 50 ? 'text-white' : 'text-dark' %>">
+                  <small class="fw-bold heatmap-count <%= intensity > 50 ? 'text-white' : 'text-dark' %>">
                     <%= count %>
                   </small>
                 </div>
-                <small class="text-muted"><%= hour %></small>
+                <small class="heatmap-hour"><%= hour %></small>
               </div>
             <% end %>
           </div>

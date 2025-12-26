@@ -50,10 +50,17 @@ module RailsErrorDashboard
     end
 
     # Get background color class for frame
+    # Uses Catppuccin-themed backtrace frame classes from _components.scss
     def frame_bg_class(category)
       case category
       when :app
-        "bg-success bg-opacity-10"
+        "backtrace-frame frame-app"
+      when :gem
+        "backtrace-frame frame-gem"
+      when :framework
+        "backtrace-frame frame-framework"
+      when :ruby_core
+        "backtrace-frame frame-ruby-core"
       else
         ""
       end

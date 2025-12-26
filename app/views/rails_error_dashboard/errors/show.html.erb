@@ -72,8 +72,8 @@
                   </div>
                 </div>
                 <div class="card-body p-0">
-                  <div class="bg-dark text-light p-3" style="max-height: 300px; overflow-y: auto; overflow-x: auto;">
-                    <pre class="mb-0"><code><% app_frames.each do |frame| %><span class="<%= frame_bg_class(frame[:category]) %> d-block px-2 py-1"><span class="text-success fw-bold"><%= frame_icon(frame[:category]) %> <%= frame[:short_path] %>:<%= frame[:line_number] %></span> in <span class="text-info">`<%= frame[:method_name] %>'</span></span>
+                  <div class="code-block p-3" style="max-height: 300px; overflow-y: auto; overflow-x: auto;">
+                    <pre class="mb-0"><code><% app_frames.each do |frame| %><span class="<%= frame_bg_class(frame[:category]) %> d-block px-2 py-1"><span class="<%= frame_color_class(frame[:category]) %>"><%= frame_icon(frame[:category]) %> <%= frame[:short_path] %>:<%= frame[:line_number] %></span> in <span class="text-info">`<%= frame[:method_name] %>'</span></span>
 <% end %></code></pre>
                   </div>
                 </div>
@@ -94,8 +94,8 @@
                   </h2>
                   <div id="frameworkBacktrace" class="accordion-collapse collapse" data-bs-parent="#frameworkBacktraceAccordion">
                     <div class="accordion-body p-0">
-                      <div class="bg-dark text-light p-3" style="max-height: 400px; overflow-y: auto; overflow-x: auto;">
-                        <pre class="mb-0"><code><% framework_frames.each do |frame| %><span class="<%= frame_color_class(frame[:category]) %> d-block px-2 py-1"><%= frame_icon(frame[:category]) %> <%= frame[:short_path] %>:<%= frame[:line_number] %></span> in <span class="text-info">`<%= frame[:method_name] %>'</span></span>
+                      <div class="code-block p-3" style="max-height: 400px; overflow-y: auto; overflow-x: auto;">
+                        <pre class="mb-0"><code><% framework_frames.each do |frame| %><span class="<%= frame_bg_class(frame[:category]) %> d-block px-2 py-1"><span class="<%= frame_color_class(frame[:category]) %>"><%= frame_icon(frame[:category]) %> <%= frame[:short_path] %>:<%= frame[:line_number] %></span> in <span class="text-info">`<%= frame[:method_name] %>'</span></span>
 <% end %></code></pre>
                       </div>
                     </div>
@@ -106,7 +106,7 @@
 
             <% if app_frames.empty? && framework_frames.empty? %>
               <!-- Fallback: Show raw backtrace if parsing failed -->
-              <div class="bg-dark text-light p-3 rounded" style="max-height: 400px; overflow-y: auto; overflow-x: auto;">
+              <div class="code-block p-3 rounded" style="max-height: 400px; overflow-y: auto; overflow-x: auto;">
                 <pre class="mb-0"><code><%= @error.backtrace %></code></pre>
               </div>
             <% end %>

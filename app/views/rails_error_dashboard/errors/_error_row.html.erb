@@ -43,6 +43,8 @@
         <span class="badge badge-ios">iOS</span>
       <% elsif error.platform == 'Android' %>
         <span class="badge badge-android">Android</span>
+      <% elsif error.platform == 'Web' %>
+        <span class="badge badge-web">Web</span>
       <% else %>
         <span class="badge badge-api"><%= error.platform || 'API' %></span>
       <% end %>
