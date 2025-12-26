@@ -127,6 +127,10 @@ module RailsErrorDashboard
       rescue => e
         # Don't let error logging cause more errors - fail silently
         # CRITICAL: Log but never propagate exception
+        # Log to Rails logger for visibility during development
+        Rails.logger.error("[RailsErrorDashboard] LogError command failed: #{e.class} - #{e.message}")
+        Rails.logger.error("Backtrace: #{e.backtrace&.first(10)&.join("\n")}")
+
         RailsErrorDashboard::Logger.error("[RailsErrorDashboard] LogError command failed: #{e.class} - #{e.message}")
         RailsErrorDashboard::Logger.error("Original exception: #{@exception.class} - #{@exception.message}") if @exception
         RailsErrorDashboard::Logger.error("Context: #{@context.inspect}") if @context
