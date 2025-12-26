@@ -190,7 +190,7 @@ module RailsErrorDashboard
         errors_per_hour = today_errors / hours_today
         # Convert to percentage scale (0-100)
         # Scale: 0 errors/hr = 0%, 1 error/hr = 1%, 10 errors/hr = 10%, etc.
-        [errors_per_hour, 100.0].min.round(1)
+        [ errors_per_hour, 100.0 ].min.round(1)
       end
 
       # Count distinct users affected by errors today

@@ -12,7 +12,7 @@ class CreateErrorComments < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :rails_error_dashboard_error_comments, [:error_log_id, :created_at],
+    add_index :rails_error_dashboard_error_comments, [ :error_log_id, :created_at ],
               name: 'index_error_comments_on_error_and_time'
   end
 end

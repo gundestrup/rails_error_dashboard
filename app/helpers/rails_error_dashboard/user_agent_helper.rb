@@ -28,13 +28,13 @@ module RailsErrorDashboard
       return '<i class="bi bi-question-circle text-muted"></i>'.html_safe if browser_info.blank?
 
       case browser_info[:browser_name]&.downcase
-      when 'chrome'
+      when "chrome"
         '<i class="bi bi-browser-chrome text-warning"></i>'.html_safe
-      when 'firefox'
+      when "firefox"
         '<i class="bi bi-browser-firefox text-danger"></i>'.html_safe
-      when 'safari'
+      when "safari"
         '<i class="bi bi-browser-safari text-primary"></i>'.html_safe
-      when 'edge'
+      when "edge"
         '<i class="bi bi-browser-edge text-info"></i>'.html_safe
       else
         '<i class="bi bi-globe text-secondary"></i>'.html_safe
@@ -77,38 +77,38 @@ module RailsErrorDashboard
     private
 
     def browser_name(browser)
-      return 'Chrome' if browser.chrome?
-      return 'Firefox' if browser.firefox?
-      return 'Safari' if browser.safari?
-      return 'Edge' if browser.edge?
-      return 'Opera' if browser.opera?
-      return 'Internet Explorer' if browser.ie?
-      'Unknown'
+      return "Chrome" if browser.chrome?
+      return "Firefox" if browser.firefox?
+      return "Safari" if browser.safari?
+      return "Edge" if browser.edge?
+      return "Opera" if browser.opera?
+      return "Internet Explorer" if browser.ie?
+      "Unknown"
     end
 
     def os_name(browser)
-      return 'Windows' if browser.platform.windows?
-      return 'macOS' if browser.platform.mac?
-      return 'Linux' if browser.platform.linux?
-      return 'Android' if browser.platform.android?
-      return 'iOS' if browser.platform.ios?
-      'Unknown'
+      return "Windows" if browser.platform.windows?
+      return "macOS" if browser.platform.mac?
+      return "Linux" if browser.platform.linux?
+      return "Android" if browser.platform.android?
+      return "iOS" if browser.platform.ios?
+      "Unknown"
     end
 
     def device_type(browser)
-      return 'Mobile' if browser.device.mobile?
-      return 'Tablet' if browser.device.tablet?
-      return 'Bot' if browser.bot?
-      'Desktop'
+      return "Mobile" if browser.device.mobile?
+      return "Tablet" if browser.device.tablet?
+      return "Bot" if browser.bot?
+      "Desktop"
     end
 
     def default_user_agent_info
       {
-        browser_name: 'Unknown',
+        browser_name: "Unknown",
         browser_version: nil,
-        os_name: 'Unknown',
-        device_type: 'Unknown',
-        platform: 'Unknown',
+        os_name: "Unknown",
+        device_type: "Unknown",
+        platform: "Unknown",
         is_mobile: false,
         is_tablet: false,
         is_bot: false

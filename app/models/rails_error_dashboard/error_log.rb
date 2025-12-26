@@ -275,7 +275,7 @@ module RailsErrorDashboard
       end
 
       # Take the higher of severity or frequency
-      [severity_weight, frequency_weight].max
+      [ severity_weight, frequency_weight ].max
     end
 
     # Status transition methods
@@ -293,11 +293,11 @@ module RailsErrorDashboard
     def can_transition_to?(new_status)
       # Define valid status transitions
       valid_transitions = {
-        "new" => ["in_progress", "investigating", "wont_fix"],
-        "in_progress" => ["investigating", "resolved", "new"],
-        "investigating" => ["resolved", "in_progress", "wont_fix"],
-        "resolved" => ["new"], # Can reopen if error recurs
-        "wont_fix" => ["new"]  # Can reopen
+        "new" => [ "in_progress", "investigating", "wont_fix" ],
+        "in_progress" => [ "investigating", "resolved", "new" ],
+        "investigating" => [ "resolved", "in_progress", "wont_fix" ],
+        "resolved" => [ "new" ], # Can reopen if error recurs
+        "wont_fix" => [ "new" ]  # Can reopen
       }
 
       valid_transitions[status]&.include?(new_status) || false
