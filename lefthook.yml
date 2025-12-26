@@ -2,7 +2,7 @@
 # https://github.com/evilmartians/lefthook
 # Version: 2.0.13+
 #
-# This ensures all code meets quality standards BEFORE pushing to CI,
+# This ensures all code meets quality standards BEFORE committing,
 # saving GitHub Actions minutes and providing faster feedback.
 #
 # Installation:
@@ -14,47 +14,10 @@
 #   git commit -m "message" --no-verify
 
 # ============================================================================
-# PRE-COMMIT (Fast checks - runs on git commit)
+# PRE-COMMIT (Comprehensive checks - mirrors CI)
 # ============================================================================
-# These run ONLY on staged files for speed (< 2 seconds typically)
+# These run before git commit to ensure all code is production-ready
 pre-commit:
-  parallel: true
-
-  commands:
-    # RuboCop - Only on changed files (fast!)
-    rubocop-changed:
-      glob: "*.rb"
-      run: bundle exec rubocop --force-exclusion {staged_files}
-      stage_fixed: true  # Auto-stage fixes
-
-    # Check for debugger statements
-    no-debuggers:
-      glob: "*.rb"
-      run: |
-        if git diff --cached --name-only | xargs grep -n -E "(binding\.pry|byebug|debugger|console\.log)" 2>/dev/null; then
-          echo "❌ Found debugger statement! Remove before committing."
-          exit 1
-        fi
-
-    # Check for Ruby syntax errors
-    ruby-syntax:
-      glob: "*.rb"
-      run: ruby -c {staged_files}
-
-    # Check for trailing whitespace
-    trailing-whitespace:
-      glob: "*.{rb,yml,md,js}"
-      run: |
-        if git diff --cached --name-only | xargs grep -n "[[:space:]]$" 2>/dev/null; then
-          echo "❌ Found trailing whitespace! Run: git diff --cached | sed 's/[[:space:]]*$//' | git apply"
-          exit 1
-        fi
-
-# ============================================================================
-# PRE-PUSH (Comprehensive checks - mirrors CI)
-# ============================================================================
-# These run before git push to ensure CI will pass
-pre-push:
   parallel: false  # Run sequentially for clear output
 
   commands:
@@ -75,21 +38,43 @@ pre-push:
         gem install bundler-audit --conservative || true
         bundle audit check --update || echo "⚠️  Warning: Bundle audit check failed, continuing..."
 
-    # 4. Check for uncommitted changes
-    check-uncommitted:
+    # 4. Check for debugger statements in Ruby files
+    no-debuggers:
       run: |
-        if [[ -n $(git status -s) ]]; then
-          echo "⚠️  Warning: You have uncommitted changes"
-          git status -s
+        if git diff --cached --name-only | grep "\.rb$" | xargs grep -n "binding\.pry\|byebug" 2>/dev/null; then
+          echo "❌ Found Ruby debugger statement! Remove before committing."
+          exit 1
         fi
 
-    # 5. Prevent force push to main
+    # 5. Check for trailing whitespace
+    trailing-whitespace:
+      run: |
+        if git diff --cached --name-only | xargs grep -n "[[:space:]]$" 2>/dev/null; then
+          echo "❌ Found trailing whitespace!"
+          exit 1
+        fi
+
+# ============================================================================
+# PRE-PUSH (Minimal safety checks)
+# ============================================================================
+# These run before git push for final safety checks
+pre-push:
+  commands:
+    # Prevent force push to main
     no-force-push-main:
       run: |
         branch=$(git rev-parse --abbrev-ref HEAD)
         if [[ "$branch" == "main" ]] && git push --dry-run 2>&1 | grep -q "forced update"; then
           echo "❌ Force push to main is not allowed!"
           exit 1
+        fi
+
+    # Check for uncommitted changes
+    check-uncommitted:
+      run: |
+        if [[ -n $(git status -s) ]]; then
+          echo "⚠️  Warning: You have uncommitted changes"
+          git status -s
         fi
 
 # ============================================================================
@@ -127,7 +112,7 @@ qa:
         gem install bundler-audit --conservative || true
         bundle audit check --update
 
-# Quick check (fast subset)
+# Quick check (fast subset - only changed files)
 quick:
   parallel: true
   commands:
@@ -166,7 +151,7 @@ multi-version:
 # ============================================================================
 # Skip all hooks:           LEFTHOOK=0 git commit -m "message"
 # Skip pre-commit:          LEFTHOOK_EXCLUDE=pre-commit git commit -m "message"
-# Skip specific command:    LEFTHOOK_EXCLUDE=rubocop-full git push
+# Skip specific command:    LEFTHOOK_EXCLUDE=rubocop-full git commit
 # Skip verification:        git commit --no-verify -m "message"
 #
 # For CI/automated commits: set LEFTHOOK=0 environment variable
