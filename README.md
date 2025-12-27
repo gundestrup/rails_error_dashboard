@@ -200,6 +200,32 @@ The error will appear instantly in your dashboard with full context, backtrace, 
 
 ---
 
+## 🗑️ Uninstalling
+
+Need to remove Rails Error Dashboard? We've made it simple with both automated and manual options:
+
+```bash
+# Automated uninstall (recommended)
+rails generate rails_error_dashboard:uninstall
+
+# Keep error data, remove code
+rails generate rails_error_dashboard:uninstall --keep-data
+
+# Show manual instructions only
+rails generate rails_error_dashboard:uninstall --manual-only
+```
+
+The uninstaller will:
+- ✅ Show exactly what will be removed
+- ✅ Ask for confirmation before making changes
+- ✅ Remove initializer, routes, and migrations
+- ✅ Optionally drop database tables (with double confirmation)
+- ✅ Provide clear next steps
+
+**📘 [Complete uninstall guide →](docs/UNINSTALL.md)**
+
+---
+
 ## ⚙️ Configuration
 
 ### Opt-in Feature System

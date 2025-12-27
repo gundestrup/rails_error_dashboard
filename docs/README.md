@@ -8,6 +8,7 @@ Welcome to the Rails Error Dashboard documentation! This guide will help you get
 - **[Quickstart Guide](QUICKSTART.md)** - Get up and running in 5 minutes
 - **[Installation](../README.md#installation)** - Detailed installation instructions
 - **[Configuration](guides/CONFIGURATION.md)** - Complete configuration reference
+- **[Uninstall Guide](UNINSTALL.md)** - Complete removal instructions (manual + automated)
 
 ### Core Features
 - **[Error Tracking & Capture](FEATURES.md#error-tracking--capture)** - Understanding the main dashboard
@@ -74,6 +75,9 @@ Welcome to the Rails Error Dashboard documentation! This guide will help you get
 
 ### "I want proactive alerting for anomalies"
 → [Baseline Monitoring](features/BASELINE_MONITORING.md)
+
+### "I need to uninstall Rails Error Dashboard"
+→ [Uninstall Guide](UNINSTALL.md)
 
 ## 🔍 Searching the Documentation
 
