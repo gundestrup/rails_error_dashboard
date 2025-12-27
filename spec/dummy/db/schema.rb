@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_26_020100) do
+ActiveRecord::Schema[7.0].define(version: 2025_12_26_020100) do
   create_table "rails_error_dashboard_cascade_patterns", force: :cascade do |t|
     t.integer "parent_error_id", null: false
     t.integer "child_error_id", null: false
