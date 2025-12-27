@@ -28,6 +28,9 @@ log/
 # Ignore Claude IDE settings
 .claude/settings.local.json
 
+# Ignore JetBrains IDE settings
+.idea
+
 # Temporary development files
 .sass-cache/
 *_BACKUP*.md
