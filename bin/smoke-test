@@ -1,0 +1,228 @@
+#!/usr/bin/env bash
+#
+# Rails Error Dashboard - Deployment Smoke Tests
+#
+# This script performs comprehensive HTTP-based smoke tests against a deployed
+# Rails Error Dashboard instance to verify all critical pages load correctly.
+#
+# Usage:
+#   ./bin/smoke-test [URL] [USERNAME] [PASSWORD]
+#
+# Examples:
+#   ./bin/smoke-test https://demo.example.com admin secretpass
+#   ./bin/smoke-test https://rails-error-dashboard.anjan.dev frodo precious
+#
+# Environment variables (alternative to arguments):
+#   DASHBOARD_URL      - Base URL of the dashboard (e.g., https://example.com)
+#   DASHBOARD_USER     - HTTP Basic Auth username
+#   DASHBOARD_PASSWORD - HTTP Basic Auth password
+#
+# Exit codes:
+#   0 - All tests passed
+#   1 - One or more tests failed
+#
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Test counters
+TESTS_RUN=0
+TESTS_PASSED=0
+TESTS_FAILED=0
+
+# Parse arguments or use environment variables
+DASHBOARD_URL="${1:-${DASHBOARD_URL}}"
+DASHBOARD_USER="${2:-${DASHBOARD_USER}}"
+DASHBOARD_PASSWORD="${3:-${DASHBOARD_PASSWORD}}"
+
+# Validate required parameters
+if [ -z "$DASHBOARD_URL" ] || [ -z "$DASHBOARD_USER" ] || [ -z "$DASHBOARD_PASSWORD" ]; then
+  echo -e "${RED}Error: Missing required parameters${NC}"
+  echo ""
+  echo "Usage: $0 [URL] [USERNAME] [PASSWORD]"
+  echo ""
+  echo "Or set environment variables:"
+  echo "  export DASHBOARD_URL=https://example.com"
+  echo "  export DASHBOARD_USER=admin"
+  echo "  export DASHBOARD_PASSWORD=secret"
+  echo "  $0"
+  exit 1
+fi
+
+# Temp directory for test artifacts
+TEST_DIR=$(mktemp -d)
+trap "rm -rf $TEST_DIR" EXIT
+
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${BLUE}  Rails Error Dashboard - Deployment Smoke Tests${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+echo "Testing: $DASHBOARD_URL"
+echo "User: $DASHBOARD_USER"
+echo "Temp dir: $TEST_DIR"
+echo ""
+
+# Helper function to run a test
+run_test() {
+  local test_name="$1"
+  local url="$2"
+  local expected_status="${3:-200}"
+  local search_term="$4"
+  local min_size="${5:-1000}"
+
+  TESTS_RUN=$((TESTS_RUN + 1))
+
+  printf "Test %2d: %-50s " "$TESTS_RUN" "$test_name"
+
+  # Make request
+  local output_file="$TEST_DIR/test_$TESTS_RUN.html"
+  local http_code
+  http_code=$(curl -s -u "$DASHBOARD_USER:$DASHBOARD_PASSWORD" \
+    -o "$output_file" \
+    -w "%{http_code}" \
+    "$DASHBOARD_URL$url" 2>/dev/null || echo "000")
+
+  # Check HTTP status
+  if [ "$http_code" != "$expected_status" ]; then
+    echo -e "${RED}FAIL${NC} (HTTP $http_code, expected $expected_status)"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    return 1
+  fi
+
+  # Check response size
+  local file_size
+  file_size=$(wc -c < "$output_file" | tr -d ' ')
+  if [ "$file_size" -lt "$min_size" ]; then
+    echo -e "${RED}FAIL${NC} (Response too small: $file_size bytes < $min_size bytes)"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    return 1
+  fi
+
+  # Check for actual server errors (not error type names in dropdowns/lists)
+  if grep -q "500 Internal Server Error" "$output_file" 2>/dev/null || \
+     grep -q "The Error Dashboard encountered an issue" "$output_file" 2>/dev/null || \
+     grep -q "undefined method.*pagy_bootstrap_nav" "$output_file" 2>/dev/null; then
+    echo -e "${RED}FAIL${NC} (Server error detected in response)"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    return 1
+  fi
+
+  # Check for expected content
+  if [ -n "$search_term" ]; then
+    if ! grep -q "$search_term" "$output_file" 2>/dev/null; then
+      echo -e "${RED}FAIL${NC} (Missing expected content: '$search_term')"
+      TESTS_FAILED=$((TESTS_FAILED + 1))
+      return 1
+    fi
+  fi
+
+  echo -e "${GREEN}PASS${NC} ($file_size bytes)"
+  TESTS_PASSED=$((TESTS_PASSED + 1))
+  return 0
+}
+
+# Helper function for unauthenticated test
+run_unauth_test() {
+  local test_name="$1"
+  local url="$2"
+
+  TESTS_RUN=$((TESTS_RUN + 1))
+
+  printf "Test %2d: %-50s " "$TESTS_RUN" "$test_name"
+
+  local http_code
+  http_code=$(curl -s -o /dev/null -w "%{http_code}" "$DASHBOARD_URL$url" 2>/dev/null || echo "000")
+
+  if [ "$http_code" = "401" ]; then
+    echo -e "${GREEN}PASS${NC} (Correctly requires auth)"
+    TESTS_PASSED=$((TESTS_PASSED + 1))
+    return 0
+  else
+    echo -e "${RED}FAIL${NC} (HTTP $http_code, expected 401)"
+    TESTS_FAILED=$((TESTS_FAILED + 1))
+    return 1
+  fi
+}
+
+echo -e "${YELLOW}Running authentication tests...${NC}"
+echo ""
+
+run_unauth_test "Unauthenticated access blocked" "/error_dashboard"
+
+echo ""
+echo -e "${YELLOW}Running core page tests...${NC}"
+echo ""
+
+run_test "Dashboard overview page" "/error_dashboard" 200 "Dashboard" 30000
+run_test "Error list page" "/error_dashboard/errors" 200 "Errors" 50000
+run_test "Analytics page" "/error_dashboard/errors/analytics" 200 "Analytics" 30000
+run_test "Platform comparison page" "/error_dashboard/errors/platform_comparison" 200 "Platform" 30000
+run_test "Error correlation page" "/error_dashboard/errors/correlation" 200 "Correlation" 20000
+
+echo ""
+echo -e "${YELLOW}Running filter tests...${NC}"
+echo ""
+
+run_test "Filter: Unresolved errors" "/error_dashboard/errors?resolved=false" 200 "" 50000
+run_test "Filter: Critical priority" "/error_dashboard/errors?priority=critical" 200 "" 20000
+run_test "Filter: iOS platform" "/error_dashboard/errors?platform=iOS" 200 "" 20000
+run_test "Filter: Web platform" "/error_dashboard/errors?platform=Web" 200 "" 20000
+
+echo ""
+echo -e "${YELLOW}Running error detail tests...${NC}"
+echo ""
+
+# Get first error ID from the list
+FIRST_ERROR_ID=$(curl -s -u "$DASHBOARD_USER:$DASHBOARD_PASSWORD" \
+  "$DASHBOARD_URL/error_dashboard/errors" 2>/dev/null | \
+  grep -o 'href="/error_dashboard/errors/[0-9]*"' | \
+  head -1 | \
+  sed 's/.*\/errors\/\([0-9]*\)".*/\1/' || echo "")
+
+if [ -n "$FIRST_ERROR_ID" ]; then
+  run_test "Error detail page (ID: $FIRST_ERROR_ID)" "/error_dashboard/errors/$FIRST_ERROR_ID" 200 "Error Details\|Backtrace" 30000
+else
+  echo -e "${YELLOW}WARNING: No errors found, skipping detail page test${NC}"
+fi
+
+echo ""
+echo -e "${YELLOW}Running pagination tests...${NC}"
+echo ""
+
+run_test "Pagination: Page 1" "/error_dashboard/errors?page=1" 200 "" 50000
+run_test "Pagination: Page 2" "/error_dashboard/errors?page=2" 200 "" 20000
+
+echo ""
+echo -e "${YELLOW}Running asset tests...${NC}"
+echo ""
+
+# Test that Bootstrap CSS loads (via CDN check in HTML)
+run_test "Bootstrap CSS referenced" "/error_dashboard" 200 "bootstrap" 30000
+run_test "Chart.js referenced" "/error_dashboard/errors/analytics" 200 "chart.js\|Chartkick" 30000
+
+echo ""
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${BLUE}  Test Results${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+echo "Total Tests:  $TESTS_RUN"
+echo -e "Passed:       ${GREEN}$TESTS_PASSED${NC}"
+echo -e "Failed:       ${RED}$TESTS_FAILED${NC}"
+echo ""
+
+if [ $TESTS_FAILED -eq 0 ]; then
+  echo -e "${GREEN}✅ All tests passed!${NC}"
+  echo ""
+  exit 0
+else
+  echo -e "${RED}❌ Some tests failed!${NC}"
+  echo ""
+  echo "Check test artifacts in: $TEST_DIR"
+  exit 1
+fi
