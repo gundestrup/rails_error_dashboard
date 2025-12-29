@@ -15,19 +15,37 @@ module RailsErrorDashboard
       end
 
       def call
-        {
-          days: @days,
-          error_stats: error_statistics,
-          errors_over_time: errors_over_time,
-          errors_by_type: errors_by_type,
-          errors_by_platform: errors_by_platform,
-          errors_by_hour: errors_by_hour,
-          top_users: top_affected_users,
-          resolution_rate: resolution_rate,
-          mobile_errors: mobile_errors_count,
-          api_errors: api_errors_count,
-          pattern_insights: pattern_insights
-        }
+        # Cache analytics data for 5 minutes to reduce database load
+        # Cache key includes days parameter and last error update timestamp
+        Rails.cache.fetch(cache_key, expires_in: 5.minutes) do
+          {
+            days: @days,
+            error_stats: error_statistics,
+            errors_over_time: errors_over_time,
+            errors_by_type: errors_by_type,
+            errors_by_platform: errors_by_platform,
+            errors_by_hour: errors_by_hour,
+            top_users: top_affected_users,
+            resolution_rate: resolution_rate,
+            mobile_errors: mobile_errors_count,
+            api_errors: api_errors_count,
+            pattern_insights: pattern_insights
+          }
+        end
+      end
+
+      def cache_key
+        # Cache key includes:
+        # - Query class name
+        # - Days parameter (different time ranges = different caches)
+        # - Last error update timestamp (auto-invalidates when errors change)
+        # - Start date (ensures correct time window)
+        [
+          "analytics_stats",
+          @days,
+          ErrorLog.maximum(:updated_at)&.to_i || 0,
+          @start_date.to_date.to_s
+        ].join("/")
       end
 
       private

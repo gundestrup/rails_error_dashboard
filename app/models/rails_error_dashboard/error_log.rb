@@ -60,6 +60,10 @@ module RailsErrorDashboard
     after_create_commit :broadcast_new_error
     after_update_commit :broadcast_error_update
 
+    # Cache invalidation - clear analytics caches when errors are created/updated/deleted
+    after_save :clear_analytics_cache
+    after_destroy :clear_analytics_cache
+
     def set_defaults
       self.platform ||= "API"
     end
@@ -662,6 +666,19 @@ module RailsErrorDashboard
       else
         100 # Default fallback
       end
+    end
+
+    # Clear analytics caches when errors are created, updated, or destroyed
+    # This ensures dashboard and analytics always show fresh data
+    def clear_analytics_cache
+      # Use delete_matched to clear all cached analytics regardless of parameters
+      # Pattern matches: dashboard_stats/*, analytics_stats/*, platform_comparison/*
+      Rails.cache.delete_matched("dashboard_stats/*")
+      Rails.cache.delete_matched("analytics_stats/*")
+      Rails.cache.delete_matched("platform_comparison/*")
+    rescue => e
+      # Silently handle cache clearing errors to prevent blocking error logging
+      Rails.logger.error("Failed to clear analytics cache: #{e.message}") if Rails.logger
     end
   end
 end

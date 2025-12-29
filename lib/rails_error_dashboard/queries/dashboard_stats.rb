@@ -10,28 +10,42 @@ module RailsErrorDashboard
       end
 
       def call
-        {
-          total_today: ErrorLog.where("occurred_at >= ?", Time.current.beginning_of_day).count,
-          total_week: ErrorLog.where("occurred_at >= ?", 7.days.ago).count,
-          total_month: ErrorLog.where("occurred_at >= ?", 30.days.ago).count,
-          unresolved: ErrorLog.unresolved.count,
-          resolved: ErrorLog.resolved.count,
-          by_platform: ErrorLog.group(:platform).count,
-          top_errors: top_errors,
-          #  Trend visualizations
-          errors_trend_7d: errors_trend_7d,
-          errors_by_severity_7d: errors_by_severity_7d,
-          spike_detected: spike_detected?,
-          spike_info: spike_info,
-          # New metrics for Overview dashboard
-          error_rate: error_rate,
-          affected_users_today: affected_users_today,
-          affected_users_yesterday: affected_users_yesterday,
-          affected_users_change: affected_users_change,
-          trend_percentage: trend_percentage,
-          trend_direction: trend_direction,
-          top_errors_by_impact: top_errors_by_impact
-        }
+        # Cache dashboard stats for 1 minute to reduce database load
+        # Dashboard is viewed frequently, so short cache prevents stale data
+        Rails.cache.fetch(cache_key, expires_in: 1.minute) do
+          {
+            total_today: ErrorLog.where("occurred_at >= ?", Time.current.beginning_of_day).count,
+            total_week: ErrorLog.where("occurred_at >= ?", 7.days.ago).count,
+            total_month: ErrorLog.where("occurred_at >= ?", 30.days.ago).count,
+            unresolved: ErrorLog.unresolved.count,
+            resolved: ErrorLog.resolved.count,
+            by_platform: ErrorLog.group(:platform).count,
+            top_errors: top_errors,
+            #  Trend visualizations
+            errors_trend_7d: errors_trend_7d,
+            errors_by_severity_7d: errors_by_severity_7d,
+            spike_detected: spike_detected?,
+            spike_info: spike_info,
+            # New metrics for Overview dashboard
+            error_rate: error_rate,
+            affected_users_today: affected_users_today,
+            affected_users_yesterday: affected_users_yesterday,
+            affected_users_change: affected_users_change,
+            trend_percentage: trend_percentage,
+            trend_direction: trend_direction,
+            top_errors_by_impact: top_errors_by_impact
+          }
+        end
+      end
+
+      def cache_key
+        # Cache key includes last error update timestamp for auto-invalidation
+        # Also includes current hour to ensure fresh data
+        [
+          "dashboard_stats",
+          ErrorLog.maximum(:updated_at)&.to_i || 0,
+          Time.current.hour
+        ].join("/")
       end
 
       private
@@ -53,14 +67,19 @@ module RailsErrorDashboard
       end
 
       # Get error counts by severity for last 7 days
+      # OPTIMIZED: Use database filtering instead of loading all records into Ruby
       def errors_by_severity_7d
-        last_7_days = ErrorLog.where("occurred_at >= ?", 7.days.ago)
+        base_scope = ErrorLog.where("occurred_at >= ?", 7.days.ago)
 
         {
-          critical: last_7_days.select { |e| e.severity == :critical }.count,
-          high: last_7_days.select { |e| e.severity == :high }.count,
-          medium: last_7_days.select { |e| e.severity == :medium }.count,
-          low: last_7_days.select { |e| e.severity == :low }.count
+          critical: base_scope.where(error_type: ErrorLog::CRITICAL_ERROR_TYPES).count,
+          high: base_scope.where(error_type: ErrorLog::HIGH_SEVERITY_ERROR_TYPES).count,
+          medium: base_scope.where(error_type: ErrorLog::MEDIUM_SEVERITY_ERROR_TYPES).count,
+          low: base_scope.where.not(
+            error_type: ErrorLog::CRITICAL_ERROR_TYPES +
+                       ErrorLog::HIGH_SEVERITY_ERROR_TYPES +
+                       ErrorLog::MEDIUM_SEVERITY_ERROR_TYPES
+          ).count
         }
       end
 
