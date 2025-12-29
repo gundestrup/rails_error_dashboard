@@ -389,27 +389,63 @@ end
 **Effort:** Low - 2 hours
 **Priority:** High
 
-### 4.2 Add CSRF Protection for API
+### 4.2 Add Optional Built-In API Endpoint (Post-v1.0)
 
-**Problem:** API endpoints might be vulnerable
+**Current State:**
+- ✅ Dashboard UI has CSRF protection (working)
+- ❌ No built-in API endpoint for error logging from mobile/frontend apps
+- Developers must create their own API endpoint in their Rails app
 
-**Solution:** Token-based auth for API
+**Problem:**
+Developers have to create their own API endpoint to log errors from mobile/frontend apps. This adds setup friction and they might implement it insecurely.
+
+**Proposed Solution:** Add optional built-in API endpoint with simple authentication
 
 ```ruby
-# Add API tokens table
-create_table :api_tokens do |t|
-  t.string :token, index: { unique: true }
-  t.datetime :last_used_at
-  t.timestamps
-end
+# config/initializers/rails_error_dashboard.rb
+RailsErrorDashboard.configure do |config|
+  # Enable optional built-in API endpoint (disabled by default)
+  config.enable_api_endpoint = true
 
-# Authenticate via header
-Authorization: Bearer your_token_here
+  # Simple API key authentication
+  config.api_keys = {
+    'ios_app' => ENV['IOS_API_KEY'],
+    'android_app' => ENV['ANDROID_API_KEY'],
+    'web_frontend' => ENV['WEB_API_KEY']
+  }
+end
 ```
 
-**Impact:** High - Security
-**Effort:** Medium - 1 day
-**Priority:** High
+**Usage from mobile/frontend apps:**
+
+```javascript
+// POST /error_dashboard/api/errors
+fetch('https://your-app.com/error_dashboard/api/errors', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-API-Key': 'your_api_key_here'
+  },
+  body: JSON.stringify({
+    error_type: 'TypeError',
+    message: 'Cannot read property...',
+    platform: 'ios',
+    app_version: '1.0.0'
+  })
+});
+```
+
+**Benefits:**
+- Easier setup for developers (no need to create custom endpoint)
+- Consistent authentication across installations
+- Built-in rate limiting integration
+- Secure by default
+
+**Note:** This is optional - developers can still create their own custom API endpoints for more complex auth needs (OAuth, JWT, etc.)
+
+**Impact:** Medium - Developer experience improvement
+**Effort:** Medium - 1-2 days
+**Priority:** Medium (Post-v1.0 enhancement)
 
 ### 4.3 Add Content Security Policy
 
@@ -628,17 +664,21 @@ end
   - Includes live demo link and documentation
 - [x] ~~**Remove backup file**~~ ✅ Already removed (no backup files found)
 - [ ] **Increase test coverage to 80%+** (3 days)
-- [ ] **Add CSRF protection for API** (1 day)
+- [x] ~~**CSRF protection**~~ ✅ Already working (protect_from_forgery in ApplicationController)
+  - Dashboard UI protected with Rails CSRF tokens
+  - Note: Built-in API endpoint is a separate post-v1.0 enhancement (see section 4.2)
 
-**Timeline:** ~2-3 weeks → **~1 week remaining** (major items completed!)
-**Blockers:** None
+**Timeline:** ~2-3 weeks → **ALMOST READY FOR v1.0!**
+**Blockers:** Only test coverage remains
 **Success Criteria:**
-- ~~80%+ test coverage~~ (58% currently, needs work)
+- ⚠️ 80%+ test coverage (58% currently, only remaining item)
 - ✅ All smoke tests pass
 - ✅ API documented
-- ✅ Security hardened (rate limiting added)
+- ✅ Security hardened (rate limiting + CSRF protection)
 - ✅ Search working
 - ✅ Performance optimized (indexes, caching, N+1 fixes)
+- ✅ Post-install message
+- ✅ Code cleanup
 
 **Major Improvements Completed (December 29, 2024):**
 - Database performance: 50-95% faster queries
