@@ -8,6 +8,11 @@ module RailsErrorDashboard
       if RailsErrorDashboard.configuration.enable_middleware
         app.config.middleware.insert_before 0, RailsErrorDashboard::Middleware::ErrorCatcher
       end
+
+      # Add rate limiting middleware if enabled
+      if RailsErrorDashboard.configuration.enable_rate_limiting
+        app.config.middleware.use RailsErrorDashboard::Middleware::RateLimiter
+      end
     end
 
     # Subscribe to Rails error reporter

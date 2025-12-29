@@ -60,6 +60,10 @@ module RailsErrorDashboard
     # Backtrace configuration
     attr_accessor :max_backtrace_lines
 
+    # Rate limiting configuration
+    attr_accessor :enable_rate_limiting
+    attr_accessor :rate_limit_per_minute
+
     # Enhanced metrics
     attr_accessor :app_version
     attr_accessor :git_sha
@@ -129,6 +133,10 @@ module RailsErrorDashboard
       @async_logging = false
       @async_adapter = :sidekiq # Battle-tested default
       @max_backtrace_lines = 50
+
+      # Rate limiting defaults
+      @enable_rate_limiting = false # OFF by default (opt-in)
+      @rate_limit_per_minute = 100  # Requests per minute per IP for API endpoints
 
       # Enhanced metrics defaults
       @app_version = ENV["APP_VERSION"]

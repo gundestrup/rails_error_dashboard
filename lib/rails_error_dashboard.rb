@@ -38,6 +38,7 @@ require "rails_error_dashboard/queries/recurring_issues"
 require "rails_error_dashboard/queries/mttr_stats"
 require "rails_error_dashboard/error_reporter"
 require "rails_error_dashboard/middleware/error_catcher"
+require "rails_error_dashboard/middleware/rate_limiter"
 
 # Plugin system
 require "rails_error_dashboard/plugin"
