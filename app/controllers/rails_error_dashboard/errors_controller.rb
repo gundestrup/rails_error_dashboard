@@ -21,13 +21,13 @@ module RailsErrorDashboard
       end
 
       # Get critical alerts (critical/high severity errors from last hour)
+      # Filter by priority_level in database instead of loading all records into memory
       @critical_alerts = ErrorLog
         .where("occurred_at >= ?", 1.hour.ago)
         .where(resolved_at: nil)
-        .select { |error| [ :critical, :high ].include?(error.severity) }
-        .sort_by(&:occurred_at)
-        .reverse
-        .first(10)
+        .where(priority_level: [ 3, 4 ]) # 3 = high, 4 = critical (based on severity enum)
+        .order(occurred_at: :desc)
+        .limit(10)
     end
 
     def index
@@ -47,7 +47,10 @@ module RailsErrorDashboard
     end
 
     def show
-      @error = ErrorLog.find(params[:id])
+      # Eagerly load associations to avoid N+1 queries
+      # - comments: Used in the comments section (@error.comments.count, @error.comments.recent_first)
+      # - parent_cascade_patterns/child_cascade_patterns: Used if cascade detection is enabled
+      @error = ErrorLog.includes(:comments, :parent_cascade_patterns, :child_cascade_patterns).find(params[:id])
       @related_errors = @error.related_errors(limit: 5)
 
       # Dispatch plugin event for error viewed

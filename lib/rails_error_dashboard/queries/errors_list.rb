@@ -80,14 +80,21 @@ module RailsErrorDashboard
         # Use PostgreSQL full-text search if available (much faster with GIN index)
         # Otherwise fall back to LIKE query
         if postgresql?
-          # Use to_tsquery for full-text search with GIN index
-          # This is dramatically faster on large datasets
-          search_term = @filters[:search].split.map { |word| "#{word}:*" }.join(" & ")
-          query.where("to_tsvector('english', message) @@ to_tsquery('english', ?)", search_term)
+          # Use plainto_tsquery for full-text search with GIN index created in migration
+          # This leverages index_error_logs_on_searchable_text for fast searches
+          # across message, backtrace, and error_type fields
+          query.where(
+            "to_tsvector('english', COALESCE(message, '') || ' ' || COALESCE(backtrace, '') || ' ' || COALESCE(error_type, '')) @@ plainto_tsquery('english', ?)",
+            @filters[:search]
+          )
         else
-          # Fall back to LIKE for SQLite/MySQL
+          # Fall back to LIKE for SQLite/MySQL - search across all relevant fields
           # Use LOWER() for case-insensitive search
-          query.where("LOWER(message) LIKE LOWER(?)", "%#{@filters[:search]}%")
+          search_pattern = "%#{@filters[:search]}%"
+          query.where(
+            "LOWER(message) LIKE LOWER(?) OR LOWER(COALESCE(backtrace, '')) LIKE LOWER(?) OR LOWER(error_type) LIKE LOWER(?)",
+            search_pattern, search_pattern, search_pattern
+          )
         end
       end
 
