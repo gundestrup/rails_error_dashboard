@@ -34,6 +34,7 @@
   <div class="row g-4">
     <!-- Error Information -->
     <div class="col-md-8">
+      <% cache [@error, 'error_details_v1'] do %>
       <div class="card mb-4">
         <div class="card-header bg-danger text-white">
           <h5 class="mb-0"><i class="bi bi-bug-fill"></i> <%= @error.error_type %></h5>
@@ -115,8 +116,10 @@
           <% end %>
         </div>
       </div>
+      <% end %>
 
       <!-- Request Context -->
+      <% cache [@error, 'request_context_v1'] do %>
       <div class="card mb-4">
         <div class="card-header bg-white">
           <h5 class="mb-0"><i class="bi bi-globe"></i> Request Context</h5>
@@ -169,11 +172,13 @@
           </table>
         </div>
       </div>
+      <% end %>
 
       <!-- Similar Errors (Fuzzy Matching) -->
       <% if RailsErrorDashboard.configuration.enable_similar_errors && @error.respond_to?(:similar_errors) %>
         <% similar = @error.similar_errors(threshold: 0.6, limit: 5) %>
         <% if similar.any? %>
+          <% cache [@error, 'similar_errors_v1', similar.maximum(:updated_at)] do %>
           <div class="card mb-4">
             <div class="card-header bg-white">
               <h5 class="mb-0">
@@ -239,6 +244,7 @@
               </div>
             </div>
           </div>
+          <% end %>
         <% end %>
       <% end %>
 
