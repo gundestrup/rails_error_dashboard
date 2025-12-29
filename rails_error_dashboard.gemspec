@@ -15,6 +15,35 @@ Gem::Specification.new do |spec|
   spec.license     = "MIT"
   spec.required_ruby_version = ">= 3.2.0"
 
+  spec.post_install_message = <<~MESSAGE
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      Rails Error Dashboard v#{RailsErrorDashboard::VERSION} installed successfully!
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    📦 Next steps to get started:
+
+      1. Run the installer:
+         rails generate rails_error_dashboard:install
+
+      2. Run migrations:
+         rails db:migrate
+
+      3. Mount the engine in config/routes.rb:
+         mount RailsErrorDashboard::Engine => '/error_dashboard'
+
+      4. Start your server and visit:
+         http://localhost:3000/error_dashboard
+
+    🎮 Try the live demo: https://rails-error-dashboard.anjan.dev
+       (Username: frodo, Password: precious)
+
+    📖 Documentation: https://github.com/AnjanJ/rails_error_dashboard
+    💬 Questions? https://github.com/AnjanJ/rails_error_dashboard/issues
+
+    ⚠️  BETA: API may change before v1.0.0 - Use at your own discretion
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  MESSAGE
+
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/AnjanJ/rails_error_dashboard"
   spec.metadata["changelog_uri"] = "https://github.com/AnjanJ/rails_error_dashboard/blob/main/CHANGELOG.md"
