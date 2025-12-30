@@ -199,7 +199,7 @@ module RailsErrorDashboard
       end
 
       def copy_migrations
-        rake "rails_error_dashboard:install:migrations"
+        rails_command "rails_error_dashboard:install:migrations"
       end
 
       def add_route
