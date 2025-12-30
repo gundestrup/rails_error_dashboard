@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.9] - 2025-12-30
+
+### Fixed
+- **CRITICAL**: Fixed Rails 8+ compatibility issue in installer
+  - Changed `rake` to `rails_command` for copying migrations
+  - This bug caused silent migration copy failures on Rails 8+ installations
+  - Affects all users trying to install or upgrade on Rails 8.0+
+  - **Recommendation**: All Rails 8+ users should upgrade to 0.1.9 immediately
+
 ## [0.1.8] - 2025-12-30
 
 ### Fixed
