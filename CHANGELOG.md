@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### 🚀 Major Performance Improvements (December 29, 2024)
+## [0.1.7] - 2025-12-30
 
-This upcoming release includes 7 phases of comprehensive performance optimizations that dramatically improve dashboard speed and scalability.
+### 🚀 Major Performance Improvements
+
+This release includes 7 phases of comprehensive performance optimizations that dramatically improve dashboard speed and scalability.
 
 #### Phase 1: Database Performance Indexes
 - **5 Composite Indexes** - Optimized common query patterns
@@ -577,14 +579,16 @@ Thanks to the Rails community for the excellent tools and libraries that made th
 
 ## Version History
 
-- **Unreleased** - Major performance improvements (7 phases)
+- **Unreleased** - Future improvements
+- **0.1.7** (2025-12-30) - Major performance improvements (7 phases: indexes, N+1 fixes, search, rate limiting, caching, view optimization, API docs)
 - **0.1.6** (2025-12-29) - Pagination bug fix
 - **0.1.5** (2025-12-28) - Settings page and navigation improvements
 - **0.1.4** (2025-12-27) - Flaky test fixes and uninstall system
 - **0.1.1** (2025-12-25) - Bug fixes and stability improvements
 - **0.1.0** (2024-12-24) - Initial beta release with complete feature set
 
-[Unreleased]: https://github.com/AnjanJ/rails_error_dashboard/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/AnjanJ/rails_error_dashboard/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/AnjanJ/rails_error_dashboard/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/AnjanJ/rails_error_dashboard/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/AnjanJ/rails_error_dashboard/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/AnjanJ/rails_error_dashboard/compare/v0.1.1...v0.1.4
