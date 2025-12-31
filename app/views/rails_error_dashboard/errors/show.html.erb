@@ -228,11 +228,13 @@
                         </td>
                         <td>
                           <% if similar_error.platform == 'iOS' %>
-                            <span class="badge badge-ios">iOS</span>
+                            <span class="badge badge-ios"><i class="bi bi-apple"></i> iOS</span>
                           <% elsif similar_error.platform == 'Android' %>
-                            <span class="badge badge-android">Android</span>
+                            <span class="badge badge-android"><i class="bi bi-android2"></i> Android</span>
+                          <% elsif similar_error.platform == 'Web' %>
+                            <span class="badge badge-web"><i class="bi bi-globe"></i> Web</span>
                           <% else %>
-                            <span class="badge badge-api"><%= similar_error.platform || 'API' %></span>
+                            <span class="badge badge-api"><i class="bi bi-server"></i> <%= similar_error.platform || 'API' %></span>
                           <% end %>
                         </td>
                         <td><span class="badge bg-primary"><%= similar_error.occurrence_count %>x</span></td>
@@ -574,9 +576,11 @@
           <div class="mb-3">
             <small class="text-muted d-block mb-1">Platform</small>
             <% if @error.platform == 'iOS' %>
-              <span class="badge badge-ios"><i class="bi bi-phone"></i> iOS</span>
+              <span class="badge badge-ios"><i class="bi bi-apple"></i> iOS</span>
             <% elsif @error.platform == 'Android' %>
-              <span class="badge badge-android"><i class="bi bi-phone"></i> Android</span>
+              <span class="badge badge-android"><i class="bi bi-android2"></i> Android</span>
+            <% elsif @error.platform == 'Web' %>
+              <span class="badge badge-web"><i class="bi bi-globe"></i> Web</span>
             <% else %>
               <span class="badge badge-api"><i class="bi bi-server"></i> <%= @error.platform || 'API' %></span>
             <% end %>

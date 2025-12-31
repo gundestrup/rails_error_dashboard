@@ -56,6 +56,24 @@ module RailsErrorDashboard
       end
     end
 
+    # Returns platform icon
+    # @param platform [String] Platform name (ios, android, web, api)
+    # @return [String] Bootstrap icon class
+    def platform_icon(platform)
+      case platform&.downcase
+      when "ios"
+        "bi-apple"
+      when "android"
+        "bi-android2"
+      when "web"
+        "bi-globe"
+      when "api"
+        "bi-server"
+      else
+        "bi-question-circle"
+      end
+    end
+
     # Returns the current user name for filtering "My Errors"
     # Uses configured dashboard username or system username
     # @return [String] Current user identifier
