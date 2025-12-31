@@ -19,6 +19,9 @@
   </td>
   <td onclick="window.location='<%= error_path(error) %>';">
     <code class="text-danger" data-bs-toggle="tooltip" title="<%= error.error_type %>"><%= error.error_type.split('::').last %></code>
+    <% if error.recent? %>
+      <span class="badge bg-success ms-1" data-bs-toggle="tooltip" title="Error occurred within the last hour">NEW</span>
+    <% end %>
     <% if error.respond_to?(:app_version) && error.app_version.present? %>
       <br><small class="badge bg-light text-dark" data-bs-toggle="tooltip" title="App version when error occurred">v<%= error.app_version %></small>
     <% end %>
