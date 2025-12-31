@@ -122,6 +122,50 @@
     </div>
   <% end %>
 
+  <!-- Active Filters Pills -->
+  <%
+    active_filters = []
+    active_filters << { label: "Search: #{params[:search]}", param: :search } if params[:search].present?
+    active_filters << { label: "Platform: #{params[:platform]}", param: :platform } if params[:platform].present?
+    active_filters << { label: "Type: #{params[:error_type]}", param: :error_type } if params[:error_type].present?
+    active_filters << { label: "Severity: #{params[:severity].titleize}", param: :severity } if params[:severity].present?
+    active_filters << { label: "Timeframe: #{params[:timeframe].humanize}", param: :timeframe } if params[:timeframe].present?
+    active_filters << { label: "Frequency: #{params[:frequency].humanize}", param: :frequency } if params[:frequency].present?
+    active_filters << { label: "Status: #{params[:status].humanize}", param: :status } if params[:status].present?
+    active_filters << { label: "Priority: P#{params[:priority_level]}", param: :priority_level } if params[:priority_level].present?
+
+    # Special handling for assigned_to
+    if params[:assigned_to].present? && params[:assigned_to] != '__unassigned__' && params[:assigned_to] != '__assigned__'
+      active_filters << { label: "Assigned to: #{params[:assigned_to]}", param: :assigned_to }
+    elsif params[:assigned_to] == '__unassigned__'
+      active_filters << { label: "Unassigned", param: :assigned_to }
+    elsif params[:assigned_to] == '__assigned__'
+      active_filters << { label: "Assigned", param: :assigned_to }
+    end
+  %>
+
+  <% if active_filters.any? %>
+    <div class="mb-3">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <small class="text-muted fw-bold">Active filters:</small>
+        <% active_filters.each do |filter| %>
+          <%
+            # Build URL without this specific filter
+            filter_params = params.permit!.except(:controller, :action, filter[:param])
+          %>
+          <%= link_to errors_path(filter_params), class: "badge bg-primary text-decoration-none filter-pill" do %>
+            <%= filter[:label] %>
+            <i class="bi bi-x ms-1"></i>
+          <% end %>
+        <% end %>
+        <%= link_to errors_path, class: "badge bg-secondary text-decoration-none filter-pill" do %>
+          <i class="bi bi-x-circle me-1"></i>
+          Clear All
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
   <!-- Filters -->
   <div class="card mb-4" id="filters-section">
     <div class="card-header bg-white">
