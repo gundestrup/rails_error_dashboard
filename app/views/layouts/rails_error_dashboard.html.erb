@@ -152,6 +152,17 @@
         background-color: var(--ctp-surface1);
       }
 
+      /* Sticky table header for error list */
+      .table-responsive thead th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background-color: #f8f9fa;
+      }
+      body.dark-mode .table-responsive thead th {
+        background-color: var(--ctp-mantle);
+      }
+
       /* Badges - Platform Colors */
       .badge-ios {
         background-color: #000;
