@@ -17,30 +17,23 @@ Gem::Specification.new do |spec|
 
   spec.post_install_message = <<~MESSAGE
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      Rails Error Dashboard v#{RailsErrorDashboard::VERSION} installed successfully!
+      Rails Error Dashboard v#{RailsErrorDashboard::VERSION}
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    📦 Next steps to get started:
+    🆕 First time? Quick start:
+       rails generate rails_error_dashboard:install
+       rails db:migrate
+       # Add to config/routes.rb:
+       mount RailsErrorDashboard::Engine => '/error_dashboard'
 
-      1. Run the installer:
-         rails generate rails_error_dashboard:install
+    🔄 Upgrading from v0.1.x?
+       rails db:migrate
+       📝 Changelog: https://github.com/AnjanJ/rails_error_dashboard/blob/main/CHANGELOG.md
 
-      2. Run migrations:
-         rails db:migrate
+    🎮 Live demo: https://rails-error-dashboard.anjan.dev
+       (gandalf / youshallnotpass)
 
-      3. Mount the engine in config/routes.rb:
-         mount RailsErrorDashboard::Engine => '/error_dashboard'
-
-      4. Start your server and visit:
-         http://localhost:3000/error_dashboard
-
-    🎮 Try the live demo: https://rails-error-dashboard.anjan.dev
-       (Username: gandalf, Password: youshallnotpass)
-
-    📖 Documentation: https://github.com/AnjanJ/rails_error_dashboard
-    💬 Questions? https://github.com/AnjanJ/rails_error_dashboard/issues
-
-    ⚠️  BETA: API may change before v1.0.0 - Use at your own discretion
+    📖 Full docs: https://github.com/AnjanJ/rails_error_dashboard
     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   MESSAGE
 
