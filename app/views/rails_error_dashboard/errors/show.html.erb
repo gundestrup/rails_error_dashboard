@@ -487,11 +487,57 @@
                 </div>
                 <div class="mb-3">
                   <label for="body" class="form-label">Comment <span class="text-danger">*</span></label>
-                  <%= text_area_tag :body, nil, class: "form-control", rows: 4, placeholder: "Share your thoughts, findings, or updates...", required: true %>
+
+                  <!-- Quick Templates -->
+                  <div class="mb-2">
+                    <small class="text-muted d-block mb-1">
+                      <i class="bi bi-lightning-fill"></i> Quick templates:
+                    </small>
+                    <div class="d-flex flex-wrap gap-1">
+                      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="insertTemplate('investigating')">
+                        <i class="bi bi-search"></i> Investigating
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="insertTemplate('found_fix')">
+                        <i class="bi bi-wrench"></i> Found Fix
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="insertTemplate('need_info')">
+                        <i class="bi bi-question-circle"></i> Need Info
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="insertTemplate('duplicate')">
+                        <i class="bi bi-files"></i> Duplicate
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="insertTemplate('cannot_reproduce')">
+                        <i class="bi bi-x-circle"></i> Cannot Reproduce
+                      </button>
+                    </div>
+                  </div>
+
+                  <%= text_area_tag :body, nil, class: "form-control", rows: 4, placeholder: "Share your thoughts, findings, or updates...", required: true, id: "comment_body" %>
                 </div>
                 <%= submit_tag "Post Comment", class: "btn btn-primary" %>
               <% end %>
             </div>
+
+            <script>
+              function insertTemplate(templateType) {
+                const textarea = document.getElementById('comment_body');
+                const templates = {
+                  investigating: "🔍 Investigating this issue now. Will update with findings.",
+                  found_fix: "✅ Found the fix!\n\nRoot cause: \nSolution: \nPR: ",
+                  need_info: "ℹ️ Need more information:\n\n- \n- \n\nPlease provide details to help debug this issue.",
+                  duplicate: "📋 This appears to be a duplicate of error #\n\nClosing as duplicate.",
+                  cannot_reproduce: "❌ Cannot reproduce this issue.\n\nAttempted:\n- \n- \n\nNeed more details or steps to reproduce."
+                };
+
+                const template = templates[templateType];
+                if (template) {
+                  textarea.value = template;
+                  textarea.focus();
+                  // Move cursor to end
+                  textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+                }
+              }
+            </script>
           </div>
         </div>
       <% end %>
