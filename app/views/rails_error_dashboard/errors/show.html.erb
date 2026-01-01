@@ -30,9 +30,6 @@
       <button type="button" class="btn btn-outline-secondary" onclick="downloadErrorJSON()" title="Download error details as JSON">
         <i class="bi bi-download"></i> Export JSON
       </button>
-      <button type="button" class="btn btn-outline-primary" onclick="copyErrorURL()" title="Copy shareable link to this error">
-        <i class="bi bi-share"></i> Share
-      </button>
       <% if @error.resolved? %>
         <span class="badge bg-success fs-6">
           <i class="bi bi-check-circle"></i> Resolved
@@ -46,26 +43,6 @@
   </div>
 
   <script>
-    function copyErrorURL() {
-      const url = window.location.href;
-      navigator.clipboard.writeText(url).then(() => {
-        // Change button text temporarily
-        const button = event.currentTarget;
-        const originalHTML = button.innerHTML;
-        button.innerHTML = '<i class="bi bi-check"></i> Copied!';
-        button.classList.remove('btn-outline-primary');
-        button.classList.add('btn-success');
-
-        setTimeout(() => {
-          button.innerHTML = originalHTML;
-          button.classList.remove('btn-success');
-          button.classList.add('btn-outline-primary');
-        }, 2000);
-      }).catch(err => {
-        alert('Failed to copy URL: ' + err);
-      });
-    }
-
     function downloadErrorJSON() {
       const errorData = {
         id: <%= @error.id %>,
