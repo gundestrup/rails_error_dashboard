@@ -46,7 +46,16 @@ module RailsErrorDashboard
       end
 
       def build_request_url
-        return @context[:request]&.fullpath if @context[:request]
+        # Handle both full Rails requests and API-only requests
+        if @context[:request]
+          begin
+            return @context[:request].fullpath
+          rescue NoMethodError
+            # Fallback for minimal request objects
+            return @context[:request].path rescue nil
+          end
+        end
+
         return @context[:request_url] if @context[:request_url]
         return "Background Job: #{@context[:job]&.class}" if @context[:job]
         return "Sidekiq: #{@context[:job_class]}" if @context[:job_class]
@@ -114,10 +123,17 @@ module RailsErrorDashboard
       def detect_platform
         # Check if it's from a mobile request
         user_agent = extract_user_agent
-        return Services::PlatformDetector.detect(user_agent) if @context[:request]
 
-        # Everything else is API/backend
-        "API"
+        return "API" unless user_agent.present? && @context[:request]
+
+        # Only detect platform if we have a valid user agent
+        begin
+          Services::PlatformDetector.detect(user_agent)
+        rescue => e
+          # Fallback to API if platform detection fails
+          Rails.logger.debug("[RailsErrorDashboard] Platform detection failed: #{e.message}")
+          "API"
+        end
       end
 
       def extract_controller_name
@@ -161,8 +177,8 @@ module RailsErrorDashboard
       end
 
       def extract_session_id
-        # From Rails session
-        return @context[:request]&.session&.id if @context[:request]&.session
+        # Session is only available in full Rails mode, not API-only
+        return @context[:request]&.session&.id if @context[:request]&.respond_to?(:session) && @context[:request]&.session
 
         # From explicit context
         return @context[:session_id] if @context[:session_id]

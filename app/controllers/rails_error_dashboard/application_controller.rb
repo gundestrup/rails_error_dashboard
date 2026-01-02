@@ -2,6 +2,12 @@ module RailsErrorDashboard
   class ApplicationController < ActionController::Base
     include Pagy::Backend
 
+    # Enable features that are disabled in API-only mode
+    # These are ONLY enabled for Error Dashboard routes, not the entire app
+    include ActionController::Cookies
+    include ActionController::Flash
+    include ActionController::RequestForgeryProtection
+
     layout "rails_error_dashboard"
 
     protect_from_forgery with: :exception
