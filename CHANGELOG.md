@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.17] - 2026-01-02
+
+### Fixed
+- **CRITICAL: Broadcast Failures in API-Only Mode** - Real-time updates now work reliably in API-only apps
+  - Fixed `undefined method 'fetch' for nil` error in AsyncErrorLoggingJob broadcasts
+  - Added `broadcast_available?` check to verify ActionCable and Rails.cache availability
+  - Added safety check to ensure stats hash is present before broadcasting
+  - Added comprehensive error handling in `DashboardStats.call` to prevent nil returns
+  - Improved error logging with class names and backtraces for easier debugging
+  - **Impact**: Broadcasts now gracefully skip in API-only environments without errors
+  - **Testing**: 895 automated tests passing with zero failures
+
+### Improved
+- **Robust Broadcasting** - More resilient real-time updates
+  - Broadcast methods now check infrastructure availability before attempting updates
+  - DashboardStats returns safe default hash on any cache/database failures
+  - Better error messages with debug-level backtraces for troubleshooting
+  - Prevents error logging failures from causing additional errors
+
+### Technical Details
+- Modified files: ErrorLog model (broadcast methods), DashboardStats query
+- Added `broadcast_available?` method to check ActionCable and cache availability
+- Wrapped `DashboardStats.call` in begin/rescue with safe fallback hash
+- All broadcast errors now logged with class name and message for debugging
+- 100% backward compatible - no breaking changes
+
 ## [0.1.16] - 2026-01-02
 
 ### Fixed

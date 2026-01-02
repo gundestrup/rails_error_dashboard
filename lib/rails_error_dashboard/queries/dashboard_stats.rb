@@ -12,28 +12,57 @@ module RailsErrorDashboard
       def call
         # Cache dashboard stats for 1 minute to reduce database load
         # Dashboard is viewed frequently, so short cache prevents stale data
-        Rails.cache.fetch(cache_key, expires_in: 1.minute) do
+        begin
+          Rails.cache.fetch(cache_key, expires_in: 1.minute) do
+            {
+              total_today: ErrorLog.where("occurred_at >= ?", Time.current.beginning_of_day).count,
+              total_week: ErrorLog.where("occurred_at >= ?", 7.days.ago).count,
+              total_month: ErrorLog.where("occurred_at >= ?", 30.days.ago).count,
+              unresolved: ErrorLog.unresolved.count,
+              resolved: ErrorLog.resolved.count,
+              by_platform: ErrorLog.group(:platform).count,
+              top_errors: top_errors,
+              #  Trend visualizations
+              errors_trend_7d: errors_trend_7d,
+              errors_by_severity_7d: errors_by_severity_7d,
+              spike_detected: spike_detected?,
+              spike_info: spike_info,
+              # New metrics for Overview dashboard
+              error_rate: error_rate,
+              affected_users_today: affected_users_today,
+              affected_users_yesterday: affected_users_yesterday,
+              affected_users_change: affected_users_change,
+              trend_percentage: trend_percentage,
+              trend_direction: trend_direction,
+              top_errors_by_impact: top_errors_by_impact
+            }
+          end
+        rescue => e
+          # If Rails.cache or any stats query fails, return empty stats hash
+          # This prevents broadcast failures in API-only mode or when cache is unavailable
+          Rails.logger.error("[RailsErrorDashboard] DashboardStats failed: #{e.class} - #{e.message}")
+          Rails.logger.debug("[RailsErrorDashboard] Backtrace: #{e.backtrace&.first(3)&.join("\n")}")
+
+          # Return minimal stats hash to prevent nil errors in views
           {
-            total_today: ErrorLog.where("occurred_at >= ?", Time.current.beginning_of_day).count,
-            total_week: ErrorLog.where("occurred_at >= ?", 7.days.ago).count,
-            total_month: ErrorLog.where("occurred_at >= ?", 30.days.ago).count,
-            unresolved: ErrorLog.unresolved.count,
-            resolved: ErrorLog.resolved.count,
-            by_platform: ErrorLog.group(:platform).count,
-            top_errors: top_errors,
-            #  Trend visualizations
-            errors_trend_7d: errors_trend_7d,
-            errors_by_severity_7d: errors_by_severity_7d,
-            spike_detected: spike_detected?,
-            spike_info: spike_info,
-            # New metrics for Overview dashboard
-            error_rate: error_rate,
-            affected_users_today: affected_users_today,
-            affected_users_yesterday: affected_users_yesterday,
-            affected_users_change: affected_users_change,
-            trend_percentage: trend_percentage,
-            trend_direction: trend_direction,
-            top_errors_by_impact: top_errors_by_impact
+            total_today: 0,
+            total_week: 0,
+            total_month: 0,
+            unresolved: 0,
+            resolved: 0,
+            by_platform: {},
+            top_errors: {},
+            errors_trend_7d: {},
+            errors_by_severity_7d: { critical: 0, high: 0, medium: 0, low: 0 },
+            spike_detected: false,
+            spike_info: nil,
+            error_rate: 0.0,
+            affected_users_today: 0,
+            affected_users_yesterday: 0,
+            affected_users_change: 0,
+            trend_percentage: 0.0,
+            trend_direction: :stable,
+            top_errors_by_impact: []
           }
         end
       end
