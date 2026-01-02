@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.16] - 2026-01-02
+
+### Fixed
+- **CRITICAL: API-Only Mode Compatibility** - Dashboard now works in Rails API-only applications
+  - Fixed `undefined method 'flash'` error when accessing dashboard in API-only apps
+  - Fixed `detect_platform` error in production for API-only request objects
+  - Enabled required middleware (Flash, Cookies, Session) conditionally for API-only apps
+  - Added robust error handling for request URL building with fallback methods
+  - Added error handling for platform detection with rescue block and fallback
+  - Added conditional rendering for CSRF meta tags and CSP tags
+  - Added `respond_to?` checks for session access to prevent crashes
+  - Explicitly includes `ActionController::Cookies`, `ActionController::Flash`, and `ActionController::RequestForgeryProtection` in ApplicationController
+  - Dashboard routes now work seamlessly in both full Rails and API-only applications
+  - **Testing**: 895 automated tests passing with zero failures
+  - **100% backward compatible** - no breaking changes for existing installations
+
+### Improved
+- **Error Context Handling** - More resilient error logging
+  - Request URL building now handles both full Rails and API-only request objects
+  - Platform detection gracefully falls back to "API" on detection failures
+  - Session access safely checks for method availability before calling
+  - All error context extraction methods now handle edge cases without crashing
+
+### Technical Details
+- Modified files: ApplicationController, Engine initializer, ErrorContext value object, layout view
+- Middleware is loaded conditionally based on `Rails.application.config.api_only` setting
+- No configuration changes required - works automatically in all Rails modes
+- Tested in both Rails 7.0 and Rails 8.1 with API-only mode enabled
+
 ## [0.1.15] - 2026-01-01
 
 ### Added
