@@ -436,8 +436,8 @@
                         <% end %>
                       </div>
                       <small class="text-muted">
-                        <%= comment.formatted_time %>
-                        <span class="ms-1 text-muted">(<%= time_ago_in_words(comment.created_at) %> ago)</span>
+                        <%= local_time(comment.created_at, format: :datetime) %>
+                        <span class="ms-1 text-muted">(<%= local_time_ago(comment.created_at) %>)</span>
                       </small>
                     </div>
                     <div class="text-break">
@@ -682,20 +682,20 @@
             <small class="text-muted d-block mb-1">First Seen</small>
             <% if @related_errors.any? %>
               <%= link_to "#timeline", class: "text-decoration-none", data: { bs_toggle: "tooltip" }, title: "Jump to timeline" do %>
-                <strong><%= @error.first_seen_at&.strftime("%B %d, %Y") || 'N/A' %></strong><br>
-                <small><%= @error.first_seen_at&.strftime("%I:%M:%S %p %Z") || 'N/A' %></small>
+                <strong><%= local_time(@error.first_seen_at, format: :date_only) %></strong><br>
+                <small><%= local_time(@error.first_seen_at, format: :time_only) %></small>
                 <i class="bi bi-arrow-down-circle ms-1"></i>
               <% end %>
             <% else %>
-              <strong><%= @error.first_seen_at&.strftime("%B %d, %Y") || 'N/A' %></strong><br>
-              <small><%= @error.first_seen_at&.strftime("%I:%M:%S %p %Z") || 'N/A' %></small>
+              <strong><%= local_time(@error.first_seen_at, format: :date_only) %></strong><br>
+              <small><%= local_time(@error.first_seen_at, format: :time_only) %></small>
             <% end %>
           </div>
 
           <div class="mb-3">
             <small class="text-muted d-block mb-1">Last Seen</small>
-            <strong><%= @error.last_seen_at&.strftime("%B %d, %Y") || 'N/A' %></strong><br>
-            <small><%= @error.last_seen_at&.strftime("%I:%M:%S %p %Z") || 'N/A' %></small>
+            <strong><%= local_time(@error.last_seen_at, format: :date_only) %></strong><br>
+            <small><%= local_time(@error.last_seen_at, format: :time_only) %></small>
           </div>
 
           <div class="mb-3">
@@ -751,7 +751,7 @@
               <% if @error.resolved_at.present? %>
                 <br>
                 <small class="text-muted mt-1 d-block">
-                  <%= @error.resolved_at.strftime("%B %d, %Y at %I:%M %p") %>
+                  <%= local_time(@error.resolved_at, format: :full) %>
                 </small>
               <% end %>
             <% else %>
@@ -773,7 +773,7 @@
                     <% if @error.assigned_at.present? %>
                       <br>
                       <small class="text-muted">
-                        <%= time_ago_in_words(@error.assigned_at) %> ago
+                        <%= local_time_ago(@error.assigned_at) %>
                       </small>
                     <% end %>
                   </div>
@@ -809,7 +809,7 @@
                 <div class="alert alert-warning py-2 mb-2">
                   <i class="bi bi-alarm"></i>
                   <strong>Snoozed</strong><br>
-                  <small>Until <%= @error.snoozed_until&.strftime("%b %d at %I:%M %p") %></small>
+                  <small>Until <%= local_time(@error.snoozed_until, format: :datetime) %></small>
                 </div>
                 <%= button_to unsnooze_error_path(@error), method: :patch, class: "btn btn-sm btn-outline-warning" do %>
                   <i class="bi bi-alarm-fill"></i> Unsnooze
@@ -971,7 +971,7 @@
                   <small class="text-muted">
                     Sample: <%= baseline.respond_to?(:sample_size) ? baseline.sample_size : 'N/A' %> periods
                     <span class="text-muted">|</span>
-                    Updated: <%= baseline.respond_to?(:updated_at) ? baseline.updated_at&.strftime("%m/%d %I:%M%p") : 'N/A' %>
+                    Updated: <%= baseline.respond_to?(:updated_at) ? local_time(baseline.updated_at, format: :short) : 'N/A' %>
                   </small>
                 </div>
               </div>

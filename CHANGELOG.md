@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.18] - 2026-01-02
+
+### Added
+- **Local Timezone Conversion** - All timestamps now display in user's local timezone
+  - Timestamps automatically convert from UTC to user's browser timezone
+  - New `local_time` helper for formatted timestamps with automatic conversion
+  - New `local_time_ago` helper for relative timestamps ("3 hours ago")
+  - Click any timestamp to toggle between local time and UTC
+  - Click relative times to toggle between relative and absolute formats
+  - Timezone abbreviation displayed (PST, EST, UTC+2, etc.)
+  - JavaScript handles conversion client-side for instant display
+  - Works with Turbo navigation (turbo:load and turbo:frame-load events)
+
+### Improved
+- **Better User Experience** - Time display matches user's context
+  - No more mental math to convert UTC to local time
+  - Interactive timestamps with click-to-toggle functionality
+  - Graceful fallback for non-JavaScript browsers (shows UTC)
+  - Consistent time format across all dashboard pages
+  - Supports multiple timestamp formats (:full, :short, :date_only, :time_only, :datetime)
+
+### Technical Details
+- Added `local_time` and `local_time_ago` helpers to ApplicationHelper
+- Added client-side JavaScript for timezone conversion in layout
+- Updated all view templates to use new timezone-aware helpers:
+  - Error detail page (show.html.erb)
+  - Error list (_error_row.html.erb)
+  - Timeline partial (_timeline.html.erb)
+  - Overview page
+  - Index page
+  - Analytics page
+- Format presets support strftime-like syntax (e.g., "%B %d, %Y %I:%M:%S %p")
+- ISO 8601 timestamps passed via data attributes for JavaScript parsing
+- 100% backward compatible - no breaking changes
+
 ## [0.1.17] - 2026-01-02
 
 ### Fixed

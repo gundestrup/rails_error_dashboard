@@ -8,7 +8,7 @@
     </h1>
     <div class="text-muted">
       <small>
-        Last updated: <%= Time.current.strftime("%B %d, %Y %I:%M %p") %>
+        Last updated: <%= local_time(Time.current, format: :full) %>
       </small>
     </div>
   </div>
@@ -199,7 +199,7 @@
                 <p class="mb-1 small"><%= error.message&.truncate(100) %></p>
                 <small class="text-muted">
                   <i class="bi bi-clock me-1"></i>
-                  <%= time_ago_in_words(error.occurred_at) %> ago
+                  <%= local_time_ago(error.occurred_at) %>
                   •
                   <i class="bi bi-arrow-repeat me-1"></i>
                   <%= error.occurrence_count %> occurrence<%= error.occurrence_count != 1 ? 's' : '' %>

@@ -130,5 +130,68 @@ module RailsErrorDashboard
         content_tag(:code, display_sha, class: "font-monospace")
       end
     end
+
+    # Renders a timestamp that will be automatically converted to user's local timezone
+    # Server sends UTC timestamp, JavaScript converts to local timezone on page load
+    # @param time [Time, DateTime, nil] The timestamp to display
+    # @param format [Symbol] Format preset (:full, :short, :date_only, :time_only, :datetime)
+    # @param fallback [String] Text to show if time is nil
+    # @return [String] HTML safe span with data attributes for JS conversion
+    def local_time(time, format: :full, fallback: "N/A")
+      return fallback if time.nil?
+
+      # Convert to UTC if not already
+      utc_time = time.respond_to?(:utc) ? time.utc : time
+
+      # ISO 8601 format for JavaScript parsing
+      iso_time = utc_time.iso8601
+
+      # Format presets for data-format attribute
+      format_string = case format
+      when :full
+        "%B %d, %Y %I:%M:%S %p"  # December 31, 2024 11:59:59 PM
+      when :short
+        "%m/%d %I:%M%p"          # 12/31 11:59PM
+      when :date_only
+        "%B %d, %Y"              # December 31, 2024
+      when :time_only
+        "%I:%M:%S %p"            # 11:59:59 PM
+      when :datetime
+        "%b %d, %Y %H:%M"        # Dec 31, 2024 23:59
+      else
+        format.to_s
+      end
+
+      content_tag(
+        :span,
+        utc_time.strftime(format_string + " UTC"),  # Fallback for non-JS browsers
+        class: "local-time",
+        data: {
+          utc: iso_time,
+          format: format_string
+        }
+      )
+    end
+
+    # Renders a relative time ("3 hours ago") that updates automatically
+    # @param time [Time, DateTime, nil] The timestamp to display
+    # @param fallback [String] Text to show if time is nil
+    # @return [String] HTML safe span with data attributes for JS conversion
+    def local_time_ago(time, fallback: "N/A")
+      return fallback if time.nil?
+
+      # Convert to UTC if not already
+      utc_time = time.respond_to?(:utc) ? time.utc : time
+      iso_time = utc_time.iso8601
+
+      content_tag(
+        :span,
+        time_ago_in_words(time) + " ago",  # Fallback for non-JS browsers
+        class: "local-time-ago",
+        data: {
+          utc: iso_time
+        }
+      )
+    end
   end
 end

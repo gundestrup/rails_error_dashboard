@@ -386,8 +386,8 @@
                   <td><code class="small"><%= error[:error_type] %></code></td>
                   <td><span class="badge bg-danger"><%= error[:total_occurrences] %></span></td>
                   <td><%= error[:duration_days] %> days</td>
-                  <td><small class="text-muted"><%= error[:first_seen].strftime("%b %d, %Y") %></small></td>
-                  <td><small class="text-muted"><%= error[:last_seen].strftime("%b %d, %Y %H:%M") %></small></td>
+                  <td><small class="text-muted"><%= local_time(error[:first_seen], format: :date_only) %></small></td>
+                  <td><small class="text-muted"><%= local_time(error[:last_seen], format: :datetime) %></small></td>
                   <td>
                     <% if error[:still_active] %>
                       <span class="badge bg-warning">Active</span>

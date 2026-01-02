@@ -36,8 +36,8 @@
   </td>
   <td onclick="window.location='<%= error_path(error) %>';">
     <small>
-      <strong>First:</strong> <%= error.first_seen_at&.strftime("%m/%d %I:%M%p") || 'N/A' %><br>
-      <strong>Last:</strong> <%= error.last_seen_at&.strftime("%m/%d %I:%M%p") || 'N/A' %>
+      <strong>First:</strong> <%= local_time(error.first_seen_at, format: :short) %><br>
+      <strong>Last:</strong> <%= local_time(error.last_seen_at, format: :short) %>
     </small>
   </td>
   <% if local_assigns[:show_platform] %>
