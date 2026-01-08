@@ -419,4 +419,53 @@ RSpec.describe RailsErrorDashboard::Generators::InstallGenerator, type: :generat
       expect { load initializer_path }.not_to raise_error
     end
   end
+
+  describe "database configuration" do
+    context "with --database flag" do
+      before do
+        # Manually set options since Thor doesn't parse --database=error_dashboard format easily
+        options = { interactive: false, separate_database: true, database: "error_dashboard" }
+        generator = described_class.new([], options, { destination_root: destination_root })
+        generator.invoke_all
+      end
+
+      it "sets use_separate_database to true" do
+        initializer_content = File.read("#{destination_root}/config/initializers/rails_error_dashboard.rb")
+        expect(initializer_content).to include("config.use_separate_database = true")
+      end
+
+      it "sets the database configuration" do
+        initializer_content = File.read("#{destination_root}/config/initializers/rails_error_dashboard.rb")
+        expect(initializer_content).to include("config.database = :error_dashboard")
+      end
+    end
+
+    context "with --separate_database but no --database flag" do
+      before do
+        run_generator [ "--no-interactive", "--separate_database" ]
+      end
+
+      it "enables separate database" do
+        initializer_content = File.read("#{destination_root}/config/initializers/rails_error_dashboard.rb")
+        expect(initializer_content).to include("config.use_separate_database = true")
+      end
+
+      it "includes commented database configuration hint" do
+        initializer_content = File.read("#{destination_root}/config/initializers/rails_error_dashboard.rb")
+        expect(initializer_content).to include("# config.database = :error_dashboard")
+      end
+    end
+
+    context "without separate database" do
+      before do
+        run_generator [ "--no-interactive" ]
+      end
+
+      it "does not set database configuration" do
+        initializer_content = File.read("#{destination_root}/config/initializers/rails_error_dashboard.rb")
+        expect(initializer_content).to include("config.use_separate_database = false")
+        expect(initializer_content).to include("# config.database = :error_dashboard  # Database name when using separate database")
+      end
+    end
+  end
 end
