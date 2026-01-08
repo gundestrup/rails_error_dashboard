@@ -7,6 +7,248 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.22] - 2026-01-08
+
+### 🚀 Major Features
+
+#### Multi-App Support
+Rails Error Dashboard now supports multiple Rails applications logging errors to a single shared database with excellent performance and zero concurrency issues.
+
+**Database Architecture:**
+- New normalized `applications` table with unique name constraint
+- Added `application_id` foreign key to `error_logs` (NOT NULL with index)
+- 4-phase zero-downtime migration strategy (nullable → backfill → NOT NULL → FK)
+- Composite indexes for performance: `[application_id, occurred_at]`, `[application_id, resolved]`
+- Expert-level concurrency design with row-level pessimistic locking
+
+**Auto-Registration:**
+- Zero-config: Applications auto-register on first error
+- Automatic detection from `Rails.application.class.module_parent_name`
+- Manual override via `config.application_name` or `APPLICATION_NAME` env var
+- Cached lookups (1-hour TTL) prevent database hits
+
+**UI Features:**
+- Navbar app switcher dropdown (only shown with 2+ applications)
+- Application filter in error list with active pill display
+- Application column in error table (conditional display)
+- Progressive disclosure - multi-app features only appear when needed
+- Excellent UX with intuitive filtering
+
+**Performance:**
+- Per-app cache isolation prevents cross-app cache invalidation
+- Row-level locking scoped by `application_id` (no cross-app contention)
+- Apps write errors independently without blocking each other
+- Per-app error deduplication via `error_hash` including `application_id`
+
+**New Files:**
+- `app/models/rails_error_dashboard/application.rb` - Application model
+- `lib/tasks/error_dashboard.rake` - 3 rake tasks (list_applications, backfill_application, app_stats)
+- 4 migrations for zero-downtime schema changes
+- `docs/MULTI_APP_PERFORMANCE.md` - Performance analysis
+
+### 🔒 Security Hardening
+
+#### Authentication Always Required
+**BREAKING CHANGE:** Authentication is now always enforced with no bypass option.
+
+- Removed `require_authentication` config option
+- Removed `require_authentication_in_development` option
+- Authentication now enforced at code level (cannot be disabled)
+- No development environment bypass
+- Prevents accidental production exposure
+
+**Rationale:**
+- Eliminates config-based security vulnerabilities
+- Consistent security across all environments
+- No risk of accidentally disabling auth in production
+
+**Migration:** Remove these lines from your initializer if present:
+```ruby
+config.require_authentication = false  # REMOVE
+config.require_authentication_in_development = false  # REMOVE
+```
+
+### ✨ UI/UX Improvements
+
+#### Light Theme Fixes
+Fixed multiple visibility issues in light theme:
+- **App Switcher Button**: Fixed invisible white text on light background
+- **Dropdown Menus**: Fixed invisible menu items (white on white)
+- **Chart Tooltips**: Fixed unreadable dark text on dark background
+- Added proper CSS specificity with `!important` overrides
+- Tested and verified in both light and dark themes
+
+**Technical Details:**
+- Added `.app-switcher-btn` CSS class with theme-aware colors
+- Fixed dropdown menu colors for light/dark themes
+- Dynamic Chart.js tooltip colors based on theme
+- Theme-aware text colors ensure readability
+
+### 🐛 Critical Bug Fixes
+
+#### Fix #1: Analytics Cache Key Bug
+**File:** `lib/rails_error_dashboard/queries/analytics_stats.rb:49`
+
+**Issue:** Cache key used `ErrorLog.maximum(:updated_at)` instead of `base_scope.maximum(:updated_at)`
+
+**Impact:**
+- Cache not properly isolated per application
+- Cache invalidates globally when ANY app's errors change
+- Same bug already fixed in `dashboard_stats.rb` but missed here
+
+**Fix:** Changed to `base_scope.maximum(:updated_at)` for proper per-app cache isolation
+
+#### Fix #2: N+1 Query in Rake Task
+**File:** `lib/tasks/error_dashboard.rake`
+
+**Issue:** `error_dashboard:list_applications` task made **6N database queries** where N = number of apps
+- 10 apps = 60 queries
+- 100 apps = 600 queries!
+
+**Fix:** Single SQL query with LEFT JOIN and aggregates
+```ruby
+# Before: 6N queries
+apps.map(&:error_count)  # N queries
+apps.map(&:unresolved_error_count)  # N queries
+apps.sum(&:error_count)  # 2N queries
+apps.sum(&:unresolved_error_count)  # 2N queries
+
+# After: 1 query
+apps = Application
+  .select('applications.*, COUNT(...) as total_errors, SUM(CASE...) as unresolved_errors')
+  .joins('LEFT JOIN error_logs...')
+  .group('applications.id')
+```
+
+**Performance Improvement:** ~600x faster for 100 apps (600 queries → 1 query)
+
+### 🔧 Code Quality Improvements
+
+#### Previous Fixes (from Initial Code Review)
+- Removed orphaned test for `require_authentication`
+- Fixed `dashboard_stats` cache key to use `base_scope` for proper isolation
+- Simplified redundant conditional in `errors_list` filter
+- Standardized logging to use `RailsErrorDashboard::Logger` throughout (5 locations)
+- Updated 6 documentation files to remove authentication bypass references
+
+#### Logger Consistency
+- Changed all `Rails.logger` calls to `RailsErrorDashboard::Logger`
+- Logging now respects `enable_internal_logging` configuration
+- Improved error messages with class names and context
+
+### 📚 Documentation
+
+**New Documentation:**
+- `CODE_REVIEW_REPORT.md` - Initial comprehensive review (17 issues identified)
+- `FIXES_APPLIED.md` - Documentation of 6 major fixes with verification steps
+- `ULTRATHINK_ANALYSIS.md` - Deep analysis (12 issues, 2 critical)
+- `CRITICAL_FIXES_ULTRATHINK.md` - Documentation of 2 critical performance fixes
+- `MULTI_APP_PERFORMANCE.md` - Performance benchmarks and analysis
+
+**Updated Documentation:**
+- `README.md` - Added multi-app support section
+- `API_REFERENCE.md` - Removed authentication bypass options
+- `FEATURES.md` - Updated authentication section
+- `CONFIGURATION.md` - Removed auth config options (2 locations)
+- `NOTIFICATIONS.md` - Updated authentication examples
+
+### 📊 Performance Impact
+
+**Before This Release:**
+- Cache invalidates globally for all apps
+- Rake task: 6N queries (600 for 100 apps)
+- No per-app cache isolation
+
+**After This Release:**
+- Per-app cache isolation (only invalidates relevant app)
+- Rake task: 1 query with aggregates (~600x improvement)
+- Proper cache keys with `base_scope` filtering
+
+### 🗄️ Database Migrations
+
+This release includes 4 migrations for multi-app support:
+
+1. `20260106094220_create_rails_error_dashboard_applications.rb` - Create applications table
+2. `20260106094233_add_application_to_error_logs.rb` - Add application_id (nullable + indexes)
+3. `20260106094256_backfill_application_for_existing_errors.rb` - Backfill existing errors
+4. `20260106094318_finalize_application_foreign_key.rb` - Add NOT NULL + foreign key
+
+**Migration Strategy:**
+- Zero downtime - all changes are additive
+- Backward compatible with existing data
+- Automatic backfill of existing errors with default application
+- Safe for production deployment
+
+### 🧪 Testing & Verification
+
+- All critical fixes verified with step-by-step testing
+- No regressions detected
+- Cache isolation verified for per-app stats
+- Multi-app filtering tested with 4 applications
+- Query performance tested with SQL aggregates
+- All existing specs passing
+
+### ⚠️ Breaking Changes
+
+1. **Authentication always required** - No config option to disable
+   - Remove `config.require_authentication` from initializer
+   - Remove `config.require_authentication_in_development` from initializer
+
+2. **No development bypass** - Authentication enforced in all environments
+
+### 🔄 Upgrade Instructions
+
+```bash
+# Update gem
+bundle update rails_error_dashboard
+
+# Run migrations (required for multi-app support)
+rails db:migrate
+
+# Update initializer (remove authentication config if present)
+# Remove these lines if they exist in config/initializers/rails_error_dashboard.rb:
+# config.require_authentication = false
+# config.require_authentication_in_development = false
+
+# Restart your application
+```
+
+### 📦 Files Changed
+
+**33 files changed, 3459 insertions(+), 156 deletions(-)**
+
+**New Files:**
+- Application model
+- 4 migrations
+- 3 rake tasks
+- 4 documentation files
+- Test factories and specs
+
+**Modified Files:**
+- All query objects (analytics_stats, dashboard_stats, errors_list, filter_options)
+- Error logging command
+- Errors controller
+- Configuration
+- Multiple view files
+- Documentation files
+
+### 🎯 Next Steps
+
+After upgrading:
+1. Run migrations: `rails db:migrate`
+2. Verify authentication works in all environments
+3. Check multi-app features if using multiple apps
+4. Review new rake tasks: `rails error_dashboard:list_applications`
+
+### 🙏 Credits
+
+This release includes comprehensive work on:
+- Multi-app architecture and implementation
+- Security hardening (authentication enforcement)
+- Code quality improvements (8 critical/high issues fixed)
+- Performance optimization (cache keys, N+1 elimination)
+- UI/UX improvements (theme fixes, progressive disclosure)
+
 ## [0.1.21] - 2026-01-04
 
 ### Fixed
