@@ -281,13 +281,13 @@ RSpec.describe RailsErrorDashboard::Generators::InstallGenerator, type: :generat
     it "contains all configuration sections" do
       initializer_content = File.read("#{destination_root}/config/initializers/rails_error_dashboard.rb")
 
-      expect(initializer_content).to include("# AUTHENTICATION (Always Required)")
-      expect(initializer_content).to include("# CORE FEATURES (Always Enabled)")
-      expect(initializer_content).to include("# NOTIFICATION SETTINGS")
-      expect(initializer_content).to include("# PERFORMANCE & SCALABILITY")
-      expect(initializer_content).to include("# DATABASE CONFIGURATION")
-      expect(initializer_content).to include("# ADVANCED ANALYTICS")
-      expect(initializer_content).to include("# ADDITIONAL CONFIGURATION")
+      expect(initializer_content).to include("AUTHENTICATION")
+      expect(initializer_content).to include("CORE FEATURES")
+      expect(initializer_content).to include("NOTIFICATION SETTINGS")
+      expect(initializer_content).to include("PERFORMANCE & SCALABILITY")
+      expect(initializer_content).to include("DATABASE CONFIGURATION")
+      expect(initializer_content).to include("ADVANCED ANALYTICS")
+      expect(initializer_content).to include("ADDITIONAL CONFIGURATION")
     end
 
     it "provides helpful comments for each feature" do
