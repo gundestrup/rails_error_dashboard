@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.25] - 2026-01-11
+
+### ✨ Features
+
+**Multi-App Context Filtering** 🎯
+
+Implemented comprehensive app-context filtering across all dashboard pages and operations.
+
+**What's New:**
+
+1. **Consistent Application Context**
+   - When an application is selected, ALL data is now filtered to that app only
+   - App context persists across all pages: Overview, Index, Analytics, Platform Comparison, Error Correlation
+   - Related errors, comments, and all operations respect the selected app context
+
+2. **Controller-Level Pattern**
+   - Added `before_action :set_application_context` to establish consistent app filtering
+   - Uses `@current_application_id` from URL params (`?application_id=X`)
+   - "All Apps" is default when no application_id is specified
+
+3. **Query Object Updates**
+   - Updated 5 query objects to accept and respect `application_id` parameter:
+     - `PlatformComparison` - Added `base_scope` method
+     - `ErrorCorrelation` - Updated `base_query` to filter by application
+     - `RecurringIssues` - Updated `base_query` to filter by application
+     - `MttrStats` - Updated resolved_errors and trend methods
+     - `FilterOptions` - Added `base_scope` method
+
+4. **Model Method Updates**
+   - Updated `ErrorLog#related_errors` to accept optional `application_id` parameter
+   - Related errors now filtered by app context when specified
+
+5. **Backward Compatibility**
+   - Zero breaking changes for single-app installations
+   - Works seamlessly with `use_separate_database = false`
+   - All parameters optional (defaults to nil = "All Apps")
+
+6. **Comprehensive Testing**
+   - Added 26 new feature specs testing multi-app context filtering
+   - Tests cover all query objects and model methods
+   - Verified single-app and multi-app scenarios
+   - All 961 specs passing with 0 failures
+
+**Files Changed:**
+- `app/controllers/rails_error_dashboard/errors_controller.rb`
+- `lib/rails_error_dashboard/queries/platform_comparison.rb`
+- `lib/rails_error_dashboard/queries/error_correlation.rb`
+- `lib/rails_error_dashboard/queries/recurring_issues.rb`
+- `lib/rails_error_dashboard/queries/mttr_stats.rb`
+- `lib/rails_error_dashboard/queries/filter_options.rb`
+- `app/models/rails_error_dashboard/error_log.rb`
+- `spec/features/multi_app_context_filtering_spec.rb` (new)
+
 ## [0.1.24] - 2026-01-11
 
 ### 🔒 Security Release
