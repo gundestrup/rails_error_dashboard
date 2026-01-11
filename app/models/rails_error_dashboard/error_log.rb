@@ -390,11 +390,11 @@ module RailsErrorDashboard
     end
 
     # Find related errors of the same type
-    def related_errors(limit: 5)
-      self.class.where(error_type: error_type)
-          .where.not(id: id)
-          .order(occurred_at: :desc)
-          .limit(limit)
+    def related_errors(limit: 5, application_id: nil)
+      scope = self.class.where(error_type: error_type)
+              .where.not(id: id)
+      scope = scope.where(application_id: application_id) if application_id.present?
+      scope.order(occurred_at: :desc).limit(limit)
     end
 
     # Extract backtrace frames for similarity comparison

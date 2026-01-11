@@ -14,11 +14,13 @@ module RailsErrorDashboard
     #   correlation.errors_by_version
     #   # => { "1.0.0" => { count: 100, error_types: 15, critical_count: 5 } }
     class ErrorCorrelation
-      attr_reader :days
+      attr_reader :days, :application_id
 
       # @param days [Integer] Number of days to analyze (default: 30)
-      def initialize(days: 30)
+      # @param application_id [Integer, nil] Optional application ID to filter by
+      def initialize(days: 30, application_id: nil)
         @days = days
+        @application_id = application_id
         @start_date = days.days.ago
       end
 
@@ -285,7 +287,9 @@ module RailsErrorDashboard
       private
 
       def base_query
-        ErrorLog.where("occurred_at >= ?", @start_date)
+        scope = ErrorLog.where("occurred_at >= ?", @start_date)
+        scope = scope.where(application_id: @application_id) if @application_id.present?
+        scope
       end
 
       # Check if app_version column exists

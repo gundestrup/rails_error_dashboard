@@ -5,6 +5,7 @@ module RailsErrorDashboard
     include Pagy::Backend
 
     before_action :authenticate_dashboard_user!
+    before_action :set_application_context
 
     FILTERABLE_PARAMS = %i[
       error_type
@@ -24,12 +25,12 @@ module RailsErrorDashboard
     ].freeze
 
     def overview
-      # Get dashboard stats using Query
-      @stats = Queries::DashboardStats.call
+      # Get dashboard stats using Query (pass application filter)
+      @stats = Queries::DashboardStats.call(application_id: @current_application_id)
 
-      # Get platform health summary (if enabled)
+      # Get platform health summary (if enabled, pass application filter)
       if RailsErrorDashboard.configuration.enable_platform_comparison
-        comparison = Queries::PlatformComparison.new(days: 7)
+        comparison = Queries::PlatformComparison.new(days: 7, application_id: @current_application_id)
         @platform_health = comparison.platform_health_summary
         @platform_scores = comparison.platform_stability_scores
       else
@@ -43,8 +44,8 @@ module RailsErrorDashboard
         .where("occurred_at >= ?", 1.hour.ago)
         .where(resolved_at: nil)
         .where(priority_level: [ 3, 4 ]) # 3 = high, 4 = critical (based on severity enum)
-        .order(occurred_at: :desc)
-        .limit(10)
+      @critical_alerts = @critical_alerts.where(application_id: @current_application_id) if @current_application_id.present?
+      @critical_alerts = @critical_alerts.order(occurred_at: :desc).limit(10)
     end
 
     def index
@@ -55,10 +56,10 @@ module RailsErrorDashboard
       @pagy, @errors = pagy(errors_query, items: params[:per_page] || 25)
 
       # Get dashboard stats using Query (pass application filter)
-      @stats = Queries::DashboardStats.call(application_id: params[:application_id])
+      @stats = Queries::DashboardStats.call(application_id: @current_application_id)
 
-      # Get filter options using Query
-      filter_options = Queries::FilterOptions.call
+      # Get filter options using Query (pass application filter)
+      filter_options = Queries::FilterOptions.call(application_id: @current_application_id)
       @error_types = filter_options[:error_types]
       @platforms = filter_options[:platforms]
       @applications = filter_options[:applications]
@@ -69,7 +70,7 @@ module RailsErrorDashboard
       # - comments: Used in the comments section (@error.comments.count, @error.comments.recent_first)
       # - parent_cascade_patterns/child_cascade_patterns: Used if cascade detection is enabled
       @error = ErrorLog.includes(:comments, :parent_cascade_patterns, :child_cascade_patterns).find(params[:id])
-      @related_errors = @error.related_errors(limit: 5)
+      @related_errors = @error.related_errors(limit: 5, application_id: @current_application_id)
 
       # Dispatch plugin event for error viewed
       RailsErrorDashboard::PluginRegistry.dispatch(:on_error_viewed, @error)
@@ -156,7 +157,7 @@ module RailsErrorDashboard
       @days = days
 
       # Use Query to get analytics data (pass application filter)
-      analytics = Queries::AnalyticsStats.call(days, application_id: params[:application_id])
+      analytics = Queries::AnalyticsStats.call(days, application_id: @current_application_id)
 
       @error_stats = analytics[:error_stats]
       @errors_over_time = analytics[:errors_over_time]
@@ -168,18 +169,18 @@ module RailsErrorDashboard
       @mobile_errors = analytics[:mobile_errors]
       @api_errors = analytics[:api_errors]
 
-      # Get recurring issues data
-      recurring = Queries::RecurringIssues.call(days)
+      # Get recurring issues data (pass application filter)
+      recurring = Queries::RecurringIssues.call(days, application_id: @current_application_id)
       @recurring_data = recurring
 
-      # Get release correlation data
-      correlation = Queries::ErrorCorrelation.new(days: days)
+      # Get release correlation data (pass application filter)
+      correlation = Queries::ErrorCorrelation.new(days: days, application_id: @current_application_id)
       @errors_by_version = correlation.errors_by_version
       @problematic_releases = correlation.problematic_releases
       @release_comparison = calculate_release_comparison
 
-      # Get MTTR data
-      mttr_data = Queries::MttrStats.call(days)
+      # Get MTTR data (pass application filter)
+      mttr_data = Queries::MttrStats.call(days, application_id: @current_application_id)
       @mttr_stats = mttr_data
       @overall_mttr = mttr_data[:overall_mttr]
       @mttr_by_platform = mttr_data[:mttr_by_platform]
@@ -196,8 +197,8 @@ module RailsErrorDashboard
       days = (params[:days] || 7).to_i
       @days = days
 
-      # Use Query to get platform comparison data
-      comparison = Queries::PlatformComparison.new(days: days)
+      # Use Query to get platform comparison data (pass application filter)
+      comparison = Queries::PlatformComparison.new(days: days, application_id: @current_application_id)
 
       @error_rate_by_platform = comparison.error_rate_by_platform
       @severity_distribution = comparison.severity_distribution_by_platform
@@ -245,7 +246,7 @@ module RailsErrorDashboard
 
       days = (params[:days] || 30).to_i
       @days = days
-      correlation = Queries::ErrorCorrelation.new(days: days)
+      correlation = Queries::ErrorCorrelation.new(days: days, application_id: @current_application_id)
 
       @errors_by_version = correlation.errors_by_version
       @errors_by_git_sha = correlation.errors_by_git_sha
@@ -284,6 +285,10 @@ module RailsErrorDashboard
 
     def filter_params
       params.permit(*FILTERABLE_PARAMS).to_h.symbolize_keys
+    end
+
+    def set_application_context
+      @current_application_id = params[:application_id].presence
     end
 
     def authenticate_dashboard_user!

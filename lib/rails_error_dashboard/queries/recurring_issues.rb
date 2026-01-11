@@ -5,12 +5,13 @@ module RailsErrorDashboard
     # Query: Analyze recurring and persistent errors
     # Returns data about high-frequency errors, persistent issues, and cyclical patterns
     class RecurringIssues
-      def self.call(days = 30)
-        new(days).call
+      def self.call(days = 30, application_id: nil)
+        new(days, application_id: application_id).call
       end
 
-      def initialize(days = 30)
+      def initialize(days = 30, application_id: nil)
         @days = days
+        @application_id = application_id
         @start_date = days.days.ago
       end
 
@@ -25,7 +26,9 @@ module RailsErrorDashboard
       private
 
       def base_query
-        ErrorLog.where("occurred_at >= ?", @start_date)
+        scope = ErrorLog.where("occurred_at >= ?", @start_date)
+        scope = scope.where(application_id: @application_id) if @application_id.present?
+        scope
       end
 
       def high_frequency_errors

@@ -5,12 +5,13 @@ module RailsErrorDashboard
     # Query: Calculate Mean Time to Resolution (MTTR) statistics
     # Provides metrics on how quickly errors are resolved
     class MttrStats
-      def self.call(days = 30)
-        new(days).call
+      def self.call(days = 30, application_id: nil)
+        new(days, application_id: application_id).call
       end
 
-      def initialize(days = 30)
+      def initialize(days = 30, application_id: nil)
         @days = days
+        @application_id = application_id
         @start_date = days.days.ago
       end
 
@@ -29,9 +30,13 @@ module RailsErrorDashboard
       private
 
       def resolved_errors
-        @resolved_errors ||= ErrorLog
-          .where.not(resolved_at: nil)
-          .where("occurred_at >= ?", @start_date)
+        @resolved_errors ||= begin
+          scope = ErrorLog
+            .where.not(resolved_at: nil)
+            .where("occurred_at >= ?", @start_date)
+          scope = scope.where(application_id: @application_id) if @application_id.present?
+          scope
+        end
       end
 
       def calculate_overall_mttr
@@ -44,7 +49,9 @@ module RailsErrorDashboard
       end
 
       def mttr_by_platform
-        platforms = ErrorLog.distinct.pluck(:platform).compact
+        platforms_scope = ErrorLog.all
+        platforms_scope = platforms_scope.where(application_id: @application_id) if @application_id.present?
+        platforms = platforms_scope.distinct.pluck(:platform).compact
 
         platforms.each_with_object({}) do |platform, result|
           platform_resolved = resolved_errors.where(platform: platform)
@@ -81,6 +88,7 @@ module RailsErrorDashboard
           week_resolved = ErrorLog
             .where.not(resolved_at: nil)
             .where("occurred_at >= ? AND occurred_at < ?", current_date, week_end)
+          week_resolved = week_resolved.where(application_id: @application_id) if @application_id.present?
 
           if week_resolved.any?
             total_hours = week_resolved.sum { |e| ((e.resolved_at - e.occurred_at) / 3600.0) }

@@ -5,16 +5,28 @@ module RailsErrorDashboard
     # Query: Fetch available filter options
     # This is a read operation that returns distinct values for filters
     class FilterOptions
-      def self.call
-        new.call
+      def self.call(application_id: nil)
+        new(application_id: application_id).call
+      end
+
+      def initialize(application_id: nil)
+        @application_id = application_id
       end
 
       def call
         {
-          error_types: ErrorLog.distinct.pluck(:error_type).compact.sort,
-          platforms: ErrorLog.distinct.pluck(:platform).compact,
+          error_types: base_scope.distinct.pluck(:error_type).compact.sort,
+          platforms: base_scope.distinct.pluck(:platform).compact,
           applications: Application.ordered_by_name.pluck(:name, :id)
         }
+      end
+
+      private
+
+      def base_scope
+        scope = ErrorLog.all
+        scope = scope.where(application_id: @application_id) if @application_id.present?
+        scope
       end
     end
   end
