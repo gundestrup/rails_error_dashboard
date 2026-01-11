@@ -7,6 +7,128 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.24] - 2026-01-11
+
+### 🔒 Security Release
+
+This release addresses mass assignment vulnerabilities identified by Brakeman security scanner.
+
+#### Security
+
+**1. Mass Assignment Vulnerability Fix** 🔐
+
+Fixed 4 medium-confidence Brakeman warnings related to `params.permit!` usage:
+- **Issue:** Using `params.permit!` allows any parameters to pass through, creating potential security vulnerabilities
+- **Impact:** Malicious users could potentially inject unauthorized parameters
+- **Fix:** Implemented explicit parameter whitelisting throughout the application
+
+**Changes:**
+
+1. **Added Parameter Whitelist Constant** (`app/controllers/rails_error_dashboard/errors_controller.rb`)
+   ```ruby
+   FILTERABLE_PARAMS = %i[
+     error_type unresolved platform application_id search
+     severity timeframe frequency status assigned_to
+     priority_level hide_snoozed sort_by sort_direction
+   ].freeze
+   ```
+
+2. **Created Secure Helper Method** (`app/helpers/rails_error_dashboard/application_helper.rb`)
+   ```ruby
+   def permitted_filter_params(extra_keys: [])
+     base_keys = ErrorsController::FILTERABLE_PARAMS + %i[page per_page days]
+     allowed_keys = base_keys + Array(extra_keys)
+     params.permit(*allowed_keys).to_h.symbolize_keys
+   end
+   ```
+
+3. **Replaced All `params.permit!` Calls**
+   - Controller: Updated `filter_params` method to use explicit permit
+   - Helper: Updated `sortable_header` to use `permitted_filter_params`
+   - Views: Updated application switcher and filter pills to use secure parameters
+
+**Files Changed:**
+- `app/controllers/rails_error_dashboard/errors_controller.rb` - Whitelist constant and secure filter_params
+- `app/helpers/rails_error_dashboard/application_helper.rb` - New permitted_filter_params helper
+- `app/views/layouts/rails_error_dashboard.html.erb` - Secure application switcher
+- `app/views/rails_error_dashboard/errors/index.html.erb` - Secure filter pills
+
+**Security Impact:**
+- ✅ Eliminates all 4 Brakeman mass assignment warnings
+- ✅ Prevents unauthorized parameter injection
+- ✅ Follows Rails security best practices
+- ✅ Maintains backward compatibility
+
+**2. Dependency Security Update** 🔒
+
+Updated `httparty` dependency to address CVE-2025-68696:
+- **Issue:** Potential SSRF vulnerability that could lead to API key leakage
+- **Before:** `httparty ~> 0.21` (v0.23.2)
+- **After:** `httparty >= 0.24.0`
+- **Impact:** Eliminates SSRF vulnerability in HTTP client library
+- **Breaking:** None - httparty 0.24.0 is backward compatible
+
+**Affected Components:**
+- Discord notifications
+- PagerDuty notifications
+- Webhook notifications
+- Slack notifications
+
+#### Community Contributions
+
+**Special thanks to our contributor:**
+
+- **[@gundestrup](https://github.com/gundestrup)** (Svend Gundestrup) - Security improvements and mass assignment fix ([#35](https://github.com/AnjanJ/rails_error_dashboard/pull/35))
+
+This is Svend's second contribution to the project! Previously contributed code quality improvements in [#33](https://github.com/AnjanJ/rails_error_dashboard/pull/33). Thank you for your continued security-minded contributions! 🎉
+
+#### Testing & Quality
+
+**Test Results:**
+- ✅ 935 RSpec examples passing
+- ✅ 0 failures
+- ✅ 7 pending (intentional - integration tests)
+
+**Code Quality:**
+- ✅ 164 files inspected
+- ✅ 0 RuboCop offenses
+- ✅ 100% style compliance
+
+**CI/CD:**
+- ✅ 15/15 Ruby/Rails combinations passing
+- ✅ Ruby 3.2, 3.3, 3.4 × Rails 7.0, 7.1, 7.2, 8.0, 8.1
+
+#### Upgrade Instructions
+
+**From v0.1.23:**
+
+```bash
+# Update Gemfile
+gem 'rails_error_dashboard', '~> 0.1.24'
+
+# Update gem
+bundle update rails_error_dashboard
+
+# No migrations needed - this is a security patch
+# Restart server
+rails restart
+```
+
+**Breaking Changes:** None - 100% backward compatible
+
+#### Why This Release?
+
+v0.1.24 is a **security-focused patch release** that:
+1. ✅ Fixes all Brakeman security warnings
+2. ✅ Implements Rails security best practices
+3. ✅ Maintains complete backward compatibility
+4. ✅ Passes all 935 tests across 15 Ruby/Rails combinations
+5. ✅ Zero impact on functionality
+
+**Recommendation:** ✅ **Upgrade recommended for all users**
+
+---
+
 ## [0.1.23] - 2026-01-10
 
 ### ✅ Production-Ready Release

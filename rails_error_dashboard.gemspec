@@ -61,7 +61,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "chartkick", "~> 5.0"
 
   # HTTP client for notifications (Discord, PagerDuty, Webhooks)
-  spec.add_dependency "httparty", "~> 0.21"
+  spec.add_dependency "httparty", ">= 0.24.0"
 
   # Real-time updates via Turbo Streams
   spec.add_dependency "turbo-rails", "~> 2.0"
