@@ -62,7 +62,6 @@ module RailsErrorDashboard
       filter_options = Queries::FilterOptions.call(application_id: @current_application_id)
       @error_types = filter_options[:error_types]
       @platforms = filter_options[:platforms]
-      @applications = filter_options[:applications]
     end
 
     def show
@@ -289,6 +288,7 @@ module RailsErrorDashboard
 
     def set_application_context
       @current_application_id = params[:application_id].presence
+      @applications = Application.ordered_by_name.pluck(:name, :id)
     end
 
     def authenticate_dashboard_user!
