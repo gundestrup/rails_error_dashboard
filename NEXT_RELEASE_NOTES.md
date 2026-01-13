@@ -7,14 +7,22 @@
 
 ---
 
-## Contributors to Credit
+## All External Contributors (Historical)
+
+### @bonniesimon (Bonnie Simon)
+**First External Contributor**
+- PR #31: Fixed Turbo helpers missing in production (v0.1.21)
 
 ### @gundestrup (Svend Gundestrup)
+**Security Researcher & Code Quality Contributor**
+- PR #33: RuboCop lint corrections
+- PR #35: Fixed mass assignment vulnerability
 - PR #38: Fixed critical XSS vulnerability (v0.1.27)
-- PR #39: Added .DS_Store to .gitignore
+- PR #39: Added .DS_Store to .gitignore (v0.1.28)
 
-**Total Contributions:** 2 PRs
-- 1 security fix
+**Total External Contributions:** 5 PRs from 2 contributors
+- 3 security fixes
+- 1 production bug fix
 - 1 housekeeping improvement
 
 ---

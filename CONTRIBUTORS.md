@@ -18,13 +18,24 @@ Thank you to everyone who has contributed to Rails Error Dashboard! 🙏
 
 ## Contributors
 
-### Svend Gundestrup ([@gundestrup](https://github.com/gundestrup))
-**Security Researcher & Contributor**
+### Bonnie Simon ([@bonniesimon](https://github.com/bonniesimon))
+**First External Contributor**
 
+- 🐛 [#31](https://github.com/AnjanJ/rails_error_dashboard/pull/31) - Fixed critical Turbo helpers missing in production (v0.1.21)
+
+**Special Recognition:** First external contributor to the project! Your fix for the Turbo helpers production issue helped many users. Thank you for being the first to contribute! 🌟
+
+---
+
+### Svend Gundestrup ([@gundestrup](https://github.com/gundestrup))
+**Security Researcher & Code Quality Contributor**
+
+- 🧹 [#33](https://github.com/AnjanJ/rails_error_dashboard/pull/33) - RuboCop lint corrections
+- 🔒 [#35](https://github.com/AnjanJ/rails_error_dashboard/pull/35) - Fixed mass assignment vulnerability
 - 🔒 [#38](https://github.com/AnjanJ/rails_error_dashboard/pull/38) - Fixed critical XSS vulnerability in JSON download (v0.1.27)
 - 🏗️ [#39](https://github.com/AnjanJ/rails_error_dashboard/pull/39) - Added .DS_Store to .gitignore
 
-**Special Recognition:** First external contributor to identify and fix a security vulnerability. Your responsible disclosure and high-quality PRs set the standard for this project. Thank you! 🌟
+**Special Recognition:** Multiple security vulnerabilities identified and fixed through responsible disclosure. Your thorough code review and high-quality PRs have significantly improved the security posture of this project. Thank you! 🛡️
 
 ---
 
@@ -98,9 +109,10 @@ When you contribute to Rails Error Dashboard, you get:
 
 ## Contributor Stats
 
-**Total Contributors:** 2
-**Total PRs Merged:** 39
-**Total Issues Resolved:** 25+
+**Total Contributors:** 3 (including maintainer)
+**External Contributors:** 2
+**Total PRs Merged:** 44+
+**Total Issues Resolved:** 30+
 **Lines of Code:** 10,000+
 **Tests Written:** 850+
 
@@ -109,15 +121,20 @@ When you contribute to Rails Error Dashboard, you get:
 ## Hall of Fame
 
 ### 🏆 First Contributors
-- [@gundestrup](https://github.com/gundestrup) - First external PR (#38)
+- [@bonniesimon](https://github.com/bonniesimon) - First external PR (#31)
+- [@gundestrup](https://github.com/gundestrup) - First security researcher (#33)
 
 ### 🔒 Security Champions
-- [@gundestrup](https://github.com/gundestrup) - XSS vulnerability fix
-
-### 📚 Documentation Heroes
-- *Your name could be here!*
+- [@gundestrup](https://github.com/gundestrup) - Multiple security fixes (XSS, mass assignment)
 
 ### 🐛 Bug Hunters
+- [@bonniesimon](https://github.com/bonniesimon) - Turbo helpers production fix
+- [@gundestrup](https://github.com/gundestrup) - Security vulnerabilities
+
+### 🧹 Code Quality Contributors
+- [@gundestrup](https://github.com/gundestrup) - RuboCop lint corrections
+
+### 📚 Documentation Heroes
 - *Your name could be here!*
 
 ### ✨ Feature Creators
