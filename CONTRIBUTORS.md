@@ -19,23 +19,17 @@ Thank you to everyone who has contributed to Rails Error Dashboard! 🙏
 ## Contributors
 
 ### Bonnie Simon ([@bonniesimon](https://github.com/bonniesimon))
-**First External Contributor**
 
 - 🐛 [#31](https://github.com/AnjanJ/rails_error_dashboard/pull/31) - Fixed critical Turbo helpers missing in production (v0.1.21)
-
-**Special Recognition:** First external contributor to the project! Your fix for the Turbo helpers production issue helped many users. Thank you for being the first to contribute! 🌟
 
 ---
 
 ### Svend Gundestrup ([@gundestrup](https://github.com/gundestrup))
-**Security Researcher & Code Quality Contributor**
 
 - 🧹 [#33](https://github.com/AnjanJ/rails_error_dashboard/pull/33) - RuboCop lint corrections
 - 🔒 [#35](https://github.com/AnjanJ/rails_error_dashboard/pull/35) - Fixed mass assignment vulnerability
 - 🔒 [#38](https://github.com/AnjanJ/rails_error_dashboard/pull/38) - Fixed critical XSS vulnerability in JSON download (v0.1.27)
 - 🏗️ [#39](https://github.com/AnjanJ/rails_error_dashboard/pull/39) - Added .DS_Store to .gitignore
-
-**Special Recognition:** Multiple security vulnerabilities identified and fixed through responsible disclosure. Your thorough code review and high-quality PRs have significantly improved the security posture of this project. Thank you! 🛡️
 
 ---
 
