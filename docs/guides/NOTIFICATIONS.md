@@ -254,7 +254,7 @@ Webhooks receive a JSON payload with complete error details:
 
 Webhooks include these headers:
 
-```
+```text
 Content-Type: application/json
 User-Agent: RailsErrorDashboard/1.0
 X-Error-Dashboard-Event: error.created

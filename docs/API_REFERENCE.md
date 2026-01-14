@@ -18,7 +18,7 @@ The Rails Error Dashboard provides HTTP endpoints for error logging and manageme
 
 All HTTP endpoints are mounted under `/error_dashboard` by default (configurable).
 
-```
+```text
 https://your-app.com/error_dashboard
 ```
 

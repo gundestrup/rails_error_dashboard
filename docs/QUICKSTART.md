@@ -284,7 +284,7 @@ rails routes | grep error
 ```
 
 **Should see**:
-```
+```ruby
 Rails.application.routes.draw do
   mount RailsErrorDashboard::Engine => "/error_dashboard"
 end
