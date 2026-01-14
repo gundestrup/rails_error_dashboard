@@ -95,6 +95,7 @@ Welcome to the Rails Error Dashboard documentation! This guide will help you get
 
 - **Configuration options**: See [Configuration Guide](guides/CONFIGURATION.md)
 - **API methods**: See [API Reference](API_REFERENCE.md)
+- **Term definitions**: See [Glossary](GLOSSARY.md)
 - **Code examples**: Most guides include code examples
 - **Troubleshooting**: Each guide has a troubleshooting section
 
