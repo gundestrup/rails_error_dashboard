@@ -44,6 +44,7 @@ Welcome to the Rails Error Dashboard documentation! This guide will help you get
 ### Development
 - **[Changelog](../CHANGELOG.md)** - Version history and updates
 - **[Testing](development/TESTING.md)** - Running and writing tests
+- **[Security Policy](../SECURITY.md)** - Report vulnerabilities and security best practices
 
 ## Quick Links
 
@@ -103,6 +104,7 @@ Welcome to the Rails Error Dashboard documentation! This guide will help you get
 
 - **Issues**: [GitHub Issues](https://github.com/AnjanJ/rails_error_dashboard/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/AnjanJ/rails_error_dashboard/discussions)
+- **Security**: [Security Policy](../SECURITY.md) - Report security vulnerabilities
 - **Stack Overflow**: Tag your questions with `rails-error-dashboard`
 
 ## Documentation Versions
