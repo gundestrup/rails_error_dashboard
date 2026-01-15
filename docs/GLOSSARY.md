@@ -39,7 +39,9 @@ Highest severity. Errors that require immediate attention:
 - Data corruption
 - Service outages
 
-**Default**: No errors are critical by default. Must be configured with custom severity rules.
+**Default critical error types**: `SecurityError`, `NoMemoryError`, `SystemStackError`, `SignalException`, `ActiveRecord::StatementInvalid`, `LoadError`, `SyntaxError`, `ActiveRecord::ConnectionNotEstablished`, `Redis::ConnectionError`, `OpenSSL::SSL::SSLError`
+
+Custom severity rules can override defaults.
 
 ### High
 Serious errors that should be addressed soon:
@@ -48,7 +50,9 @@ Serious errors that should be addressed soon:
 - Authentication errors
 - Missing critical data
 
-**Default**: No errors are high by default. Must be configured.
+**Default high severity error types**: `ActiveRecord::RecordNotFound`, `ArgumentError`, `TypeError`, `NoMethodError`, `NameError`, `ZeroDivisionError`, `FloatDomainError`, `IndexError`, `KeyError`, `RangeError`
+
+Custom severity rules can override defaults.
 
 ### Medium
 Moderate errors that affect functionality:
@@ -57,35 +61,57 @@ Moderate errors that affect functionality:
 - Missing optional resources
 - Deprecated method calls
 
-**Default**: All errors default to medium severity.
+**Default medium severity error types**: `ActiveRecord::RecordInvalid`, `Timeout::Error`, `Net::ReadTimeout`, `Net::OpenTimeout`, `ActiveRecord::RecordNotUnique`, `JSON::ParserError`, `CSV::MalformedCSVError`, `Errno::ECONNREFUSED`
 
 ### Low
 Minor errors or expected failures:
-- ActiveRecord::RecordNotFound (for optional lookups)
 - User-initiated cancellations
 - Preview mode errors
 - Development-only warnings
 
-**Default**: Can be configured for specific error types.
+**Default**: All other error types default to low severity unless matched by critical/high/medium rules or custom severity rules.
 
 ---
 
 ## Workflow States
 
-### Unresolved (Open)
+### New
 Default state. Error has not been addressed. Appears in the main error list.
+
+**Status**: `new` (database column default)
+
+**Valid transitions**: Can move to `in_progress`, `investigating`, or `wont_fix`.
 
 ### In Progress
 Someone is actively working on fixing the error. Can be assigned to a team member.
 
+**Status**: `in_progress`
+
+**Valid transitions**: Can move to `investigating`, `resolved`, or back to `new`.
+
+### Investigating
+Team is analyzing the error to understand root cause.
+
+**Status**: `investigating`
+
+**Valid transitions**: Can move to `resolved`, `in_progress`, or `wont_fix`.
+
 ### Resolved
-Error has been fixed. Removed from main list but still searchable. If the error occurs again, it reopens automatically.
+Error has been fixed. Removed from main list but still searchable. If the error occurs again, it automatically reopens to `new` status.
 
-### Ignored
-Error is intentionally not being fixed. Removed from main list. Does not reopen on new occurrences.
+**Status**: `resolved`
 
-### Snoozed
-Temporarily hidden from main list. Automatically reopens after a specified time period (1 hour, 1 day, 1 week).
+**Valid transitions**: Can reopen to `new` if error recurs.
+
+### Won't Fix
+Error is intentionally not being fixed. Removed from main list. Can be reopened if needed.
+
+**Status**: `wont_fix`
+
+**Valid transitions**: Can reopen to `new`.
+
+### Snoozed (Not a Status)
+Snoozed is not a status field but a separate `snoozed_until` datetime column. Errors can be snoozed while in any status. Automatically becomes visible again when `snoozed_until` time expires.
 
 ---
 

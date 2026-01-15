@@ -17,7 +17,7 @@ Navigate to the Settings page from the main dashboard:
 
 ## Settings Overview
 
-The Settings page is organized into six sections:
+The Settings page is organized into seven sections:
 
 ### 1. Core Features
 
@@ -28,6 +28,7 @@ Shows the status of fundamental dashboard features:
 - **Authentication**: Confirms HTTP Basic Auth is always enforced
 - **Data Retention**: Number of days errors are kept before auto-deletion
 - **Max Backtrace Lines**: Stack trace depth limit
+- **Sampling Rate**: Percentage of errors being logged (100% = all errors)
 
 **Example Display:**
 ```text
@@ -36,30 +37,28 @@ Rails.error Subscriber          ✓ Enabled
 Authentication                   🔒 Always Required
 Data Retention                   90 days
 Max Backtrace Lines              50 lines
+Sampling Rate                    100%
 ```
 
 ---
 
-### 2. Performance Features
+### 2. Performance Settings
 
-Displays async logging and optimization settings:
+Displays async logging and database optimization settings:
 
 - **Async Logging**: Whether errors are logged in background jobs
-- **Async Adapter**: Which job backend is used (Sidekiq, Solid Queue, or :async)
-- **Error Sampling**: Percentage of non-critical errors being logged
-- **Rate Limiting**: API rate limiting status and threshold
+  - Shows the adapter being used in parentheses (e.g., "Sidekiq", ":async")
+- **Separate Database**: Whether errors use a dedicated database
 
 **Example Display:**
 ```text
-Async Logging                    ✓ Enabled
-Async Adapter                    Sidekiq
-Error Sampling                   100% (all errors)
-Rate Limiting                    ✗ Disabled
+Async Logging                    ✓ Enabled (Sidekiq)
+Separate Database                ✗ Disabled
 ```
 
-**When sampling is active:**
+**When separate database is enabled:**
 ```text
-Error Sampling                   10% (critical always logged)
+Separate Database                ✓ Enabled
 ```
 
 ---
@@ -87,17 +86,17 @@ Custom Webhooks                  2 configured
 
 ---
 
-### 4. Advanced Analytics
+### 4. Advanced Analytics Features
 
 Displays the status of all 7 advanced analytics features:
 
-- **Similar Errors**: Fuzzy error matching with Jaccard/Levenshtein
+- **Similar Errors (Fuzzy Matching)**: Fuzzy error matching with Jaccard/Levenshtein algorithms
 - **Co-occurring Errors**: Errors happening together detection
 - **Error Cascades**: Parent→child error relationship tracking
 - **Error Correlation**: Version/user/time correlation analysis
-- **Platform Comparison**: iOS vs Android vs Web health comparison
+- **Platform Comparison**: iOS vs Android analytics and health comparison
 - **Occurrence Patterns**: Cyclical and burst pattern detection
-- **Baseline Alerts**: Statistical anomaly detection
+- **Baseline Alerts**: Statistical anomaly detection (shows threshold in standard deviations)
 
 **Example Display:**
 ```text
@@ -118,53 +117,68 @@ When baseline alerts are enabled, additional information is shown:
 
 ---
 
-### 5. Database Configuration
+### 5. Active Plugins
 
-Shows database and multi-app settings:
+Shows registered custom plugins and their status:
 
-- **Application Name**: Current application identifier
-- **Database Connection**: Which database is being used
-- **Separate Database**: Whether errors use a dedicated database
+- **Plugin Name**: The name of the plugin
+- **Version**: Plugin version number
+- **Description**: Brief description of what the plugin does
+- **Status**: Whether the plugin is active or inactive
 
 **Example Display:**
+
+| Plugin Name    | Version | Description              | Status   |
+|----------------|---------|--------------------------|----------|
+| Jira Plugin    | 1.0.0   | Create Jira tickets      | ✓ Active |
+| Metrics Plugin | 1.0.0   | Export to DataDog        | ✓ Active |
+| Audit Log      | 1.0.0   | Track all changes        | ⏸ Inactive |
+
+**When no plugins are registered:**
 ```text
-Application Name                 my-api-production
-Database Connection              Primary database
-Separate Database                ✗ Not configured
+No plugins are currently registered. You can create custom plugins to extend functionality.
 ```
 
-**With separate database:**
-```text
-Application Name                 my-api-production
-Database Connection              errors (dedicated)
-Separate Database                ✓ Configured
-```
+See [Plugin System Guide](../PLUGIN_SYSTEM.md) for how to create custom plugins.
 
 ---
 
 ### 6. Enhanced Metrics
 
-Displays additional context being tracked with errors:
+Displays additional context being tracked with errors (shown only if any of these are configured):
 
 - **App Version**: Application version string
-- **Git SHA**: Git commit SHA being tracked
-- **Git Repository**: Repository URL for commit links
+- **Git SHA**: Git commit SHA being tracked (with clickable link if git_repo_url configured)
 - **Total Users**: User count for impact percentage calculations
 
 **Example Display:**
 ```text
 App Version                      1.2.3
-Git SHA                          abc123def456
-Git Repository                   https://github.com/user/repo
-Total Users                      10,000 users
+Git SHA                          abc123d (linked to commit)
+Total Users                      10,000
 ```
 
-**When not configured:**
+**Note**: This section only appears when at least one of these values is configured in your initializer.
+
+---
+
+### 7. Internal Logging
+
+Shows gem debugging and logging settings:
+
+- **Internal Logging**: Whether the gem outputs debug logs
+- **Log Level**: Verbosity level (INFO, DEBUG, WARN, ERROR)
+
+**Example Display:**
 ```text
-App Version                      Not configured
-Git SHA                          Not configured
-Git Repository                   Not configured
-Total Users                      Auto-detected
+Internal Logging                 ✗ Disabled
+Log Level                        INFO
+```
+
+**When enabled (not recommended for production):**
+```text
+Internal Logging                 ⚠ Enabled
+Log Level                        DEBUG
 ```
 
 ---
@@ -175,7 +189,7 @@ Total Users                      Auto-detected
 
 **Scenario**: You enabled baseline alerts in the initializer but want to confirm it's active.
 
-**Solution**: Check the "Advanced Analytics" section for "Baseline Alerts" status.
+**Solution**: Check the "Advanced Analytics Features" section (Section 4) for "Baseline Alerts" status.
 
 ---
 
@@ -195,9 +209,9 @@ Total Users                      Auto-detected
 
 **Scenario**: Slack notifications aren't arriving.
 
-**Solution**: Check "Notification Channels" section to verify:
+**Solution**: Check the "Notification Channels" section (Section 3) to verify:
 1. Slack Notifications shows "Enabled"
-2. Webhook URL is present and correct (last 4 chars match your webhook)
+2. Webhook URL is present and partially visible (matches your configured webhook)
 3. Email also shows recipients if configured
 
 ---
@@ -214,7 +228,7 @@ Total Users                      Auto-detected
 
 **Scenario**: Correlation analysis isn't showing data.
 
-**Solution**: Check "Advanced Analytics" section - if "Error Correlation" shows "Disabled", enable it in the initializer.
+**Solution**: Check the "Advanced Analytics Features" section (Section 4) - if "Error Correlation" shows "Disabled", enable it in the initializer.
 
 ---
 
