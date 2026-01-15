@@ -2,7 +2,7 @@
 
 Welcome to the Rails Error Dashboard documentation! This guide will help you get started, customize your setup, and make the most of the advanced features.
 
-## 📚 Documentation Structure
+## Documentation Structure
 
 ### Getting Started
 - **[Quickstart Guide](QUICKSTART.md)** - Get up and running in 5 minutes
@@ -45,7 +45,7 @@ Welcome to the Rails Error Dashboard documentation! This guide will help you get
 - **[Changelog](../CHANGELOG.md)** - Version history and updates
 - **[Testing](development/TESTING.md)** - Running and writing tests
 
-## 🚀 Quick Links
+## Quick Links
 
 ### For New Users
 1. [Quickstart Guide](QUICKSTART.md) - 5-minute setup
@@ -62,7 +62,7 @@ Welcome to the Rails Error Dashboard documentation! This guide will help you get
 2. [Plugin Development](PLUGIN_SYSTEM.md#creating-plugins) - Build plugins
 3. [Testing Guide](development/TESTING.md) - Test your setup
 
-## 📖 Documentation by Use Case
+## Documentation by Use Case
 
 ### "I want to get started quickly"
 → [Quickstart Guide](QUICKSTART.md)
@@ -91,7 +91,7 @@ Welcome to the Rails Error Dashboard documentation! This guide will help you get
 ### "I need to uninstall Rails Error Dashboard"
 → [Uninstall Guide](UNINSTALL.md)
 
-## 🔍 Searching the Documentation
+## Searching the Documentation
 
 - **Configuration options**: See [Configuration Guide](guides/CONFIGURATION.md)
 - **API methods**: See [API Reference](API_REFERENCE.md)
@@ -99,13 +99,13 @@ Welcome to the Rails Error Dashboard documentation! This guide will help you get
 - **Code examples**: Most guides include code examples
 - **Troubleshooting**: Each guide has a troubleshooting section
 
-## 💡 Getting Help
+## Getting Help
 
 - **Issues**: [GitHub Issues](https://github.com/AnjanJ/rails_error_dashboard/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/AnjanJ/rails_error_dashboard/discussions)
 - **Stack Overflow**: Tag your questions with `rails-error-dashboard`
 
-## 📝 Documentation Versions
+## Documentation Versions
 
 This documentation is for **Rails Error Dashboard v0.1.27** (Production Ready).
 
