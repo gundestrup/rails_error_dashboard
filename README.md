@@ -856,6 +856,22 @@ See [Plugin System Guide](docs/PLUGIN_SYSTEM.md).
 
 ---
 
+## 🙏 Contributors
+
+Thank you to everyone who has contributed to Rails Error Dashboard!
+
+[![Contributors](https://contrib.rocks/image?repo=AnjanJ/rails_error_dashboard)](https://github.com/AnjanJ/rails_error_dashboard/graphs/contributors)
+
+Special thanks to:
+- [@bonniesimon](https://github.com/bonniesimon) - Turbo helpers production fix
+- [@gundestrup](https://github.com/gundestrup) - Security fixes, dependency updates, CI/CD improvements
+
+See [CONTRIBUTORS.md](CONTRIBUTORS.md) for the complete list of contributors and their contributions.
+
+Want to contribute? Check out our [Contributing Guide](CONTRIBUTING.md)!
+
+---
+
 **Made with ❤️ by [Anjan](https://www.anjan.dev) for the Rails community**
 
 *One Gem to rule them all, One Gem to find them, One Gem to bring them all, and in the dashboard bind them.* 🧙‍♂️

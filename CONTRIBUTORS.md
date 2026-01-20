@@ -30,6 +30,8 @@ Thank you to everyone who has contributed to Rails Error Dashboard! 🙏
 - 🔒 [#35](https://github.com/AnjanJ/rails_error_dashboard/pull/35) - Fixed mass assignment vulnerability
 - 🔒 [#38](https://github.com/AnjanJ/rails_error_dashboard/pull/38) - Fixed critical XSS vulnerability in JSON download (v0.1.27)
 - 🏗️ [#39](https://github.com/AnjanJ/rails_error_dashboard/pull/39) - Added .DS_Store to .gitignore
+- 📦 [#52](https://github.com/AnjanJ/rails_error_dashboard/pull/52) - Updated concurrent-ruby and lefthook dependencies (v0.1.28)
+- 🤖 [#53](https://github.com/AnjanJ/rails_error_dashboard/pull/53) - Updated GitHub Actions upload-pages-artifact to v4
 
 ---
 
@@ -105,7 +107,7 @@ When you contribute to Rails Error Dashboard, you get:
 
 **Total Contributors:** 3 (including maintainer)
 **External Contributors:** 2
-**Total PRs Merged:** 44+
+**Total PRs Merged:** 46+
 **Total Issues Resolved:** 30+
 **Lines of Code:** 10,000+
 **Tests Written:** 850+
@@ -128,6 +130,9 @@ When you contribute to Rails Error Dashboard, you get:
 ### 🧹 Code Quality Contributors
 - [@gundestrup](https://github.com/gundestrup) - RuboCop lint corrections
 
+### 📦 Dependency Maintainers
+- [@gundestrup](https://github.com/gundestrup) - Multiple dependency and CI/CD updates
+
 ### 📚 Documentation Heroes
 - *Your name could be here!*
 
@@ -148,4 +153,4 @@ If you've contributed and don't see your name here, please open a PR to add your
 
 ---
 
-*This page is updated with each release. Last updated: January 13, 2026*
+*This page is updated with each release. Last updated: January 20, 2026*
