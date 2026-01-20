@@ -7,7 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### 🔧 CI/CD
+
+**Updated GitHub Actions Workflow** 🤖
+
+Updated GitHub Pages deployment workflow to use latest action version.
+
+**Changes:**
+- Updated `actions/upload-pages-artifact` from `v3` to `v4`
+  - v3 was deprecated by GitHub as of January 30, 2025
+  - v4 provides 90% faster uploads and improved performance
+  - Artifacts are now immutable, preventing corruption
+  - Required for continued GitHub Pages deployment
+
+**Thanks to @gundestrup for keeping our CI/CD workflows up to date!** 🙏
 
 ## [0.1.28] - 2026-01-19
 
