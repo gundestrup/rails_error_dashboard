@@ -27,7 +27,7 @@
       </h2>
     </div>
     <div class="d-flex gap-2">
-      <button type="button" class="btn btn-outline-secondary" onclick="downloadErrorJSON()" title="Download error details as JSON">
+      <button type="button" class="btn btn-outline-secondary" onclick="downloadErrorJSON(event)" title="Download error details as JSON">
         <i class="bi bi-download"></i> Export JSON
       </button>
       <% if @error.resolved? %>
@@ -43,7 +43,7 @@
   </div>
 
   <script>
-    function downloadErrorJSON() {
+    function downloadErrorJSON(event) {
       const errorData = {
         id: <%= @error.id %>,
         error_type: <%= json_escape @error.error_type.to_json %>,
