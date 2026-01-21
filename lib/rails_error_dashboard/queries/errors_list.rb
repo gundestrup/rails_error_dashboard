@@ -29,6 +29,7 @@ module RailsErrorDashboard
         query = filter_by_resolved(query)
         query = filter_by_platform(query)
         query = filter_by_application(query)
+        query = filter_by_user_id(query)
         query = filter_by_search(query)
         query = filter_by_severity(query)
         query = filter_by_timeframe(query)
@@ -80,6 +81,12 @@ module RailsErrorDashboard
 
         # ActiveRecord handles both single values and arrays automatically
         query.where(application_id: @filters[:application_id])
+      end
+
+      def filter_by_user_id(query)
+        return query unless @filters[:user_id].present?
+
+        query.where(user_id: @filters[:user_id])
       end
 
       def filter_by_search(query)

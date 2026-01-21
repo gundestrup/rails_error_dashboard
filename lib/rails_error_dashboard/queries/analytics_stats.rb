@@ -100,8 +100,7 @@ module RailsErrorDashboard
                   .count
                   .sort_by { |_, count| -count }
                   .first(10)
-                  .map { |user_id, count| [ find_user_email(user_id, user_model), count ] }
-                  .to_h
+                  .map { |user_id, count| { user_id: user_id, email: find_user_email(user_id, user_model), count: count } }
       end
 
       def find_user_email(user_id, user_model)

@@ -278,25 +278,25 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <% @top_users.each_with_index do |(email, count), index| %>
+                  <% @top_users.each_with_index do |user_data, index| %>
                     <tr>
                       <td><strong>#<%= index + 1 %></strong></td>
-                      <td><%= email %></td>
-                      <td><span class="badge bg-danger"><%= count %></span></td>
+                      <td><%= user_data[:email] %></td>
+                      <td><span class="badge bg-danger"><%= user_data[:count] %></span></td>
                       <td>
                         <div class="progress" style="height: 20px;">
                           <div class="progress-bar bg-danger"
                                role="progressbar"
-                               style="width: <%= (count.to_f / @error_stats[:total] * 100).round(1) %>%"
-                               aria-valuenow="<%= count %>"
+                               style="width: <%= (user_data[:count].to_f / @error_stats[:total] * 100).round(1) %>%"
+                               aria-valuenow="<%= user_data[:count] %>"
                                aria-valuemin="0"
                                aria-valuemax="<%= @error_stats[:total] %>">
-                            <%= (count.to_f / @error_stats[:total] * 100).round(1) %>%
+                            <%= (user_data[:count].to_f / @error_stats[:total] * 100).round(1) %>%
                           </div>
                         </div>
                       </td>
                       <td>
-                        <%= link_to "View Errors", errors_path(search: email, unresolved: false), class: "btn btn-sm btn-outline-primary" %>
+                        <%= link_to "View Errors", errors_path(user_id: user_data[:user_id], unresolved: false), class: "btn btn-sm btn-outline-primary" %>
                       </td>
                     </tr>
                   <% end %>
