@@ -296,7 +296,7 @@
                         </div>
                       </td>
                       <td>
-                        <%= link_to "View Errors", errors_path(search: email), class: "btn btn-sm btn-outline-primary" %>
+                        <%= link_to "View Errors", errors_path(search: email, unresolved: false), class: "btn btn-sm btn-outline-primary" %>
                       </td>
                     </tr>
                   <% end %>
