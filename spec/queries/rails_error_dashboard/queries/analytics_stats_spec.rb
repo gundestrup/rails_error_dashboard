@@ -143,12 +143,12 @@ RSpec.describe RailsErrorDashboard::Queries::AnalyticsStats do
 
     describe "top affected users" do
       context "when User model is not defined" do
-        it "returns empty hash" do
+        it "returns empty array" do
           allow(RailsErrorDashboard.configuration).to receive(:user_model).and_return(nil)
 
           result = described_class.call(30)
 
-          expect(result[:top_users]).to eq({})
+          expect(result[:top_users]).to eq([])
         end
       end
 
@@ -161,10 +161,13 @@ RSpec.describe RailsErrorDashboard::Queries::AnalyticsStats do
           allow(RailsErrorDashboard.configuration).to receive(:user_model).and_return("User")
         end
 
-        it "returns hash of user emails and counts" do
+        it "returns array of user data hashes" do
           result = described_class.call(30)
 
-          expect(result[:top_users]).to be_a(Hash)
+          expect(result[:top_users]).to be_a(Array)
+          expect(result[:top_users].first).to have_key(:user_id)
+          expect(result[:top_users].first).to have_key(:email)
+          expect(result[:top_users].first).to have_key(:count)
         end
 
         it "limits to top 10 users" do
@@ -180,14 +183,15 @@ RSpec.describe RailsErrorDashboard::Queries::AnalyticsStats do
         it "sorts by error count descending" do
           result = described_class.call(30)
 
-          counts = result[:top_users].values
+          counts = result[:top_users].map { |u| u[:count] }
           expect(counts).to eq(counts.sort.reverse)
         end
 
         it "handles missing users gracefully" do
           result = described_class.call(30)
 
-          expect(result[:top_users]).to include(/User #\d+/)
+          emails = result[:top_users].map { |u| u[:email] }
+          expect(emails).to all(match(/User #\d+/))
         end
       end
     end
@@ -315,7 +319,7 @@ RSpec.describe RailsErrorDashboard::Queries::AnalyticsStats do
 
         expect(result[:errors_by_type]).to eq({})
         expect(result[:errors_by_platform]).to eq({})
-        expect(result[:top_users]).to eq({})
+        expect(result[:top_users]).to eq([])
       end
     end
   end
