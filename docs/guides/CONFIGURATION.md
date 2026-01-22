@@ -10,6 +10,7 @@ This guide covers all configuration options for Rails Error Dashboard, including
 - [Notification Features](#notification-features)
 - [Performance Features](#performance-features)
 - [Advanced Analytics Features](#advanced-analytics-features)
+- [Source Code Integration](#source-code-integration-new)
 - [Custom Severity Classification](#custom-severity-classification)
 - [Ignored Exceptions](#ignored-exceptions)
 - [Error Sampling](#error-sampling)
@@ -137,6 +138,15 @@ Complete reference of all 43+ configuration options with defaults, types, and de
 | `baseline_alert_severities` | Array | `[:critical, :high]` | Severities to alert on |
 | `baseline_alert_cooldown_minutes` | Integer | `120` | Minutes between alerts for same error (ENV: `BASELINE_ALERT_COOLDOWN`) |
 
+### Source Code Integration (NEW!)
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enable_source_code_integration` | Boolean | `false` | View source code directly in error details |
+| `enable_git_blame` | Boolean | `false` | Show git blame info (author, commit, timestamp) |
+| `repository_url` | String | Auto-detected | Git repository URL for links (ENV: `REPOSITORY_URL`) |
+| `repository_branch` | String | `"main"` | Default branch for repository links (ENV: `REPOSITORY_BRANCH`) |
+
 ### Internal Logging & Debugging
 
 | Option | Type | Default | Description |
@@ -184,6 +194,10 @@ GIT_REPOSITORY_URL=https://github.com/user/repo
 # Baseline Alerts
 BASELINE_ALERT_THRESHOLD=2.0  # Standard deviations
 BASELINE_ALERT_COOLDOWN=120   # Minutes
+
+# Source Code Integration (NEW!)
+REPOSITORY_URL=https://github.com/user/repo
+REPOSITORY_BRANCH=main
 ```
 
 ---
@@ -229,10 +243,11 @@ Rails Error Dashboard uses an **opt-in architecture**. Core features are always 
 - ✅ Real-time updates via Turbo Streams
 - ✅ Analytics and trend charts
 
-**Optional Features (15 total):**
+**Optional Features (16 total):**
 - 📧 **5 Notification Channels** (Slack, Email, Discord, PagerDuty, Webhooks)
 - ⚡ **3 Performance Features** (Async Logging, Error Sampling, Separate Database)
 - 📊 **7 Advanced Analytics** (Baseline Alerts, Fuzzy Matching, Co-occurring Errors, Error Cascades, Correlation, Platform Comparison, Occurrence Patterns)
+- 🔍 **1 Developer Tool** (Source Code Integration)
 
 All features can be enabled during installation via the interactive installer, or toggled on/off at any time in the initializer.
 
@@ -470,6 +485,77 @@ end
 ```
 
 See [Occurrence Patterns Guide](../features/OCCURRENCE_PATTERNS.md) for details.
+
+---
+
+## Source Code Integration (NEW!)
+
+View source code directly in the error dashboard with git blame information and repository links.
+
+### Basic Configuration
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  # Enable source code viewer
+  config.enable_source_code_integration = true
+
+  # Optional: Enable git blame integration
+  config.enable_git_blame = true
+end
+```
+
+### Repository Configuration
+
+Most settings are auto-detected from your git repository, but you can override them:
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  # Auto-detected from git remote (optional override)
+  config.repository_url = ENV["REPOSITORY_URL"]
+
+  # Default branch for repository links (default: "main")
+  config.repository_branch = ENV["REPOSITORY_BRANCH"] || "main"
+end
+```
+
+### Features
+
+- **Source Code Viewer**: View actual source code lines around the error
+- **Git Blame Integration**: See who last modified the code and when
+- **Repository Links**: Direct links to GitHub, GitLab, or Bitbucket
+- **Automatic Detection**: Detects repository URL from git remote
+- **Security**: Only reads files within application root directory
+
+### Requirements
+
+- Application must be a git repository
+- Git must be installed (for git blame functionality)
+- Dashboard must have read access to application source files
+
+### Use Cases
+
+```ruby
+# Development: Full visibility
+config.enable_source_code_integration = true
+config.enable_git_blame = true
+
+# Production: Source code only (no git blame for performance)
+config.enable_source_code_integration = true
+config.enable_git_blame = false
+
+# Staging: Enable both for debugging
+if Rails.env.staging?
+  config.enable_source_code_integration = true
+  config.enable_git_blame = true
+end
+```
+
+### Privacy & Security
+
+- **Self-hosted**: Source code never leaves your infrastructure
+- **Read-only**: Dashboard only reads files, never modifies
+- **Path validation**: Only files within app root can be accessed
+- **No external calls**: All processing happens locally
 
 ---
 
@@ -1048,6 +1134,20 @@ RailsErrorDashboard.configure do |config|
 
   # Occurrence Pattern Detection
   config.enable_occurrence_patterns = true
+
+  # ============================================================================
+  # SOURCE CODE INTEGRATION (NEW!)
+  # ============================================================================
+
+  # Enable source code viewer
+  config.enable_source_code_integration = true
+
+  # Enable git blame integration
+  config.enable_git_blame = true
+
+  # Repository settings (optional, auto-detected from git)
+  config.repository_url = ENV["REPOSITORY_URL"]
+  config.repository_branch = ENV.fetch("REPOSITORY_BRANCH", "main")
 
   # ============================================================================
   # ADDITIONAL CONFIGURATION

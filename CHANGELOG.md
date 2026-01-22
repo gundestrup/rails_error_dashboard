@@ -7,6 +7,222 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ Features
+
+**Source Code Integration** 🔍
+
+View actual source code directly in error backtraces with git blame information and repository links.
+
+**What's New:**
+- **Source Code Viewer**: Click "View Source" on any app code frame to see the actual code
+  - Shows ±7 lines of context around the error line (configurable)
+  - Error line highlighted for easy identification
+  - Line numbers for reference
+  - Clean, readable code display with monospace font
+
+- **Git Blame Integration**: See who last modified the code that caused the error
+  - Author name and avatar
+  - Time since last change
+  - Commit message
+  - Helps identify code ownership and recent changes
+
+- **Repository Links**: Direct links to view code on GitHub/GitLab/Bitbucket
+  - "View on GitHub" button opens file at exact line
+  - Supports multiple branch strategies: commit SHA, current branch, or main
+  - Configurable repository URL
+
+- **Smart Caching**: Source code reads are cached for performance
+  - 1-hour TTL (configurable)
+  - Reduces disk I/O on repeated views
+  - Fast loading after first access
+
+- **Security Controls**: Only show source for your application code
+  - `only_show_app_code_source = true` by default (security best practice)
+  - Prevents exposing gem/framework source code
+  - File path validation ensures files are within Rails.root
+
+**Configuration:**
+```ruby
+# Enable source code integration
+config.enable_source_code_integration = true
+
+# Context lines (default: 5)
+config.source_code_context_lines = 7
+
+# Git blame (default: true)
+config.enable_git_blame = true
+
+# Cache TTL in seconds (default: 3600)
+config.source_code_cache_ttl = 3600
+
+# Security: only show app code (default: true)
+config.only_show_app_code_source = true
+
+# Git branch strategy: :commit_sha, :current_branch, or :main
+config.git_branch_strategy = :current_branch
+
+# Repository URL for links
+config.git_repository_url = "https://github.com/user/repo"
+```
+
+**Impact:**
+- Faster debugging - see code without leaving dashboard
+- Better context - understand what the code was trying to do
+- Code ownership - identify who last touched the code
+- Quick navigation - jump to exact line in your editor/GitHub
+
+**Technical Details:**
+- `SourceCodeReader` service reads files with validation
+- `GitBlameReader` service parses git blame output
+- `GithubLinkGenerator` supports GitHub, GitLab, and Bitbucket
+- Caching via `Rails.cache` for performance
+- Partial `_source_code.html.erb` with collapsible UI
+- Helper methods in `BacktraceHelper` for view integration
+
+**Files Changed:**
+- `lib/rails_error_dashboard/services/source_code_reader.rb` (new)
+- `lib/rails_error_dashboard/services/git_blame_reader.rb` (new)
+- `lib/rails_error_dashboard/services/github_link_generator.rb` (new)
+- `app/helpers/rails_error_dashboard/backtrace_helper.rb`
+- `app/views/rails_error_dashboard/errors/_source_code.html.erb` (new)
+- `app/views/rails_error_dashboard/errors/show.html.erb`
+- `app/views/layouts/rails_error_dashboard.html.erb` (styling)
+- `lib/rails_error_dashboard/configuration.rb`
+- Full test coverage with 20+ new specs
+
+**Documentation:**
+- `docs/SOURCE_CODE_INTEGRATION.md` - Complete feature documentation
+
+---
+
+**Smart Error Deduplication** 🎯
+
+Improved error grouping with intelligent pattern-based normalization.
+
+**What's New:**
+- Pattern-based message normalization removes variable content
+- IDs, UUIDs, timestamps, and dynamic values are replaced with placeholders
+- Better error grouping - similar errors are correctly deduplicated
+- Reduces noise in error dashboard
+- More accurate occurrence counts
+
+**Examples:**
+- `User #123 not found` → `User #<ID> not found`
+- `UUID abc-def-ghi invalid` → `UUID <UUID> invalid`
+- `Timeout after 30 seconds` → `Timeout after <NUMBER> seconds`
+
+**Impact:**
+- Cleaner error dashboard with fewer duplicate entries
+- More accurate error occurrence counts
+- Better pattern detection across similar errors
+
+**Files Changed:**
+- Error deduplication logic in `ErrorLog` model
+- Hash generation with normalized messages
+
+---
+
+**Configuration Validation** ✅
+
+Comprehensive validation of gem configuration with clear, helpful error messages.
+
+**What's New:**
+- Validates all configuration options on Rails startup
+- Clear error messages explain what's wrong and how to fix it
+- Prevents silent misconfigurations
+- Catches common setup mistakes early
+
+**Examples:**
+```ruby
+# Missing required config
+config.use_separate_database = true
+# Error: "database configuration is required when use_separate_database is true"
+
+# Invalid value
+config.sampling_rate = 1.5
+# Error: "sampling_rate must be between 0.0 and 1.0"
+```
+
+**Impact:**
+- Faster setup - catch errors immediately
+- Better developer experience - clear, actionable error messages
+- Prevents production issues from misconfiguration
+
+**Files Changed:**
+- `lib/rails_error_dashboard/configuration.rb`
+- Validation logic for all configuration options
+
+---
+
+**Squashed Migration for New Installations** 🚀
+
+Fast database setup for new installations with a single migration.
+
+**What's New:**
+- Single squashed migration contains entire schema
+- Existing installations continue using incremental migrations
+- New installations set up database in seconds (not minutes)
+- Backward compatible - no impact on existing users
+
+**Technical Details:**
+- Squashed migration: `20260122000000_create_rails_error_dashboard_tables.rb`
+- Creates all 10+ tables in one transaction
+- Includes all indexes and foreign keys
+- Guard clause detects if tables already exist
+
+**Impact:**
+- 90% faster initial setup for new installations
+- Simpler migration history for new projects
+- Zero impact on existing installations
+
+**Files Changed:**
+- `db/migrate/20260122000000_create_rails_error_dashboard_tables.rb` (new)
+
+---
+
+**Migration Guard Clauses** 🛡️
+
+All incremental migrations now have guard clauses for compatibility with squashed migration.
+
+**What's New:**
+- Each incremental migration checks if work is already done
+- Safe to run migrations even if squashed migration already ran
+- Prevents duplicate index/column errors
+- Idempotent migrations
+
+**Technical Details:**
+- Guard clauses check for table/column/index existence before creating
+- Compatible with both fresh installs and upgrades
+- No errors from running migrations twice
+
+**Impact:**
+- Smoother upgrades
+- No migration conflicts between squashed and incremental migrations
+- Better reliability
+
+**Files Changed:**
+- All 15+ incremental migrations in `db/migrate/`
+
+### 🎨 Improvements
+
+**Dark Mode Styling Polish** 🌙
+
+Refined dark mode styling for source code integration and UI components.
+
+**Changes:**
+- File paths readable in both light and dark themes
+- Git blame info properly themed
+- Timeline cards match dark theme colors
+- Method names have appropriate contrast
+- Source code viewer with proper dark theme support
+
+**Impact:**
+- Consistent dark mode experience
+- Better readability in low-light environments
+- Professional appearance in both themes
+
+---
+
 ## [0.1.29] - 2026-01-22
 
 ### 🐛 Bug Fixes

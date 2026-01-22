@@ -143,6 +143,32 @@ Detect cyclical patterns (business hours, nighttime, weekend rhythms) and error 
 **Plus: Developer Insights Dashboard** 💡
 Built-in analytics dashboard with severity detection, platform stability scoring, actionable recommendations, and recent error activity summaries (always available, no configuration needed).
 
+#### 🔍 Source Code Integration (NEW!)
+
+**View actual source code directly in error backtraces** - no need to switch to your editor or GitHub.
+
+- **Inline Source Code Viewer** - Click "View Source" on any error frame to see the actual code with ±7 lines of context
+- **Git Blame Integration** - See who last modified the code, when, and the commit message
+- **Repository Links** - Jump directly to GitHub/GitLab/Bitbucket at the exact error line
+- **Smart Caching** - Fast performance with 1-hour cache (configurable)
+- **Security Controls** - Only shows your app code by default (not gems/frameworks)
+
+**Perfect for debugging:**
+- Understand the code context without leaving the dashboard
+- Identify code ownership with git blame
+- Quick navigation to your repository
+- See recent changes that might have caused the error
+
+```ruby
+# Enable in config/initializers/rails_error_dashboard.rb
+config.enable_source_code_integration = true
+config.source_code_context_lines = 7
+config.enable_git_blame = true
+config.git_repository_url = "https://github.com/user/repo"
+```
+
+**📖 [Complete documentation →](docs/SOURCE_CODE_INTEGRATION.md)**
+
 #### 🔌 Plugin System
 Extensible architecture with event hooks (`on_error_logged`, `on_error_resolved`, `on_threshold_exceeded`). Built-in examples for Jira integration, metrics tracking, audit logging. Easy to create custom plugins - just drop a file in `config/initializers/error_dashboard_plugins/`.
 

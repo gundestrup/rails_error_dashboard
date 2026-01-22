@@ -14,7 +14,7 @@ Core features that are always enabled - no configuration needed:
 - ✅ **Security & Privacy** - HTTP Basic Auth, data retention
 
 ### Optional Features (Opt-in)
-**15 powerful features** you can enable during installation or anytime in the initializer:
+**16 powerful features** you can enable during installation or anytime in the initializer:
 
 **📧 Notifications (5 features)**
 - Slack, Email, Discord, PagerDuty, Webhooks
@@ -24,6 +24,9 @@ Core features that are always enabled - no configuration needed:
 
 **📊 Advanced Analytics (7 features)**
 - Baseline Alerts, Fuzzy Matching, Co-occurring Errors, Error Cascades, Correlation, Platform Comparison, Occurrence Patterns
+
+**🔍 Developer Tools (1 feature)**
+- Source Code Integration (NEW!)
 
 All features are disabled by default and can be toggled on/off at any time. See [Configuration Guide](guides/CONFIGURATION.md) for setup.
 
@@ -299,6 +302,86 @@ config.use_separate_database = true   # Separate database
 
 ---
 
+## Source Code Integration (NEW!)
+
+**⚙️ Optional Feature** - Source code integration is disabled by default. Enable it to see source code directly in the dashboard:
+
+```ruby
+config.enable_source_code_integration = true
+config.enable_git_blame = true  # Optional: Show git blame info
+```
+
+### Features
+
+#### Inline Source Code Viewer
+- **View source code** directly in the error details page
+- **Context-aware display** showing lines around the error
+- **Syntax highlighting** with proper indentation
+- **Line numbers** matching your editor
+- **Highlighted error line** for quick identification
+- **No external tools required** - works entirely within the dashboard
+
+#### Git Blame Integration
+- **Author information** for each line of code
+- **Commit message** showing what changed
+- **Timestamp** showing when the code was last modified
+- **Time ago** format for easy understanding
+- **Works with any Git repository**
+- **Automatic detection** of git configuration
+
+#### Repository Links
+- **GitHub integration** - Direct links to source files on GitHub
+- **GitLab support** - Links to GitLab repositories
+- **Bitbucket support** - Links to Bitbucket repositories
+- **Automatic detection** from git remote configuration
+- **Branch awareness** - Links to the correct branch
+- **Line number preservation** - Opens file at exact error line
+
+### Configuration
+
+```ruby
+# Basic setup
+config.enable_source_code_integration = true
+
+# Optional: Enable git blame
+config.enable_git_blame = true
+
+# Repository settings (auto-detected from git)
+config.repository_url = ENV["REPOSITORY_URL"]  # Optional: Override auto-detection
+config.repository_branch = ENV["REPOSITORY_BRANCH"] || "main"  # Default branch
+```
+
+### How It Works
+
+1. **Source Code Reader**: Reads the actual source file from your filesystem
+2. **Git Blame Parser**: Parses `git blame` output to show commit information
+3. **Link Generator**: Generates repository links based on your git remote configuration
+4. **Caching**: Source code and blame data are cached per request for performance
+5. **Security**: Only reads files within your application root directory
+
+### Requirements
+
+- **Git repository**: Your application must be a git repository
+- **File access**: Dashboard must have read access to application source files
+- **Git installed**: For git blame functionality
+
+### Benefits
+
+- **Faster debugging**: See code without switching to your editor
+- **Context awareness**: Understand the code surrounding the error
+- **Git history**: See who last modified the code and why
+- **Team collaboration**: Share error links with full source context
+- **No external tools**: Everything works within your dashboard
+
+### Privacy & Security
+
+- **Self-hosted**: Source code never leaves your infrastructure
+- **Read-only access**: Dashboard only reads files, never modifies
+- **Path validation**: Only files within app root can be accessed
+- **No external API calls**: All processing happens locally
+
+---
+
 ## Plugin System
 
 ### Architecture
@@ -479,6 +562,8 @@ config.enable_baseline_alerts = true         # Baseline anomaly alerts
 config.enable_occurrence_patterns = true     # Cyclical/burst patterns
 config.enable_error_correlation = true       # Version/user correlation
 config.enable_platform_comparison = true     # Platform health comparison
+config.enable_source_code_integration = true # Source code viewer (NEW!)
+config.enable_git_blame = true               # Git blame integration (NEW!)
 ```
 
 *All code is complete and tested (847+ tests passing). These advanced features provide powerful insights for production debugging.*
@@ -627,6 +712,8 @@ rails generate rails_error_dashboard:install \
 - `--error_correlation` - Enable error correlation analysis
 - `--platform_comparison` - Enable platform comparison
 - `--occurrence_patterns` - Enable occurrence pattern detection
+- `--source_code_integration` - Enable source code viewer (NEW!)
+- `--git_blame` - Enable git blame integration (NEW!)
 
 ### After Installation
 

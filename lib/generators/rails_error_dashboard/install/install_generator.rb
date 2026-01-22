@@ -27,6 +27,9 @@ module RailsErrorDashboard
       class_option :error_correlation, type: :boolean, default: false, desc: "Enable error correlation analysis"
       class_option :platform_comparison, type: :boolean, default: false, desc: "Enable platform comparison analytics"
       class_option :occurrence_patterns, type: :boolean, default: false, desc: "Enable occurrence pattern detection"
+      # Developer tools options
+      class_option :source_code_integration, type: :boolean, default: false, desc: "Enable source code viewer (NEW!)"
+      class_option :git_blame, type: :boolean, default: false, desc: "Enable git blame integration (NEW!)"
 
       def welcome_message
         say "\n"
@@ -148,6 +151,20 @@ module RailsErrorDashboard
             name: "Occurrence Pattern Detection",
             description: "Detect cyclical patterns and bursts",
             category: "Advanced Analytics"
+          },
+
+          # === DEVELOPER TOOLS ===
+          {
+            key: :source_code_integration,
+            name: "Source Code Integration (NEW!)",
+            description: "View source code directly in error details",
+            category: "Developer Tools"
+          },
+          {
+            key: :git_blame,
+            name: "Git Blame Integration (NEW!)",
+            description: "Show git blame info (author, commit, timestamp)",
+            category: "Developer Tools"
           }
         ]
 
@@ -196,6 +213,10 @@ module RailsErrorDashboard
         @enable_error_correlation = @selected_features&.dig(:error_correlation) || options[:error_correlation]
         @enable_platform_comparison = @selected_features&.dig(:platform_comparison) || options[:platform_comparison]
         @enable_occurrence_patterns = @selected_features&.dig(:occurrence_patterns) || options[:occurrence_patterns]
+
+        # Developer Tools
+        @enable_source_code_integration = @selected_features&.dig(:source_code_integration) || options[:source_code_integration]
+        @enable_git_blame = @selected_features&.dig(:git_blame) || options[:git_blame]
 
         template "initializer.rb", "config/initializers/rails_error_dashboard.rb"
       end
@@ -266,6 +287,17 @@ module RailsErrorDashboard
           say "\nAdvanced Analytics:", :cyan
           say "  ✓ #{analytics_features.join(", ")}", :green
           enabled_count += analytics_features.size
+        end
+
+        # Developer Tools
+        developer_tools_features = []
+        developer_tools_features << "Source Code Integration" if @enable_source_code_integration
+        developer_tools_features << "Git Blame" if @enable_git_blame
+
+        if developer_tools_features.any?
+          say "\nDeveloper Tools:", :cyan
+          say "  ✓ #{developer_tools_features.join(", ")}", :green
+          enabled_count += developer_tools_features.size
         end
 
         say "\n"

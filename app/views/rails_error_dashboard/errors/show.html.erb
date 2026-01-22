@@ -168,7 +168,7 @@
                           <div>
                             <span class="<%= frame_color_class(frame[:category]) %>">
                               <%= frame_icon(frame[:category]) %> <%= frame[:short_path] %>:<%= frame[:line_number] %>
-                            </span> in <span class="text-info">`<%= frame[:method_name] %>'</span>
+                            </span> in <span class="backtrace-method-name">`<%= frame[:method_name] %>'</span>
                           </div>
                           <% if RailsErrorDashboard.configuration.enable_source_code_integration && frame[:category] == :app %>
                             <button class="btn btn-sm btn-outline-secondary" type="button"
@@ -209,7 +209,7 @@
                   <div id="frameworkBacktrace" class="accordion-collapse collapse" data-bs-parent="#frameworkBacktraceAccordion">
                     <div class="accordion-body p-0">
                       <div class="code-block p-3" style="max-height: 400px; overflow-y: auto; overflow-x: auto;">
-                        <pre class="mb-0"><code><% framework_frames.each do |frame| %><span class="<%= frame_bg_class(frame[:category]) %> d-block px-2 py-1"><span class="<%= frame_color_class(frame[:category]) %>"><%= frame_icon(frame[:category]) %> <%= frame[:short_path] %>:<%= frame[:line_number] %></span> in <span class="text-info">`<%= frame[:method_name] %>'</span></span>
+                        <pre class="mb-0"><code><% framework_frames.each do |frame| %><span class="<%= frame_bg_class(frame[:category]) %> d-block px-2 py-1"><span class="<%= frame_color_class(frame[:category]) %>"><%= frame_icon(frame[:category]) %> <%= frame[:short_path] %>:<%= frame[:line_number] %></span> in <span class="backtrace-method-name">`<%= frame[:method_name] %>'</span></span>
 <% end %></code></pre>
                       </div>
                     </div>

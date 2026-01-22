@@ -808,6 +808,125 @@
       body.dark-mode .filter-pill.bg-secondary {
         background-color: var(--ctp-surface2) !important;
       }
+
+      /* Source code file path styling */
+      .source-file-path {
+        color: #212529 !important; /* Dark text for light mode */
+      }
+
+      [data-theme="dark"] .source-file-path,
+      body.dark-mode .source-file-path {
+        color: var(--ctp-text) !important; /* Bright text for dark mode */
+      }
+
+      /* Backtrace method name styling - override Bootstrap text-info */
+      span.backtrace-method-name {
+        color: #0066cc !important; /* Darker blue for better readability in light mode */
+      }
+
+      [data-theme="dark"] span.backtrace-method-name,
+      body.dark-mode span.backtrace-method-name,
+      html[data-theme="dark"] span.backtrace-method-name {
+        color: var(--ctp-sky) !important; /* Catppuccin sky for dark mode */
+      }
+
+      /* Timeline styles */
+      .timeline {
+        position: relative;
+        padding-left: 0;
+      }
+
+      .timeline-item {
+        position: relative;
+        padding-left: 40px;
+        padding-bottom: 30px;
+      }
+
+      .timeline-item-last {
+        padding-bottom: 0;
+      }
+
+      .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: 11px;
+        top: 30px;
+        bottom: 0;
+        width: 2px;
+        background: #dee2e6;
+      }
+
+      [data-theme="dark"] .timeline-item::before,
+      body.dark-mode .timeline-item::before {
+        background: var(--border-color);
+      }
+
+      .timeline-item-last::before {
+        display: none;
+      }
+
+      .timeline-marker {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #ffffff;
+        border: 2px solid #dee2e6;
+        border-radius: 50%;
+        z-index: 1;
+      }
+
+      [data-theme="dark"] .timeline-marker,
+      body.dark-mode .timeline-marker {
+        background: var(--ctp-surface0);
+        border-color: var(--border-color);
+      }
+
+      .timeline-marker-current {
+        border-color: #dc3545;
+        background: #f8d7da;
+        box-shadow: 0 0 0 4px rgba(220, 53, 69, 0.15);
+      }
+
+      [data-theme="dark"] .timeline-marker-current,
+      body.dark-mode .timeline-marker-current {
+        border-color: var(--ctp-red);
+        background: rgba(243, 139, 168, 0.2);
+        box-shadow: 0 0 0 4px rgba(243, 139, 168, 0.1);
+      }
+
+      .timeline-marker i {
+        font-size: 12px;
+      }
+
+      .timeline-content {
+        background: #ffffff;
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+      }
+
+      [data-theme="dark"] .timeline-content,
+      body.dark-mode .timeline-content {
+        background: var(--ctp-surface0);
+        border-color: var(--border-color);
+        color: var(--text-color);
+      }
+
+      .timeline-item:hover .timeline-content {
+        border-color: #0d6efd;
+        background: #cfe2ff;
+      }
+
+      [data-theme="dark"] .timeline-item:hover .timeline-content,
+      body.dark-mode .timeline-item:hover .timeline-content {
+        border-color: var(--ctp-mauve);
+        background: var(--ctp-surface1);
+      }
     </style>
   </head>
 

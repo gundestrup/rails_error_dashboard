@@ -263,6 +263,38 @@ RailsErrorDashboard.configure do |config|
 
 <% end -%>
   # ============================================================================
+  # DEVELOPER TOOLS (NEW!)
+  # ============================================================================
+
+<% if @enable_source_code_integration -%>
+  # Source Code Integration - ENABLED (NEW!)
+  # View source code directly in error details with inline viewer
+  config.enable_source_code_integration = true
+  # To disable: Set config.enable_source_code_integration = false
+
+<% else -%>
+  # Source Code Integration - DISABLED (NEW!)
+  # To enable: Set config.enable_source_code_integration = true
+  config.enable_source_code_integration = false
+
+<% end -%>
+<% if @enable_git_blame -%>
+  # Git Blame Integration - ENABLED (NEW!)
+  # Show git blame info (author, commit, timestamp) for each source line
+  config.enable_git_blame = true
+  # To disable: Set config.enable_git_blame = false
+
+<% else -%>
+  # Git Blame Integration - DISABLED (NEW!)
+  # To enable: Set config.enable_git_blame = true (requires Git installed)
+  config.enable_git_blame = false
+
+<% end -%>
+  # Repository settings (auto-detected from git remote, optional override)
+  # config.repository_url = ENV["REPOSITORY_URL"]  # e.g., "https://github.com/user/repo"
+  # config.repository_branch = ENV.fetch("REPOSITORY_BRANCH", "main")  # Default branch
+
+  # ============================================================================
   # INTERNAL LOGGING (Silent by Default)
   # ============================================================================
   # Rails Error Dashboard logging is SILENT by default to keep your logs clean.
