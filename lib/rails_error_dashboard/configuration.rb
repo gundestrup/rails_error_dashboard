@@ -88,6 +88,14 @@ module RailsErrorDashboard
     attr_accessor :baseline_alert_severities # Array of severities to alert on (default: [:critical, :high])
     attr_accessor :baseline_alert_cooldown_minutes # Minutes between alerts for same error type (default: 120)
 
+    # Source code integration (show code in backtrace)
+    attr_accessor :enable_source_code_integration  # Master switch (default: false)
+    attr_accessor :source_code_context_lines       # Lines before/after (default: 5)
+    attr_accessor :enable_git_blame                # Show git blame (default: false)
+    attr_accessor :source_code_cache_ttl           # Cache TTL in seconds (default: 3600)
+    attr_accessor :only_show_app_code_source       # Hide gems/stdlib (default: true)
+    attr_accessor :git_branch_strategy             # :commit_sha, :current_branch, :main (default: :commit_sha)
+
     # Notification callbacks (managed via helper methods, not set directly)
     attr_reader :notification_callbacks
 
@@ -164,6 +172,14 @@ module RailsErrorDashboard
       @baseline_alert_threshold_std_devs = ENV.fetch("BASELINE_ALERT_THRESHOLD", "2.0").to_f
       @baseline_alert_severities = [ :critical, :high ] # Alert on critical and high severity anomalies
       @baseline_alert_cooldown_minutes = ENV.fetch("BASELINE_ALERT_COOLDOWN", "120").to_i
+
+      # Source code integration defaults - OFF by default (opt-in)
+      @enable_source_code_integration = false  # Master switch
+      @source_code_context_lines = 5  # Show ±5 lines around target line
+      @enable_git_blame = false  # Show git blame info
+      @source_code_cache_ttl = 3600  # 1 hour cache
+      @only_show_app_code_source = true  # Hide gem/vendor code for security
+      @git_branch_strategy = :commit_sha  # Use error's git_sha (most accurate)
 
       # Internal logging defaults - SILENT by default
       @enable_internal_logging = false  # Opt-in for debugging
