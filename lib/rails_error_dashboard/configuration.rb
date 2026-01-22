@@ -180,5 +180,106 @@ module RailsErrorDashboard
     def reset!
       initialize
     end
+
+    # Validate configuration values
+    # Raises ConfigurationError if any validation fails
+    #
+    # @raise [ConfigurationError] if configuration is invalid
+    # @return [true] if configuration is valid
+    def validate!
+      errors = []
+
+      # Validate sampling_rate (must be between 0.0 and 1.0)
+      if sampling_rate && (sampling_rate < 0.0 || sampling_rate > 1.0)
+        errors << "sampling_rate must be between 0.0 and 1.0 (got: #{sampling_rate})"
+      end
+
+      # Validate retention_days (must be positive)
+      if retention_days && retention_days < 1
+        errors << "retention_days must be at least 1 day (got: #{retention_days})"
+      end
+
+      # Validate max_backtrace_lines (must be positive)
+      if max_backtrace_lines && max_backtrace_lines < 1
+        errors << "max_backtrace_lines must be at least 1 (got: #{max_backtrace_lines})"
+      end
+
+      # Validate rate_limit_per_minute (must be positive if rate limiting enabled)
+      if enable_rate_limiting && rate_limit_per_minute && rate_limit_per_minute < 1
+        errors << "rate_limit_per_minute must be at least 1 (got: #{rate_limit_per_minute})"
+      end
+
+      # Validate baseline alert threshold (must be positive)
+      if enable_baseline_alerts && baseline_alert_threshold_std_devs && baseline_alert_threshold_std_devs <= 0
+        errors << "baseline_alert_threshold_std_devs must be positive (got: #{baseline_alert_threshold_std_devs})"
+      end
+
+      # Validate baseline alert cooldown (must be positive)
+      if enable_baseline_alerts && baseline_alert_cooldown_minutes && baseline_alert_cooldown_minutes < 1
+        errors << "baseline_alert_cooldown_minutes must be at least 1 (got: #{baseline_alert_cooldown_minutes})"
+      end
+
+      # Validate baseline alert severities (must be valid symbols)
+      if enable_baseline_alerts && baseline_alert_severities
+        valid_severities = %i[critical high medium low]
+        invalid_severities = baseline_alert_severities - valid_severities
+        if invalid_severities.any?
+          errors << "baseline_alert_severities contains invalid values: #{invalid_severities.inspect}. " \
+                    "Valid options: #{valid_severities.inspect}"
+        end
+      end
+
+      # Validate async_adapter (must be valid adapter)
+      if async_logging && async_adapter
+        valid_adapters = %i[sidekiq solid_queue async]
+        unless valid_adapters.include?(async_adapter)
+          errors << "async_adapter must be one of #{valid_adapters.inspect} (got: #{async_adapter.inspect})"
+        end
+      end
+
+      # Validate notification dependencies
+      if enable_slack_notifications && (slack_webhook_url.nil? || slack_webhook_url.strip.empty?)
+        errors << "slack_webhook_url is required when enable_slack_notifications is true"
+      end
+
+      if enable_email_notifications && notification_email_recipients.empty?
+        errors << "notification_email_recipients is required when enable_email_notifications is true"
+      end
+
+      if enable_discord_notifications && (discord_webhook_url.nil? || discord_webhook_url.strip.empty?)
+        errors << "discord_webhook_url is required when enable_discord_notifications is true"
+      end
+
+      if enable_pagerduty_notifications && (pagerduty_integration_key.nil? || pagerduty_integration_key.strip.empty?)
+        errors << "pagerduty_integration_key is required when enable_pagerduty_notifications is true"
+      end
+
+      if enable_webhook_notifications && webhook_urls.empty?
+        errors << "webhook_urls is required when enable_webhook_notifications is true"
+      end
+
+      # Validate separate database configuration
+      if use_separate_database && (database.nil? || database.to_s.strip.empty?)
+        errors << "database configuration is required when use_separate_database is true"
+      end
+
+      # Validate log level (must be valid symbol)
+      if log_level
+        valid_log_levels = %i[debug info warn error fatal silent]
+        unless valid_log_levels.include?(log_level)
+          errors << "log_level must be one of #{valid_log_levels.inspect} (got: #{log_level.inspect})"
+        end
+      end
+
+      # Validate total_users_for_impact (must be positive if set)
+      if total_users_for_impact && total_users_for_impact < 1
+        errors << "total_users_for_impact must be at least 1 (got: #{total_users_for_impact})"
+      end
+
+      # Raise exception if any errors found
+      raise ConfigurationError, errors if errors.any?
+
+      true
+    end
   end
 end

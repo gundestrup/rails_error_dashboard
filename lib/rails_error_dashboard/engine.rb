@@ -38,6 +38,18 @@ module RailsErrorDashboard
       end
     end
 
+    # Validate configuration after initialization
+    initializer "rails_error_dashboard.validate_config", after: :load_config_initializers do
+      config.after_initialize do
+        begin
+          RailsErrorDashboard.configuration.validate!
+        rescue ConfigurationError => e
+          Rails.logger.error "[Rails Error Dashboard] #{e.message}"
+          raise
+        end
+      end
+    end
+
     # Subscribe to Rails error reporter
     config.after_initialize do
       if RailsErrorDashboard.configuration.enable_error_subscriber
