@@ -1,5 +1,59 @@
 <% content_for :page_title, "Error ##{@error.id}" %>
 
+<script>
+  function downloadErrorJSON(event) {
+    const errorData = {
+      id: <%= @error.id %>,
+      error_type: <%= json_escape @error.error_type.to_json %>,
+      message: <%= json_escape @error.message.to_json %>,
+      backtrace: <%= json_escape @error.backtrace.to_json %>,
+      occurred_at: <%= json_escape @error.occurred_at.to_json %>,
+      first_seen_at: <%= json_escape @error.first_seen_at.to_json %>,
+      last_seen_at: <%= json_escape @error.last_seen_at.to_json %>,
+      occurrence_count: <%= @error.occurrence_count %>,
+      resolved: <%= @error.resolved? %>,
+      resolved_at: <%= json_escape @error.resolved_at.to_json %>,
+      resolved_by_name: <%= json_escape @error.resolved_by_name.to_json %>,
+      platform: <%= json_escape @error.platform.to_json %>,
+      user_id: <%= json_escape @error.user_id.to_json %>,
+      severity: <%= json_escape @error.severity.to_json %>,
+      priority_level: <%= @error.priority_level || 0 %>,
+      <% if @error.respond_to?(:app_version) %>
+      app_version: <%= json_escape @error.app_version.to_json %>,
+      <% end %>
+      <% if @error.respond_to?(:git_commit) %>
+      git_commit: <%= json_escape @error.git_commit.to_json %>,
+      <% end %>
+      created_at: <%= json_escape @error.created_at.to_json %>,
+      updated_at: <%= json_escape @error.updated_at.to_json %>
+    };
+
+    const jsonString = JSON.stringify(errorData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `error_${errorData.id}_${errorData.error_type.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    // Visual feedback
+    const button = event.currentTarget;
+    const originalHTML = button.innerHTML;
+    button.innerHTML = '<i class="bi bi-check"></i> Downloaded!';
+    button.classList.remove('btn-outline-secondary');
+    button.classList.add('btn-success');
+
+    setTimeout(() => {
+      button.innerHTML = originalHTML;
+      button.classList.remove('btn-success');
+      button.classList.add('btn-outline-secondary');
+    }, 2000);
+  }
+</script>
+
 <div class="py-4">
   <!-- Breadcrumbs -->
   <nav aria-label="breadcrumb" class="mb-3">
@@ -41,60 +95,6 @@
       <% end %>
     </div>
   </div>
-
-  <script>
-    function downloadErrorJSON(event) {
-      const errorData = {
-        id: <%= @error.id %>,
-        error_type: <%= json_escape @error.error_type.to_json %>,
-        message: <%= json_escape @error.message.to_json %>,
-        backtrace: <%= json_escape @error.backtrace.to_json %>,
-        occurred_at: <%= json_escape @error.occurred_at.to_json %>,
-        first_seen_at: <%= json_escape @error.first_seen_at.to_json %>,
-        last_seen_at: <%= json_escape @error.last_seen_at.to_json %>,
-        occurrence_count: <%= @error.occurrence_count %>,
-        resolved: <%= @error.resolved? %>,
-        resolved_at: <%= json_escape @error.resolved_at.to_json %>,
-        resolved_by_name: <%= json_escape @error.resolved_by_name.to_json %>,
-        platform: <%= json_escape @error.platform.to_json %>,
-        user_id: <%= json_escape @error.user_id.to_json %>,
-        severity: <%= json_escape @error.severity.to_json %>,
-        priority_level: <%= @error.priority_level || 0 %>,
-        <% if @error.respond_to?(:app_version) %>
-        app_version: <%= json_escape @error.app_version.to_json %>,
-        <% end %>
-        <% if @error.respond_to?(:git_commit) %>
-        git_commit: <%= json_escape @error.git_commit.to_json %>,
-        <% end %>
-        created_at: <%= json_escape @error.created_at.to_json %>,
-        updated_at: <%= json_escape @error.updated_at.to_json %>
-      };
-
-      const jsonString = JSON.stringify(errorData, null, 2);
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `error_${errorData.id}_${errorData.error_type.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      // Visual feedback
-      const button = event.currentTarget;
-      const originalHTML = button.innerHTML;
-      button.innerHTML = '<i class="bi bi-check"></i> Downloaded!';
-      button.classList.remove('btn-outline-secondary');
-      button.classList.add('btn-success');
-
-      setTimeout(() => {
-        button.innerHTML = originalHTML;
-        button.classList.remove('btn-success');
-        button.classList.add('btn-outline-secondary');
-      }, 2000);
-    }
-  </script>
 
   <div class="row g-4">
     <!-- Error Information -->
