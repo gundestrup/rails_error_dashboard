@@ -94,11 +94,17 @@ module RailsErrorDashboard
     # Includes controller/action/application for better context-aware grouping
     # Per-app deduplication: same error in App A vs App B creates separate records
     def generate_error_hash
-      # Hash based on error class, normalized message, first stack frame, controller, action, and application
+      # Use smart normalization to improve error grouping accuracy
+      normalized_message = Services::ErrorNormalizer.normalize(message)
+
+      # Extract significant backtrace frames (skips gem/vendor code)
+      significant_frames = Services::ErrorNormalizer.extract_significant_frames(backtrace, count: 3)
+
+      # Hash based on error class, normalized message, significant frames, controller, action, and application
       digest_input = [
         error_type,
-        message&.gsub(/\d+/, "N")&.gsub(/"[^"]*"/, '""'), # Normalize numbers and strings
-        backtrace&.lines&.first&.split(":")&.first, # Just the file, not line number
+        normalized_message,
+        significant_frames,
         controller_name,  # Controller context
         action_name,      # Action context
         application_id.to_s  # Application context (for per-app deduplication)
