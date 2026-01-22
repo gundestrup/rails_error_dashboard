@@ -87,5 +87,97 @@ module RailsErrorDashboard
       frames.group_by { |f| f[:category] }
             .transform_values(&:count)
     end
+
+    # Read source code for a backtrace frame
+    # Returns hash with { lines:, error: } or nil
+    def read_source_code(frame, context: 5)
+      return nil unless RailsErrorDashboard.configuration.enable_source_code_integration
+      return nil unless frame[:file_path] && frame[:line_number]
+
+      # Cache key includes file path, line number, and git SHA if available
+      cache_key = "source_code/#{frame[:file_path]}/#{frame[:line_number]}"
+      cache_ttl = RailsErrorDashboard.configuration.source_code_cache_ttl || 3600
+
+      Rails.cache.fetch(cache_key, expires_in: cache_ttl) do
+        context_lines = RailsErrorDashboard.configuration.source_code_context_lines || 5
+        reader = Services::SourceCodeReader.new(frame[:file_path], frame[:line_number])
+        lines = reader.read_lines(context: context_lines)
+
+        if lines
+          { lines: lines, error: nil }
+        else
+          { lines: nil, error: reader.error }
+        end
+      end
+    end
+
+    # Read git blame for a backtrace frame
+    # Returns blame data hash or nil
+    def read_git_blame(frame)
+      return nil unless RailsErrorDashboard.configuration.enable_source_code_integration
+      return nil unless RailsErrorDashboard.configuration.enable_git_blame
+      return nil unless frame[:file_path] && frame[:line_number]
+
+      # Cache key includes file path and line number
+      cache_key = "git_blame/#{frame[:file_path]}/#{frame[:line_number]}"
+      cache_ttl = RailsErrorDashboard.configuration.source_code_cache_ttl || 3600
+
+      Rails.cache.fetch(cache_key, expires_in: cache_ttl) do
+        reader = Services::GitBlameReader.new(frame[:file_path], frame[:line_number])
+        reader.read_blame
+      end
+    end
+
+    # Generate GitHub/GitLab/Bitbucket link for a frame
+    # Returns URL string or nil
+    def generate_repository_link(frame, error_log)
+      return nil unless RailsErrorDashboard.configuration.enable_source_code_integration
+      return nil unless RailsErrorDashboard.configuration.git_repository_url.present?
+      return nil unless frame[:file_path] && frame[:line_number]
+
+      repo_url = RailsErrorDashboard.configuration.git_repository_url
+      commit_sha = determine_commit_sha(error_log)
+
+      generator = Services::GithubLinkGenerator.new(
+        repository_url: repo_url,
+        file_path: frame[:file_path],
+        line_number: frame[:line_number],
+        commit_sha: commit_sha
+      )
+
+      generator.generate_link
+    end
+
+    private
+
+    # Determine which commit SHA to use based on strategy
+    def determine_commit_sha(error_log)
+      strategy = RailsErrorDashboard.configuration.git_branch_strategy || :commit_sha
+
+      case strategy
+      when :commit_sha
+        # Use the SHA from when the error occurred (most accurate)
+        error_log.respond_to?(:git_sha) ? error_log.git_sha : nil
+      when :current_branch
+        # Use current branch HEAD
+        get_current_git_sha
+      when :main
+        # Use main/master branch
+        nil # Will default to "main" in GithubLinkGenerator
+      else
+        nil
+      end
+    end
+
+    # Get current git SHA from repository
+    def get_current_git_sha
+      return @current_git_sha if defined?(@current_git_sha)
+
+      @current_git_sha = begin
+        `git rev-parse HEAD 2>/dev/null`.strip.presence
+      rescue StandardError
+        nil
+      end
+    end
   end
 end

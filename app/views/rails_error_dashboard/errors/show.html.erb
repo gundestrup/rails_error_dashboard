@@ -160,9 +160,35 @@
                   </div>
                 </div>
                 <div class="card-body p-0">
-                  <div class="code-block p-3" style="max-height: 300px; overflow-y: auto; overflow-x: auto;">
-                    <pre class="mb-0"><code><% app_frames.each do |frame| %><span class="<%= frame_bg_class(frame[:category]) %> d-block px-2 py-1"><span class="<%= frame_color_class(frame[:category]) %>"><%= frame_icon(frame[:category]) %> <%= frame[:short_path] %>:<%= frame[:line_number] %></span> in <span class="text-info">`<%= frame[:method_name] %>'</span></span>
-<% end %></code></pre>
+                  <div class="code-block p-3" style="max-height: none; overflow-y: visible; overflow-x: auto;">
+                    <% app_frames.each_with_index do |frame, index| %>
+                      <div class="backtrace-frame-wrapper mb-2">
+                        <!-- Frame header (always visible) -->
+                        <div class="<%= frame_bg_class(frame[:category]) %> d-flex justify-content-between align-items-center px-2 py-1">
+                          <div>
+                            <span class="<%= frame_color_class(frame[:category]) %>">
+                              <%= frame_icon(frame[:category]) %> <%= frame[:short_path] %>:<%= frame[:line_number] %>
+                            </span> in <span class="text-info">`<%= frame[:method_name] %>'</span>
+                          </div>
+                          <% if RailsErrorDashboard.configuration.enable_source_code_integration && frame[:category] == :app %>
+                            <button class="btn btn-sm btn-outline-secondary" type="button"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#source-code-<%= index %>"
+                                    aria-expanded="false"
+                                    aria-controls="source-code-<%= index %>">
+                              <i class="bi bi-code-slash"></i> <span class="d-none d-md-inline">View Source</span>
+                            </button>
+                          <% end %>
+                        </div>
+
+                        <!-- Collapsible source code (only for app frames) -->
+                        <% if RailsErrorDashboard.configuration.enable_source_code_integration && frame[:category] == :app %>
+                          <div class="collapse" id="source-code-<%= index %>">
+                            <%= render "source_code", frame: frame, error: @error, index: index %>
+                          </div>
+                        <% end %>
+                      </div>
+                    <% end %>
                   </div>
                 </div>
               </div>

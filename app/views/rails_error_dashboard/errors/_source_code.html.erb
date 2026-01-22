@@ -1,0 +1,72 @@
+<%# Displays source code for a backtrace frame with git blame and repository links %>
+<%# Usage: render "source_code", frame: frame, error: @error, index: 0 %>
+
+<% if RailsErrorDashboard.configuration.enable_source_code_integration %>
+  <% source_data = read_source_code(frame) %>
+  <% blame_data = read_git_blame(frame) if RailsErrorDashboard.configuration.enable_git_blame %>
+  <% repo_link = generate_repository_link(frame, error) %>
+
+  <% if source_data && source_data[:lines].present? %>
+    <div class="source-code-viewer mt-2 mb-2 border rounded">
+      <!-- Header with file info and actions -->
+      <div class="source-code-header bg-light border-bottom p-2 d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-file-code text-primary"></i>
+          <small class="font-monospace text-muted">
+            <%= frame[:short_path] %>:<%= frame[:line_number] %>
+          </small>
+
+          <% if repo_link %>
+            <%= link_to repo_link, target: "_blank", rel: "noopener",
+                class: "btn btn-sm btn-outline-primary",
+                title: "View on #{repo_link.include?('github') ? 'GitHub' : repo_link.include?('gitlab') ? 'GitLab' : 'Bitbucket'}" do %>
+              <i class="bi bi-box-arrow-up-right"></i> View Source
+            <% end %>
+          <% end %>
+        </div>
+
+        <% if blame_data %>
+          <div class="git-blame-info d-flex align-items-center gap-2">
+            <i class="bi bi-person-circle text-muted"></i>
+            <small class="text-muted">
+              <%= blame_data[:author] %>
+              <span class="text-muted">•</span>
+              <%= time_ago_in_words(blame_data[:date]) %> ago
+            </small>
+            <% if blame_data[:commit_message] %>
+              <small class="badge bg-secondary" data-bs-toggle="tooltip" title="<%= blame_data[:commit_message] %>">
+                <%= truncate(blame_data[:commit_message], length: 40) %>
+              </small>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+
+      <!-- Source code lines -->
+      <div class="source-code-content">
+        <div class="code-block p-0" style="max-height: 400px; overflow-y: auto; overflow-x: auto;">
+          <table class="source-code-table table table-sm mb-0 font-monospace" style="font-size: 0.85rem;">
+            <tbody>
+              <% source_data[:lines].each do |line_data| %>
+                <tr class="<%= line_data[:highlight] ? 'source-line-highlight' : '' %>">
+                  <td class="source-line-number text-end pe-3 text-muted" style="width: 50px; user-select: none; border-right: 1px solid #dee2e6;">
+                    <%= line_data[:number] %>
+                  </td>
+                  <td class="source-line-content ps-3">
+                    <code class="<%= line_data[:highlight] ? 'fw-bold' : '' %>"><%= line_data[:content] %></code>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  <% elsif source_data && source_data[:error] %>
+    <!-- Error message if source couldn't be read -->
+    <div class="alert alert-warning mt-2 mb-2 py-2">
+      <i class="bi bi-exclamation-triangle"></i>
+      <small>Could not read source: <%= source_data[:error] %></small>
+    </div>
+  <% end %>
+<% end %>
