@@ -266,43 +266,15 @@
             <h5 class="mb-0"><i class="bi bi-people"></i> Top 10 Affected Users</h5>
           </div>
           <div class="card-body p-0">
-            <div class="table-responsive">
-              <table class="table table-hover mb-0">
-                <thead class="table-light">
-                  <tr>
-                    <th>Rank</th>
-                    <th>User</th>
-                    <th>Error Count</th>
-                    <th>Percentage</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <% @top_users.each_with_index do |user_data, index| %>
-                    <tr>
-                      <td><strong>#<%= index + 1 %></strong></td>
-                      <td><%= user_data[:email] %></td>
-                      <td><span class="badge bg-danger"><%= user_data[:count] %></span></td>
-                      <td>
-                        <div class="progress" style="height: 20px;">
-                          <div class="progress-bar bg-danger"
-                               role="progressbar"
-                               style="width: <%= (user_data[:count].to_f / @error_stats[:total] * 100).round(1) %>%"
-                               aria-valuenow="<%= user_data[:count] %>"
-                               aria-valuemin="0"
-                               aria-valuemax="<%= @error_stats[:total] %>">
-                            <%= (user_data[:count].to_f / @error_stats[:total] * 100).round(1) %>%
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <%= link_to "View Errors", errors_path(user_id: user_data[:user_id]), class: "btn btn-sm btn-outline-primary" %>
-                      </td>
-                    </tr>
-                  <% end %>
-                </tbody>
-              </table>
-            </div>
+            <%= render partial: 'user_errors_table',
+                       locals: {
+                         users: @top_users,
+                         show_rank: true,
+                         show_error_type_count: false,
+                         show_percentage: true,
+                         show_error_types: false,
+                         total_errors: @error_stats[:total]
+                       } %>
           </div>
         </div>
       </div>
