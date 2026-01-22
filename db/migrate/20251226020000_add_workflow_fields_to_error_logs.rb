@@ -2,6 +2,9 @@
 
 class AddWorkflowFieldsToErrorLogs < ActiveRecord::Migration[8.0]
   def change
+    # Skip if squashed migration already added these columns
+    return if column_exists?(:rails_error_dashboard_error_logs, :status)
+
     add_column :rails_error_dashboard_error_logs, :status, :string, default: 'new', null: false
     add_column :rails_error_dashboard_error_logs, :assigned_to, :string
     add_column :rails_error_dashboard_error_logs, :assigned_at, :datetime

@@ -1,5 +1,8 @@
 class AddControllerActionToErrorLogs < ActiveRecord::Migration[8.1]
   def change
+    # Skip if squashed migration already added these columns
+    return if column_exists?(:rails_error_dashboard_error_logs, :controller_name)
+
     add_column :rails_error_dashboard_error_logs, :controller_name, :string
     add_column :rails_error_dashboard_error_logs, :action_name, :string
 

@@ -2,6 +2,9 @@
 
 class CreateCascadePatterns < ActiveRecord::Migration[8.0]
   def change
+    # Skip if squashed migration already created this table
+    return if table_exists?(:rails_error_dashboard_cascade_patterns)
+
     create_table :rails_error_dashboard_cascade_patterns do |t|
       t.references :parent_error, null: false, foreign_key: { to_table: :rails_error_dashboard_error_logs }
       t.references :child_error, null: false, foreign_key: { to_table: :rails_error_dashboard_error_logs }

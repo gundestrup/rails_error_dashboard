@@ -2,6 +2,10 @@
 
 class AddAdditionalPerformanceIndexes < ActiveRecord::Migration[7.0]
   def change
+    # Skip if squashed migration already added these indexes
+    return if index_exists?(:rails_error_dashboard_error_logs, [ :assigned_to, :status, :occurred_at ],
+                            name: 'index_error_logs_on_assignment_workflow')
+
     # Composite index for workflow filtering (assigned errors with status)
     # Common query: WHERE assigned_to = ? AND status = ? ORDER BY occurred_at DESC
     # Used in: "Show me all errors assigned to John that are investigating"

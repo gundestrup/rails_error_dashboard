@@ -105,6 +105,12 @@ class CreateRailsErrorDashboardCompleteSchema < ActiveRecord::Migration[7.0]
     add_index :rails_error_dashboard_error_logs, [ :application_id, :occurred_at ], name: "index_error_logs_on_app_occurred"
     add_index :rails_error_dashboard_error_logs, [ :application_id, :resolved ], name: "index_error_logs_on_app_resolved"
 
+    # Workflow indexes (from 20251229111223)
+    add_index :rails_error_dashboard_error_logs, [ :assigned_to, :status, :occurred_at ], name: "index_error_logs_on_assignment_workflow"
+    add_index :rails_error_dashboard_error_logs, [ :priority_level, :resolved, :occurred_at ], name: "index_error_logs_on_priority_resolution"
+    add_index :rails_error_dashboard_error_logs, [ :platform, :status, :occurred_at ], name: "index_error_logs_on_platform_status_time"
+    add_index :rails_error_dashboard_error_logs, [ :app_version, :resolved, :occurred_at ], name: "index_error_logs_on_version_resolution_time"
+
     # Create error_occurrences table (from 20251225100236)
     create_table :rails_error_dashboard_error_occurrences do |t|
       t.integer :error_log_id, null: false

@@ -2,6 +2,9 @@
 
 class CreateErrorOccurrences < ActiveRecord::Migration[8.0]
   def change
+    # Skip if squashed migration already created this table
+    return if table_exists?(:rails_error_dashboard_error_occurrences)
+
     create_table :rails_error_dashboard_error_occurrences do |t|
       t.references :error_log, null: false, foreign_key: { to_table: :rails_error_dashboard_error_logs }
       t.datetime :occurred_at, null: false

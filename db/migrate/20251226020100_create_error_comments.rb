@@ -2,6 +2,9 @@
 
 class CreateErrorComments < ActiveRecord::Migration[8.0]
   def change
+    # Skip if squashed migration already created this table
+    return if table_exists?(:rails_error_dashboard_error_comments)
+
     create_table :rails_error_dashboard_error_comments do |t|
       t.references :error_log,
                    null: false,

@@ -2,6 +2,10 @@
 
 class AddOptimizedIndexesToErrorLogs < ActiveRecord::Migration[8.1]
   def change
+    # Skip if squashed migration already added these indexes
+    return if index_exists?(:rails_error_dashboard_error_logs, [ :resolved, :occurred_at ],
+                            name: 'index_error_logs_on_resolved_and_occurred_at')
+
     # Composite indexes for common query patterns
     # These improve performance when filtering and sorting together
 

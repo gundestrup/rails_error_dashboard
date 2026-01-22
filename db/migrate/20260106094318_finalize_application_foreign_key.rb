@@ -1,5 +1,10 @@
 class FinalizeApplicationForeignKey < ActiveRecord::Migration[7.0]
   def up
+    # Skip if squashed migration already added the foreign key
+    return if foreign_key_exists?(:rails_error_dashboard_error_logs,
+                                   :rails_error_dashboard_applications,
+                                   column: :application_id)
+
     # Make NOT NULL
     change_column_null :rails_error_dashboard_error_logs, :application_id, false
 

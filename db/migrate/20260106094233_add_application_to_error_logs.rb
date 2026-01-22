@@ -1,5 +1,8 @@
 class AddApplicationToErrorLogs < ActiveRecord::Migration[7.0]
   def up
+    # Skip if squashed migration already added this column
+    return if column_exists?(:rails_error_dashboard_error_logs, :application_id)
+
     # Add nullable column first (for existing records)
     add_column :rails_error_dashboard_error_logs, :application_id, :bigint
 
