@@ -152,17 +152,29 @@ module RailsErrorDashboard
       end
 
       def filter_by_assignment(query)
-        return query unless @filters[:assigned_to].present?
         return query unless ErrorLog.column_names.include?("assigned_to")
 
-        case @filters[:assigned_to]
-        when "__unassigned__"
-          query.unassigned
-        when "__assigned__"
-          query.assigned
-        else
-          query.by_assignee(@filters[:assigned_to])
+        # Handle assigned_to filter (All/Unassigned/Assigned)
+        if @filters[:assigned_to].present?
+          case @filters[:assigned_to]
+          when "__unassigned__"
+            query = query.unassigned
+          when "__assigned__"
+            query = query.assigned
+            # If assignee_name is also provided, filter by specific assignee
+            if @filters[:assignee_name].present?
+              query = query.by_assignee(@filters[:assignee_name])
+            end
+          else
+            # Specific assignee name provided in assigned_to
+            query = query.by_assignee(@filters[:assigned_to])
+          end
+        elsif @filters[:assignee_name].present?
+          # If only assignee_name is provided without assigned_to filter
+          query = query.by_assignee(@filters[:assignee_name])
         end
+
+        query
       end
 
       def filter_by_priority(query)

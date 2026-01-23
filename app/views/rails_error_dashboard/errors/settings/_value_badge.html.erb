@@ -1,0 +1,130 @@
+<%
+  # Render value badge based on type
+  case type
+  when :boolean
+    if value
+%>
+    <span class="badge bg-success fs-6">
+      <i class="bi bi-check-circle"></i> Enabled
+    </span>
+<%
+    else
+%>
+    <span class="badge bg-secondary fs-6">
+      <i class="bi bi-x-circle"></i> Disabled
+    </span>
+<%
+    end
+
+  when :integer
+    if value.present?
+%>
+    <span class="badge bg-info fs-6"><%= value %><%= " #{unit}" if unit %></span>
+<%
+    else
+%>
+    <span class="badge bg-secondary fs-6">Not set</span>
+<%
+    end
+
+  when :float
+    if value.present?
+%>
+    <span class="badge bg-info fs-6"><%= value %><%= unit %></span>
+<%
+    else
+%>
+    <span class="badge bg-secondary fs-6">Not set</span>
+<%
+    end
+
+  when :percentage
+    if value.present?
+%>
+    <span class="badge bg-info fs-6"><%= (value * 100).to_i %>%</span>
+<%
+    else
+%>
+    <span class="badge bg-secondary fs-6">Not set</span>
+<%
+    end
+
+  when :string
+    if value.present?
+%>
+    <code class="fs-6"><%= value %></code>
+<%
+    else
+%>
+    <span class="badge bg-secondary fs-6">Not set</span>
+<%
+    end
+
+  when :symbol
+    if value.present?
+%>
+    <code class="fs-6">:<%= value %></code>
+<%
+    else
+%>
+    <span class="badge bg-secondary fs-6">Not set</span>
+<%
+    end
+
+  when :url
+    if value.present?
+%>
+    <code class="fs-6 text-truncate" style="max-width: 200px; display: inline-block;"><%= value %></code>
+<%
+    else
+%>
+    <span class="badge bg-secondary fs-6">Not set</span>
+<%
+    end
+
+  when :array
+    if value.present? && value.any?
+%>
+    <span class="badge bg-info fs-6"><%= value.count %> item<%= value.count != 1 ? 's' : '' %></span>
+<%
+    else
+%>
+    <span class="badge bg-secondary fs-6">Empty</span>
+<%
+    end
+
+  when :hash
+    if value.present? && value.any?
+%>
+    <span class="badge bg-info fs-6"><%= value.count %> rule<%= value.count != 1 ? 's' : '' %></span>
+<%
+    else
+%>
+    <span class="badge bg-secondary fs-6">Empty</span>
+<%
+    end
+
+  when :git_sha
+    if value.present?
+%>
+    <span class="fs-6"><%= git_commit_link(value) %></span>
+<%
+    else
+%>
+    <span class="badge bg-secondary fs-6">Not set</span>
+<%
+    end
+
+  else
+    # Default rendering
+    if value.present?
+%>
+    <code class="fs-6"><%= value %></code>
+<%
+    else
+%>
+    <span class="badge bg-secondary fs-6">Not set</span>
+<%
+    end
+  end
+%>

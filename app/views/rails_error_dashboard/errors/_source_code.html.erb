@@ -53,23 +53,16 @@
         <% end %>
       </div>
 
-      <!-- Source code lines -->
+      <!-- Source code lines with syntax highlighting -->
       <div class="source-code-content bg-white">
-        <div class="code-block p-0" style="max-height: 500px; overflow-y: auto; overflow-x: auto;">
-          <table class="source-code-table table table-sm mb-0 font-monospace" style="font-size: 0.875rem;">
-            <tbody>
-              <% source_data[:lines].each do |line_data| %>
-                <tr class="<%= line_data[:highlight] ? 'source-line-highlight' : 'source-line' %>">
-                  <td class="source-line-number text-end pe-3 text-muted border-end" style="width: 60px; user-select: none; background-color: #f8f9fa;">
-                    <%= line_data[:number] %>
-                  </td>
-                  <td class="source-line-content ps-3 pe-3 py-1">
-                    <code class="text-dark" style="<%= line_data[:highlight] ? 'font-weight: 600;' : '' %>"><%= line_data[:content] %></code>
-                  </td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
+        <div class="code-block" style="max-height: 500px; overflow-y: auto; overflow-x: auto;">
+          <%
+            # Find the error line number for highlighting
+            error_line_number = source_data[:lines].find { |l| l[:highlight] }&.dig(:number)
+            # Get start line number (first line in context)
+            start_line = source_data[:lines].first[:number]
+          %>
+          <pre class="mb-0"><code class="language-<%= source_data[:language] || 'plaintext' %>" data-error-line="<%= error_line_number %>" data-start-line="<%= start_line %>"><%= source_data[:lines].map { |l| l[:content] }.join("\n") %></code></pre>
         </div>
       </div>
     </div>

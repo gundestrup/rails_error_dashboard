@@ -75,9 +75,17 @@
   </td>
   <td onclick="window.location='<%= error_path(error) %>';">
     <% if error.resolved? %>
-      <i class="bi bi-check-circle-fill text-success" title="Resolved"></i>
+      <i class="bi bi-check-circle-fill text-success"
+         data-bs-toggle="tooltip"
+         data-bs-placement="left"
+         data-bs-html="true"
+         title="<%= if error.resolution_comment.present?
+                   "<strong>Resolved</strong><br><em>#{error.resolution_comment.truncate(100).gsub('"', '&quot;').gsub("'", '&#39;')}</em>"
+                 else
+                   'Resolved'
+                 end %>"></i>
     <% else %>
-      <i class="bi bi-exclamation-circle-fill text-danger" title="Unresolved"></i>
+      <i class="bi bi-exclamation-circle-fill text-danger" data-bs-toggle="tooltip" title="Unresolved"></i>
     <% end %>
   </td>
   <td onclick="event.stopPropagation();">

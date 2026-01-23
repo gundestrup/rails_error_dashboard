@@ -74,11 +74,28 @@
                 <% end %>
 
                 <% if error.resolved? %>
-                  <span class="badge bg-success">
+                  <span class="badge bg-success"
+                        <% if error.resolution_comment.present? %>
+                          data-bs-toggle="tooltip"
+                          data-bs-placement="top"
+                          data-bs-html="true"
+                          title="<strong>Resolution Notes:</strong><br><%= error.resolution_comment.truncate(150).gsub('"', '&quot;') %>"
+                        <% end %>>
                     <i class="bi bi-check-circle"></i> Resolved
                   </span>
                 <% end %>
               </div>
+
+              <% if error.resolved? && error.resolution_comment.present? %>
+                <div class="mt-2 p-2 bg-success bg-opacity-10 border border-success rounded">
+                  <small class="text-success fw-bold">
+                    <i class="bi bi-journal-text"></i> Resolution Notes:
+                  </small>
+                  <div class="mb-0 small text-muted mt-1">
+                    <%= auto_link_urls(truncate(error.resolution_comment, length: 200), error: error).html_safe %>
+                  </div>
+                </div>
+              <% end %>
             </div>
           </div>
         <% end %>

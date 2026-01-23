@@ -4,6 +4,15 @@ module RailsErrorDashboard
   class ErrorLog < ErrorLogsRecord
     self.table_name = "rails_error_dashboard_error_logs"
 
+    # Priority level constants
+    # Using industry standard: P0 = Critical (highest), P3 = Low (lowest)
+    PRIORITY_LEVELS = {
+      3 => { label: "Critical", short_label: "P0", color: "danger", emoji: "🔴" },
+      2 => { label: "High", short_label: "P1", color: "warning", emoji: "🟠" },
+      1 => { label: "Medium", short_label: "P2", color: "info", emoji: "🟡" },
+      0 => { label: "Low", short_label: "P3", color: "secondary", emoji: "⚪" }
+    }.freeze
+
     # Application association
     belongs_to :application, optional: false
 
@@ -289,22 +298,35 @@ module RailsErrorDashboard
 
     # Priority methods
     def priority_label
-      case priority_level
-      when 3 then "Critical"
-      when 2 then "High"
-      when 1 then "Medium"
-      when 0 then "Low"
-      else "Unset"
-      end
+      priority_data = PRIORITY_LEVELS[priority_level]
+      return "Unset" unless priority_data
+
+      "#{priority_data[:label]} (#{priority_data[:short_label]})"
     end
 
     def priority_color
-      case priority_level
-      when 3 then "danger"    # Critical = red
-      when 2 then "warning"   # High = orange
-      when 1 then "info"      # Medium = blue
-      when 0 then "secondary" # Low = gray
-      else "light"
+      priority_data = PRIORITY_LEVELS[priority_level]
+      return "light" unless priority_data
+
+      priority_data[:color]
+    end
+
+    def priority_emoji
+      priority_data = PRIORITY_LEVELS[priority_level]
+      return "" unless priority_data
+
+      priority_data[:emoji]
+    end
+
+    # Class method to get priority options for select dropdowns
+    def self.priority_options(include_emoji: false)
+      PRIORITY_LEVELS.sort_by { |level, _| -level }.map do |level, data|
+        label = if include_emoji
+          "#{data[:emoji]} #{data[:label]} (#{data[:short_label]})"
+        else
+          "#{data[:label]} (#{data[:short_label]})"
+        end
+        [ label, level ]
       end
     end
 

@@ -1,5 +1,120 @@
 <% content_for :page_title, "Settings" %>
 
+<%
+  # Define setting groups with metadata
+  setting_groups = {
+    "Core Features" => {
+      icon: "bi-shield-check",
+      color: "primary",
+      settings: {
+        enable_middleware: { label: "Error Middleware", description: "Catches unhandled exceptions", type: :boolean },
+        enable_error_subscriber: { label: "Rails.error Subscriber", description: "Subscribes to Rails error events", type: :boolean },
+        retention_days: { label: "Data Retention", description: "How long errors are kept", type: :integer, unit: "days" },
+        max_backtrace_lines: { label: "Max Backtrace Lines", description: "Stack trace depth limit", type: :integer, unit: "lines" },
+        sampling_rate: { label: "Sampling Rate", description: "Percentage of errors captured", type: :percentage }
+      }
+    },
+    "Multi-App Support" => {
+      icon: "bi-collection",
+      color: "info",
+      settings: {
+        application_name: { label: "Application Name", description: "Name of this application", type: :string },
+        database: { label: "Database Connection", description: "Database connection name for shared error DB", type: :string },
+        use_separate_database: { label: "Separate Database", description: "Use dedicated DB for error logs", type: :boolean }
+      }
+    },
+    "User Integration" => {
+      icon: "bi-people",
+      color: "secondary",
+      settings: {
+        user_model: { label: "User Model", description: "Model name for user associations", type: :string },
+        total_users_for_impact: { label: "Total Users", description: "For impact % calculation", type: :integer }
+      }
+    },
+    "Performance Settings" => {
+      icon: "bi-lightning-charge",
+      color: "warning",
+      settings: {
+        async_logging: { label: "Async Logging", description: "Background job processing", type: :boolean, extra: :async_adapter },
+        async_adapter: { label: "Async Adapter", description: "Job queue adapter", type: :symbol, show_if: :async_logging },
+        enable_rate_limiting: { label: "Rate Limiting", description: "Throttle API requests", type: :boolean },
+        rate_limit_per_minute: { label: "Rate Limit Threshold", description: "Requests per minute per IP", type: :integer, show_if: :enable_rate_limiting }
+      }
+    },
+    "Notification Channels" => {
+      icon: "bi-bell",
+      color: "info",
+      settings: {
+        enable_slack_notifications: { label: "Slack", description: "Real-time notifications", type: :boolean },
+        slack_webhook_url: { label: "Slack Webhook URL", description: "Slack webhook endpoint", type: :url, show_if: :enable_slack_notifications },
+        enable_email_notifications: { label: "Email", description: "Email alerts", type: :boolean },
+        notification_email_recipients: { label: "Email Recipients", description: "Recipient addresses", type: :array, show_if: :enable_email_notifications },
+        notification_email_from: { label: "Email From", description: "Sender address", type: :string, show_if: :enable_email_notifications },
+        enable_discord_notifications: { label: "Discord", description: "Discord webhook notifications", type: :boolean },
+        discord_webhook_url: { label: "Discord Webhook URL", description: "Discord webhook endpoint", type: :url, show_if: :enable_discord_notifications },
+        enable_pagerduty_notifications: { label: "PagerDuty", description: "Critical error escalation", type: :boolean },
+        pagerduty_integration_key: { label: "PagerDuty Integration Key", description: "PagerDuty API key", type: :string, show_if: :enable_pagerduty_notifications },
+        enable_webhook_notifications: { label: "Custom Webhooks", description: "Generic webhook endpoints", type: :boolean },
+        webhook_urls: { label: "Webhook URLs", description: "Custom webhook endpoints", type: :array, show_if: :enable_webhook_notifications }
+      }
+    },
+    "Advanced Analytics Features" => {
+      icon: "bi-graph-up",
+      color: "success",
+      settings: {
+        enable_similar_errors: { label: "Similar Errors (Fuzzy Matching)", description: "Find related errors by similarity", type: :boolean },
+        enable_co_occurring_errors: { label: "Co-occurring Errors", description: "Errors happening together", type: :boolean },
+        enable_error_cascades: { label: "Error Cascades", description: "Parent→child error chains", type: :boolean },
+        enable_error_correlation: { label: "Error Correlation", description: "Version/user/time analysis", type: :boolean },
+        enable_platform_comparison: { label: "Platform Comparison", description: "iOS vs Android analytics", type: :boolean },
+        enable_occurrence_patterns: { label: "Occurrence Patterns", description: "Cyclical/burst detection", type: :boolean },
+        enable_baseline_alerts: { label: "Baseline Alerts", description: "Anomaly detection", type: :boolean },
+        baseline_alert_threshold_std_devs: { label: "Alert Threshold", description: "Standard deviations to trigger alert", type: :float, show_if: :enable_baseline_alerts, unit: "σ" },
+        baseline_alert_severities: { label: "Alert Severities", description: "Severities to alert on", type: :array, show_if: :enable_baseline_alerts },
+        baseline_alert_cooldown_minutes: { label: "Alert Cooldown", description: "Minutes between alerts for same error type", type: :integer, show_if: :enable_baseline_alerts, unit: "minutes" }
+      }
+    },
+    "Source Code Integration" => {
+      icon: "bi-code-square",
+      color: "dark",
+      settings: {
+        enable_source_code_integration: { label: "Source Code Integration", description: "Show code in backtrace", type: :boolean },
+        source_code_context_lines: { label: "Context Lines", description: "Lines before/after target line", type: :integer, show_if: :enable_source_code_integration },
+        enable_git_blame: { label: "Git Blame", description: "Show git blame info", type: :boolean, show_if: :enable_source_code_integration },
+        source_code_cache_ttl: { label: "Cache TTL", description: "Source code cache duration", type: :integer, show_if: :enable_source_code_integration, unit: "seconds" },
+        only_show_app_code_source: { label: "Only App Code", description: "Hide gems/stdlib for security", type: :boolean, show_if: :enable_source_code_integration },
+        git_branch_strategy: { label: "Git Branch Strategy", description: "Branch resolution strategy", type: :symbol, show_if: :enable_source_code_integration }
+      }
+    },
+    "Enhanced Metrics" => {
+      icon: "bi-speedometer",
+      color: "secondary",
+      settings: {
+        app_version: { label: "App Version", description: "Current application version", type: :string },
+        git_sha: { label: "Git SHA", description: "Deployed commit", type: :git_sha },
+        git_repository_url: { label: "Git Repository URL", description: "GitHub/GitLab repo URL", type: :url },
+        dashboard_base_url: { label: "Dashboard Base URL", description: "Base URL for dashboard links", type: :url }
+      }
+    },
+    "Advanced Configuration" => {
+      icon: "bi-sliders",
+      color: "warning",
+      settings: {
+        custom_severity_rules: { label: "Custom Severity Rules", description: "Error type → severity mapping", type: :hash },
+        ignored_exceptions: { label: "Ignored Exceptions", description: "Exceptions to ignore", type: :array }
+      }
+    },
+    "Internal Logging" => {
+      icon: "bi-terminal",
+      color: "light",
+      settings: {
+        enable_internal_logging: { label: "Internal Logging", description: "Gem debugging output", type: :boolean },
+        log_level: { label: "Log Level", description: "Verbosity level", type: :symbol, show_if: :enable_internal_logging }
+      }
+    }
+  }
+%>
+
 <div class="container-fluid py-4">
   <!-- Page Header -->
   <div class="d-flex justify-content-between align-items-center mb-4">
@@ -20,399 +135,42 @@
     <code>config/initializers/rails_error_dashboard.rb</code>
   </div>
 
-  <!-- Core Features -->
-  <div class="card mb-4">
-    <div class="card-header bg-primary text-white">
-      <h5 class="mb-0">
-        <i class="bi bi-shield-check"></i> Core Features
-      </h5>
-    </div>
-    <div class="card-body">
-      <div class="row">
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Error Middleware</strong>
-              <br><small class="text-muted">Catches unhandled exceptions</small>
-            </div>
-            <% if @config.enable_middleware %>
-              <span class="badge bg-success fs-6">
-                <i class="bi bi-check-circle"></i> Enabled
-              </span>
-            <% else %>
-              <span class="badge bg-secondary fs-6">
-                <i class="bi bi-x-circle"></i> Disabled
-              </span>
-            <% end %>
-          </div>
-        </div>
+  <!-- Dynamically render setting groups -->
+  <% setting_groups.each do |group_name, group_config| %>
+    <div class="card mb-4">
+      <div class="card-header bg-<%= group_config[:color] %> <%= group_config[:color] == 'light' ? 'text-dark' : 'text-white' %>">
+        <h5 class="mb-0">
+          <i class="<%= group_config[:icon] %>"></i> <%= group_name %>
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <% group_config[:settings].each do |setting_key, setting_meta| %>
+            <%
+              # Check if this setting should be displayed based on show_if condition
+              show_if_key = setting_meta[:show_if]
+              should_show = show_if_key.nil? || @config.send(show_if_key)
+              next unless should_show
 
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Rails.error Subscriber</strong>
-              <br><small class="text-muted">Subscribes to Rails error events</small>
+              value = @config.send(setting_key)
+            %>
+            <div class="col-md-6 mb-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <strong><%= setting_meta[:label] %></strong>
+                  <br><small class="text-muted"><%= setting_meta[:description] %></small>
+                </div>
+                <div class="text-end">
+                  <%= render partial: 'rails_error_dashboard/errors/settings/value_badge',
+                             locals: { value: value, type: setting_meta[:type], unit: setting_meta[:unit] } %>
+                </div>
+              </div>
             </div>
-            <% if @config.enable_error_subscriber %>
-              <span class="badge bg-success fs-6">
-                <i class="bi bi-check-circle"></i> Enabled
-              </span>
-            <% else %>
-              <span class="badge bg-secondary fs-6">
-                <i class="bi bi-x-circle"></i> Disabled
-              </span>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Authentication</strong>
-              <br><small class="text-muted">HTTP Basic Auth protection (always enforced)</small>
-            </div>
-            <span class="badge bg-success fs-6">
-              <i class="bi bi-lock-fill"></i> Always Required
-            </span>
-          </div>
-        </div>
-
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Data Retention</strong>
-              <br><small class="text-muted">How long errors are kept</small>
-            </div>
-            <span class="badge bg-info fs-6">
-              <%= @config.retention_days %> days
-            </span>
-          </div>
-        </div>
-
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Max Backtrace Lines</strong>
-              <br><small class="text-muted">Stack trace depth limit</small>
-            </div>
-            <span class="badge bg-info fs-6">
-              <%= @config.max_backtrace_lines %> lines
-            </span>
-          </div>
-        </div>
-
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Sampling Rate</strong>
-              <br><small class="text-muted">Percentage of errors captured</small>
-            </div>
-            <span class="badge bg-info fs-6">
-              <%= (@config.sampling_rate * 100).to_i %>%
-            </span>
-          </div>
+          <% end %>
         </div>
       </div>
     </div>
-  </div>
-
-  <!-- Performance Settings -->
-  <div class="card mb-4">
-    <div class="card-header bg-warning text-dark">
-      <h5 class="mb-0">
-        <i class="bi bi-lightning-charge"></i> Performance Settings
-      </h5>
-    </div>
-    <div class="card-body">
-      <div class="row">
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Async Logging</strong>
-              <br><small class="text-muted">Background job processing</small>
-            </div>
-            <% if @config.async_logging %>
-              <span class="badge bg-success fs-6">
-                <i class="bi bi-check-circle"></i> Enabled
-                <% if @config.async_adapter %>
-                  (<%= @config.async_adapter %>)
-                <% end %>
-              </span>
-            <% else %>
-              <span class="badge bg-secondary fs-6">
-                <i class="bi bi-x-circle"></i> Disabled
-              </span>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Separate Database</strong>
-              <br><small class="text-muted">Dedicated DB for error logs</small>
-            </div>
-            <% if @config.use_separate_database %>
-              <span class="badge bg-success fs-6">
-                <i class="bi bi-check-circle"></i> Enabled
-              </span>
-            <% else %>
-              <span class="badge bg-secondary fs-6">
-                <i class="bi bi-x-circle"></i> Disabled
-              </span>
-            <% end %>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Notification Channels -->
-  <div class="card mb-4">
-    <div class="card-header bg-info text-white">
-      <h5 class="mb-0">
-        <i class="bi bi-bell"></i> Notification Channels
-      </h5>
-    </div>
-    <div class="card-body">
-      <div class="row">
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Slack</strong>
-              <br><small class="text-muted">Real-time notifications</small>
-            </div>
-            <% if @config.enable_slack_notifications %>
-              <span class="badge bg-success fs-6">
-                <i class="bi bi-check-circle"></i> Enabled
-              </span>
-            <% else %>
-              <span class="badge bg-secondary fs-6">
-                <i class="bi bi-x-circle"></i> Disabled
-              </span>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Email</strong>
-              <br><small class="text-muted">Email alerts</small>
-            </div>
-            <% if @config.enable_email_notifications %>
-              <span class="badge bg-success fs-6">
-                <i class="bi bi-check-circle"></i> Enabled
-                <% if @config.notification_email_recipients&.any? %>
-                  (<%= @config.notification_email_recipients.count %> recipient<%= @config.notification_email_recipients.count != 1 ? 's' : '' %>)
-                <% end %>
-              </span>
-            <% else %>
-              <span class="badge bg-secondary fs-6">
-                <i class="bi bi-x-circle"></i> Disabled
-              </span>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Discord</strong>
-              <br><small class="text-muted">Discord webhook notifications</small>
-            </div>
-            <% if @config.enable_discord_notifications %>
-              <span class="badge bg-success fs-6">
-                <i class="bi bi-check-circle"></i> Enabled
-              </span>
-            <% else %>
-              <span class="badge bg-secondary fs-6">
-                <i class="bi bi-x-circle"></i> Disabled
-              </span>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>PagerDuty</strong>
-              <br><small class="text-muted">Critical error escalation</small>
-            </div>
-            <% if @config.enable_pagerduty_notifications %>
-              <span class="badge bg-success fs-6">
-                <i class="bi bi-check-circle"></i> Enabled
-              </span>
-            <% else %>
-              <span class="badge bg-secondary fs-6">
-                <i class="bi bi-x-circle"></i> Disabled
-              </span>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Custom Webhooks</strong>
-              <br><small class="text-muted">Generic webhook endpoints</small>
-            </div>
-            <% if @config.enable_webhook_notifications %>
-              <span class="badge bg-success fs-6">
-                <i class="bi bi-check-circle"></i> Enabled
-                <% if @config.webhook_urls&.any? %>
-                  (<%= @config.webhook_urls.count %> URL<%= @config.webhook_urls.count != 1 ? 's' : '' %>)
-                <% end %>
-              </span>
-            <% else %>
-              <span class="badge bg-secondary fs-6">
-                <i class="bi bi-x-circle"></i> Disabled
-              </span>
-            <% end %>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Advanced Analytics Features -->
-  <div class="card mb-4">
-    <div class="card-header bg-success text-white">
-      <h5 class="mb-0">
-        <i class="bi bi-graph-up"></i> Advanced Analytics Features
-      </h5>
-    </div>
-    <div class="card-body">
-      <div class="row">
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Similar Errors (Fuzzy Matching)</strong>
-              <br><small class="text-muted">Find related errors by similarity</small>
-            </div>
-            <% if @config.enable_similar_errors %>
-              <span class="badge bg-success fs-6">
-                <i class="bi bi-check-circle"></i> Enabled
-              </span>
-            <% else %>
-              <span class="badge bg-secondary fs-6">
-                <i class="bi bi-x-circle"></i> Disabled
-              </span>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Co-occurring Errors</strong>
-              <br><small class="text-muted">Errors happening together</small>
-            </div>
-            <% if @config.enable_co_occurring_errors %>
-              <span class="badge bg-success fs-6">
-                <i class="bi bi-check-circle"></i> Enabled
-              </span>
-            <% else %>
-              <span class="badge bg-secondary fs-6">
-                <i class="bi bi-x-circle"></i> Disabled
-              </span>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Error Cascades</strong>
-              <br><small class="text-muted">Parent→child error chains</small>
-            </div>
-            <% if @config.enable_error_cascades %>
-              <span class="badge bg-success fs-6">
-                <i class="bi bi-check-circle"></i> Enabled
-              </span>
-            <% else %>
-              <span class="badge bg-secondary fs-6">
-                <i class="bi bi-x-circle"></i> Disabled
-              </span>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Error Correlation</strong>
-              <br><small class="text-muted">Version/user/time analysis</small>
-            </div>
-            <% if @config.enable_error_correlation %>
-              <span class="badge bg-success fs-6">
-                <i class="bi bi-check-circle"></i> Enabled
-              </span>
-            <% else %>
-              <span class="badge bg-secondary fs-6">
-                <i class="bi bi-x-circle"></i> Disabled
-              </span>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Platform Comparison</strong>
-              <br><small class="text-muted">iOS vs Android analytics</small>
-            </div>
-            <% if @config.enable_platform_comparison %>
-              <span class="badge bg-success fs-6">
-                <i class="bi bi-check-circle"></i> Enabled
-              </span>
-            <% else %>
-              <span class="badge bg-secondary fs-6">
-                <i class="bi bi-x-circle"></i> Disabled
-              </span>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Occurrence Patterns</strong>
-              <br><small class="text-muted">Cyclical/burst detection</small>
-            </div>
-            <% if @config.enable_occurrence_patterns %>
-              <span class="badge bg-success fs-6">
-                <i class="bi bi-check-circle"></i> Enabled
-              </span>
-            <% else %>
-              <span class="badge bg-secondary fs-6">
-                <i class="bi bi-x-circle"></i> Disabled
-              </span>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Baseline Alerts</strong>
-              <br><small class="text-muted">Anomaly detection</small>
-            </div>
-            <% if @config.enable_baseline_alerts %>
-              <span class="badge bg-success fs-6">
-                <i class="bi bi-check-circle"></i> Enabled
-                (± <%= @config.baseline_alert_threshold_std_devs %>σ)
-              </span>
-            <% else %>
-              <span class="badge bg-secondary fs-6">
-                <i class="bi bi-x-circle"></i> Disabled
-              </span>
-            <% end %>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+  <% end %>
 
   <!-- Active Plugins -->
   <div class="card mb-4">
@@ -461,98 +219,6 @@
           No plugins are currently registered. You can create custom plugins to extend functionality.
         </div>
       <% end %>
-    </div>
-  </div>
-
-  <!-- Enhanced Metrics -->
-  <% if @config.app_version || @config.git_sha || @config.total_users_for_impact %>
-    <div class="card mb-4">
-      <div class="card-header bg-secondary text-white">
-        <h5 class="mb-0">
-          <i class="bi bi-speedometer"></i> Enhanced Metrics
-        </h5>
-      </div>
-      <div class="card-body">
-        <div class="row">
-          <% if @config.app_version %>
-            <div class="col-md-4 mb-3">
-              <div class="d-flex justify-content-between align-items-center">
-                <div>
-                  <strong>App Version</strong>
-                  <br><small class="text-muted">Current application version</small>
-                </div>
-                <code class="fs-6"><%= @config.app_version %></code>
-              </div>
-            </div>
-          <% end %>
-
-          <% if @config.git_sha %>
-            <div class="col-md-4 mb-3">
-              <div class="d-flex justify-content-between align-items-center">
-                <div>
-                  <strong>Git SHA</strong>
-                  <br><small class="text-muted">Deployed commit</small>
-                </div>
-                <span class="fs-6"><%= git_commit_link(@config.git_sha) %></span>
-              </div>
-            </div>
-          <% end %>
-
-          <% if @config.total_users_for_impact %>
-            <div class="col-md-4 mb-3">
-              <div class="d-flex justify-content-between align-items-center">
-                <div>
-                  <strong>Total Users</strong>
-                  <br><small class="text-muted">For impact % calculation</small>
-                </div>
-                <span class="badge bg-info fs-6"><%= @config.total_users_for_impact %></span>
-              </div>
-            </div>
-          <% end %>
-        </div>
-      </div>
-    </div>
-  <% end %>
-
-  <!-- Internal Logging -->
-  <div class="card mb-4">
-    <div class="card-header bg-light">
-      <h5 class="mb-0">
-        <i class="bi bi-terminal"></i> Internal Logging
-      </h5>
-    </div>
-    <div class="card-body">
-      <div class="row">
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Internal Logging</strong>
-              <br><small class="text-muted">Gem debugging output</small>
-            </div>
-            <% if @config.enable_internal_logging %>
-              <span class="badge bg-warning text-dark fs-6">
-                <i class="bi bi-check-circle"></i> Enabled
-              </span>
-            <% else %>
-              <span class="badge bg-secondary fs-6">
-                <i class="bi bi-x-circle"></i> Disabled
-              </span>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="col-md-6 mb-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <strong>Log Level</strong>
-              <br><small class="text-muted">Verbosity level</small>
-            </div>
-            <span class="badge bg-info fs-6">
-              <%= @config.log_level.to_s.upcase %>
-            </span>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 

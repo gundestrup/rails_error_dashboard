@@ -2,9 +2,58 @@
 
 module RailsErrorDashboard
   module BacktraceHelper
+    # Language mapping for syntax highlighting
+    LANGUAGE_MAP = {
+      ".rb" => "ruby",
+      ".js" => "javascript",
+      ".jsx" => "javascript",
+      ".ts" => "typescript",
+      ".tsx" => "typescript",
+      ".erb" => "erb",
+      ".html" => "html",
+      ".htm" => "html",
+      ".css" => "css",
+      ".scss" => "scss",
+      ".sass" => "scss",
+      ".yml" => "yaml",
+      ".yaml" => "yaml",
+      ".json" => "json",
+      ".sql" => "sql",
+      ".xml" => "xml",
+      ".py" => "python",
+      ".go" => "go",
+      ".java" => "java",
+      ".c" => "c",
+      ".cpp" => "cpp",
+      ".h" => "c",
+      ".hpp" => "cpp",
+      ".sh" => "bash",
+      ".bash" => "bash",
+      ".zsh" => "bash",
+      ".php" => "php",
+      ".pl" => "perl",
+      ".r" => "r",
+      ".rs" => "rust",
+      ".swift" => "swift",
+      ".kt" => "kotlin",
+      ".scala" => "scala",
+      ".clj" => "clojure",
+      ".ex" => "elixir",
+      ".exs" => "elixir"
+    }.freeze
+
     # Parse backtrace string into structured frames
     def parse_backtrace(backtrace_string)
       Services::BacktraceParser.parse(backtrace_string)
+    end
+
+    # Detect programming language from file path
+    # Returns Highlight.js language identifier
+    def detect_language_from_path(file_path)
+      return "plaintext" unless file_path
+
+      ext = File.extname(file_path).downcase
+      LANGUAGE_MAP[ext] || "plaintext"
     end
 
     # Filter to show only application code
@@ -104,9 +153,17 @@ module RailsErrorDashboard
         lines = reader.read_lines(context: context_lines)
 
         if lines
-          { lines: lines, error: nil }
+          {
+            lines: lines,
+            language: detect_language_from_path(frame[:file_path]),
+            error: nil
+          }
         else
-          { lines: nil, error: reader.error }
+          {
+            lines: nil,
+            language: nil,
+            error: reader.error
+          }
         end
       end
     end

@@ -74,13 +74,6 @@ module RailsErrorDashboard
       end
     end
 
-    # Returns the current user name for filtering "My Errors"
-    # Uses configured dashboard username or system username
-    # @return [String] Current user identifier
-    def current_user_name
-      RailsErrorDashboard.configuration.dashboard_username || ENV["USER"] || "unknown"
-    end
-
     # Returns a sanitized hash of filter params safe for query links
     # @param extra_keys [Array<Symbol>] Additional permitted keys for specific contexts
     # @return [Hash] Whitelisted params for building URLs
@@ -201,6 +194,85 @@ module RailsErrorDashboard
           utc: iso_time
         }
       )
+    end
+
+    # Automatically converts URLs in text to clickable links that open in new window
+    # Also highlights inline code wrapped in backticks with syntax highlighting
+    # Also converts file paths to GitHub links if repository URL is configured
+    # Supports http://, https://, and common patterns like github.com/user/repo
+    # @param text [String] The text containing URLs, file paths, and inline code
+    # @param error [RailsErrorDashboard::ErrorLog, nil] The error for context (to get repo URL)
+    # @return [String] HTML safe text with clickable links and styled code
+    def auto_link_urls(text, error: nil)
+      return "" if text.blank?
+
+      # Get repository URL from error's application or global config
+      repo_url = if error&.application&.repository_url.present?
+        error.application.repository_url
+      elsif RailsErrorDashboard.configuration.git_repository_url.present?
+        RailsErrorDashboard.configuration.git_repository_url
+      end
+
+      # First, protect inline code with backticks by replacing with placeholders
+      code_blocks = []
+      file_paths = []
+      text_with_placeholders = text.gsub(/`([^`]+)`/) do |match|
+        code_content = Regexp.last_match(1)
+
+        # Check if the code block contains a file path pattern
+        if repo_url && code_content =~ %r{^(app|lib|config|db|spec|test)/[^\s]+\.(rb|js|jsx|ts|tsx|erb|yml|yaml|json|css|scss)$}
+          # It's a file path - save it and mark for GitHub linking
+          file_paths << code_content
+          "###FILE_PATH_#{file_paths.length - 1}###"
+        else
+          # Regular code block
+          code_blocks << code_content
+          "###CODE_BLOCK_#{code_blocks.length - 1}###"
+        end
+      end
+
+      # Regex to match URLs (http://, https://, www., and common domains)
+      url_regex = %r{
+        (
+          (?:https?://|www\.)           # http://, https://, or www.
+          (?:[^\s<>"]+)                 # Domain and path (no spaces, <, >, or ")
+          |
+          (?:^|\s)                      # Start of string or whitespace
+          (?:github\.com|gitlab\.com|bitbucket\.org|jira\.[^\s]+)
+          /[^\s<>"]+                    # Path after domain
+        )
+      }xi
+
+      # Replace URLs with clickable links
+      linked_text = text_with_placeholders.gsub(url_regex) do |url|
+        # Clean up the URL
+        clean_url = url.strip
+
+        # Add protocol if missing
+        href = clean_url.start_with?("http://", "https://") ? clean_url : "https://#{clean_url}"
+
+        # Truncate display text for very long URLs
+        display_text = clean_url.length > 60 ? "#{clean_url[0..57]}..." : clean_url
+
+        "<a href=\"#{ERB::Util.html_escape(href)}\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-primary text-decoration-underline\">#{ERB::Util.html_escape(display_text)}</a>"
+      end
+
+      # Restore file paths with GitHub links (elvish magic! 🧝‍♀️)
+      linked_text.gsub!(/###FILE_PATH_(\d+)###/) do
+        file_path = file_paths[Regexp.last_match(1).to_i]
+        github_url = "#{repo_url.chomp('/')}/blob/main/#{file_path}"
+        "<a href=\"#{ERB::Util.html_escape(github_url)}\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-decoration-none\" title=\"View on GitHub\">" \
+        "<code class=\"inline-code-highlight file-path-link\">#{ERB::Util.html_escape(file_path)}</code></a>"
+      end
+
+      # Restore code blocks with styling
+      linked_text.gsub!(/###CODE_BLOCK_(\d+)###/) do
+        code_content = code_blocks[Regexp.last_match(1).to_i]
+        "<code class=\"inline-code-highlight\">#{ERB::Util.html_escape(code_content)}</code>"
+      end
+
+      # Preserve line breaks and return as HTML safe
+      simple_format(linked_text, {}, sanitize: false)
     end
   end
 end

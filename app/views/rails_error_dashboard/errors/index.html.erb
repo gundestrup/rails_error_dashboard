@@ -148,6 +148,10 @@
       active_filters << { label: "Unassigned", param: :assigned_to }
     elsif params[:assigned_to] == '__assigned__'
       active_filters << { label: "Assigned", param: :assigned_to }
+      # Show assignee name filter if present
+      if params[:assignee_name].present?
+        active_filters << { label: "Assignee: #{params[:assignee_name]}", param: :assignee_name }
+      end
     end
   %>
 
@@ -185,8 +189,6 @@
             class: "btn btn-sm #{params[:assigned_to].blank? ? 'btn-primary' : 'btn-outline-primary'}" %>
         <%= link_to "Unassigned", errors_path(assigned_to: '__unassigned__'),
             class: "btn btn-sm #{params[:assigned_to] == '__unassigned__' ? 'btn-primary' : 'btn-outline-primary'}" %>
-        <%= link_to "My Errors", errors_path(assigned_to: current_user_name),
-            class: "btn btn-sm #{params[:assigned_to] == current_user_name ? 'btn-primary' : 'btn-outline-primary'}" %>
       </div>
 
       <%= form_with url: errors_path, method: :get, class: "row g-3", data: { turbo: false } do %>
@@ -268,44 +270,54 @@
             ['All Assignments', ''],
             ['Unassigned', '__unassigned__'],
             ['Assigned', '__assigned__']
-          ], params[:assigned_to]), class: "form-select" %>
+          ], params[:assigned_to]), class: "form-select", id: "assigned_to_filter" %>
+        </div>
+
+        <!-- Assignee Name Filter - Only shown when "Assigned" is selected -->
+        <div class="col-md-2" id="assignee_name_filter" style="<%= params[:assigned_to] == '__assigned__' ? '' : 'display: none;' %>">
+          <%= select_tag :assignee_name, options_for_select(
+            [['All Assignees', '']] + @assignees.map { |name| [name, name] },
+            params[:assignee_name]
+          ), class: "form-select", placeholder: "Filter by assignee..." %>
         </div>
 
         <div class="col-md-2">
-          <%= select_tag :priority_level, options_for_select([
-            ['All Priorities', ''],
-            ['🔴 Critical (P3)', 3],
-            ['🟠 High (P2)', 2],
-            ['🟡 Medium (P1)', 1],
-            ['⚪ Low (P0)', 0]
-          ], params[:priority_level]), class: "form-select" %>
+          <%= select_tag :priority_level, options_for_select(
+            [['All Priorities', '']] + RailsErrorDashboard::ErrorLog.priority_options(include_emoji: true),
+            params[:priority_level]
+          ), class: "form-select" %>
         </div>
 
-        <div class="col-auto">
-          <div class="form-check mt-2">
-            <%
-              # Determine checkbox state based on params
-              # If unresolved param is missing or nil, default to checked (true)
-              # If unresolved param is explicitly "false" or "0", uncheck it
-              is_checked = if params[:unresolved].nil?
-                true  # Default to checked when first loading
-              else
-                params[:unresolved] != "false" && params[:unresolved] != "0"
-              end
-            %>
-            <%= check_box_tag :unresolved, "1", is_checked, class: "form-check-input", id: "unresolved_checkbox" %>
-            <%= label_tag :unresolved, "Unresolved only", class: "form-check-label" %>
+        <!-- Checkboxes on their own row -->
+        <div class="col-12 mt-2">
+          <div class="row g-3">
+            <div class="col-auto">
+              <div class="form-check">
+                <%
+                  # Determine checkbox state based on params
+                  # If unresolved param is missing or nil, default to checked (true)
+                  # If unresolved param is explicitly "false" or "0", uncheck it
+                  is_checked = if params[:unresolved].nil?
+                    true  # Default to checked when first loading
+                  else
+                    params[:unresolved] != "false" && params[:unresolved] != "0"
+                  end
+                %>
+                <%= check_box_tag :unresolved, "1", is_checked, class: "form-check-input", id: "unresolved_checkbox" %>
+                <%= label_tag :unresolved, "Unresolved only", class: "form-check-label" %>
+              </div>
+            </div>
+
+            <div class="col-auto">
+              <div class="form-check">
+                <%= check_box_tag :hide_snoozed, "1", params[:hide_snoozed] == "1", class: "form-check-input" %>
+                <%= label_tag :hide_snoozed, "Hide snoozed", class: "form-check-label" %>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="col-auto">
-          <div class="form-check mt-2">
-            <%= check_box_tag :hide_snoozed, "1", params[:hide_snoozed] == "1", class: "form-check-input" %>
-            <%= label_tag :hide_snoozed, "Hide snoozed", class: "form-check-label" %>
-          </div>
-        </div>
-
-        <div class="col-12">
+        <div class="col-12 mt-3">
           <%= submit_tag "Apply Filters", class: "btn btn-primary" %>
           <%= link_to "Clear", errors_path, class: "btn btn-outline-secondary" %>
         </div>
@@ -598,6 +610,27 @@
     const unresolvedCount = <%= @stats[:unresolved] || 0 %>;
     if (unresolvedCount > 0) {
       document.title = `(${unresolvedCount}) ${document.title}`;
+    }
+  });
+
+  // Toggle assignee name filter visibility based on assigned_to selection
+  document.addEventListener('DOMContentLoaded', function() {
+    const assignedToFilter = document.getElementById('assigned_to_filter');
+    const assigneeNameFilter = document.getElementById('assignee_name_filter');
+
+    if (assignedToFilter && assigneeNameFilter) {
+      assignedToFilter.addEventListener('change', function() {
+        if (this.value === '__assigned__') {
+          assigneeNameFilter.style.display = 'block';
+        } else {
+          assigneeNameFilter.style.display = 'none';
+          // Reset assignee name filter when hiding
+          const assigneeNameSelect = assigneeNameFilter.querySelector('select');
+          if (assigneeNameSelect) {
+            assigneeNameSelect.value = '';
+          }
+        }
+      });
     }
   });
 </script>

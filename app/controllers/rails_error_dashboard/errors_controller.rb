@@ -18,6 +18,7 @@ module RailsErrorDashboard
       frequency
       status
       assigned_to
+      assignee_name
       priority_level
       hide_snoozed
       sort_by
@@ -62,6 +63,15 @@ module RailsErrorDashboard
       filter_options = Queries::FilterOptions.call(application_id: @current_application_id)
       @error_types = filter_options[:error_types]
       @platforms = filter_options[:platforms]
+
+      # Get all distinct assignees for the assignee filter dropdown
+      assignee_query = ErrorLog.where.not(assigned_to: nil)
+      # Filter by application if specified
+      assignee_query = assignee_query.where(application_id: @current_application_id) if @current_application_id.present?
+      @assignees = assignee_query.select(:assigned_to)
+                                 .distinct
+                                 .pluck(:assigned_to)
+                                 .sort
     end
 
     def show

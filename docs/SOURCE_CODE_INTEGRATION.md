@@ -1746,11 +1746,154 @@ end
 
 ---
 
+## Syntax Highlighting (v0.1.24+)
+
+The source code viewer now includes automatic syntax highlighting powered by Highlight.js with the Catppuccin Mocha theme, making code more readable and easier to debug.
+
+### Features
+
+- **190+ Languages Supported**: Automatic language detection for Ruby, JavaScript, TypeScript, ERB, HTML, CSS, YAML, JSON, SQL, Python, Go, Java, C/C++, Rust, and many more
+- **Catppuccin Mocha Theme**: Beautiful dark theme with excellent readability that matches the dashboard's design
+- **Line Numbers**: Integrated line numbers using the highlightjs-line-numbers.js plugin
+- **Error Line Highlighting**: The error line is prominently highlighted with a yellow background
+- **Zero Configuration**: Works automatically once source code integration is enabled
+- **Client-Side Processing**: No performance impact on the server
+
+### How It Works
+
+When you enable source code integration, syntax highlighting is automatically applied:
+
+1. **Language Detection**: The system detects the programming language from the file extension (e.g., `.rb` → Ruby, `.js` → JavaScript)
+2. **Client-Side Highlighting**: Highlight.js processes the code in the browser using the Catppuccin Mocha color scheme
+3. **Line Numbers**: Line numbers are added automatically with proper alignment
+4. **Error Line**: The specific line that caused the error is highlighted in yellow
+
+### Supported Languages
+
+The feature includes comprehensive language support:
+
+| Language | File Extensions | Notes |
+|----------|----------------|-------|
+| Ruby | `.rb` | Full syntax support |
+| JavaScript | `.js`, `.jsx` | ES6+ supported |
+| TypeScript | `.ts`, `.tsx` | Full TypeScript support |
+| ERB Templates | `.erb` | Rails template highlighting |
+| HTML | `.html`, `.htm` | HTML5 support |
+| CSS/SCSS | `.css`, `.scss`, `.sass` | Modern CSS features |
+| YAML | `.yml`, `.yaml` | Configuration files |
+| JSON | `.json` | Data files |
+| SQL | `.sql` | Database queries |
+| Python | `.py` | Python 3 |
+| Go | `.go` | Go language |
+| Java | `.java` | Java support |
+| C/C++ | `.c`, `.cpp`, `.h`, `.hpp` | C and C++ |
+| Shell Scripts | `.sh`, `.bash`, `.zsh` | Bash scripting |
+| Rust | `.rs` | Rust language |
+| PHP | `.php` | PHP support |
+| And 170+ more... | Various | Full list in Highlight.js docs |
+
+### Visual Example
+
+```ruby
+# Before (plain text):
+40  def update
+41    @user = User.find(params[:id])
+42 →  @user.email = params[:email]
+43    @user.save!
+44    redirect_to @user
+
+# After (with syntax highlighting):
+40  def update                           # Purple keyword
+41    @user = User.find(params[:id])    # Blue method, yellow string
+42 →  @user.email = params[:email]      # Highlighted line (yellow bg)
+43    @user.save!                       # Green symbol
+44    redirect_to @user                 # Purple keyword
+```
+
+### Configuration
+
+No additional configuration is required! Syntax highlighting is automatically enabled when you enable source code integration:
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_source_code_integration = true
+  # That's it! Syntax highlighting works automatically
+end
+```
+
+### Performance
+
+- **Client-Side Processing**: All syntax highlighting happens in the browser
+- **CDN Delivery**: Highlight.js is loaded from jsDelivr CDN (fast, cached globally)
+- **Lazy Loading**: Code is only highlighted when you click "View Source"
+- **Minimal Overhead**: ~50KB total for Highlight.js core + theme
+
+### Browser Compatibility
+
+Syntax highlighting works in all modern browsers:
+- Chrome/Edge 90+
+- Firefox 88+
+- Safari 14+
+- Mobile browsers (iOS Safari, Chrome Mobile)
+
+### Graceful Degradation
+
+If JavaScript is disabled or fails to load:
+- Source code is still displayed (plain text)
+- Line numbers are still visible
+- Error line highlighting still works
+- All functionality remains available
+
+### Troubleshooting
+
+**Problem**: Syntax highlighting not working
+
+**Solutions**:
+
+1. **Check browser console for errors**
+   ```javascript
+   // In browser console
+   typeof hljs
+   // Should output: "object"
+   ```
+
+2. **Verify Highlight.js is loading**
+   - Open browser DevTools → Network tab
+   - Look for `highlight.min.js` and `catppuccin-mocha.min.css`
+   - Both should return 200 status
+
+3. **Clear browser cache**
+   - Hard refresh: Cmd+Shift+R (Mac) or Ctrl+F5 (Windows)
+
+4. **Check Content Security Policy**
+   - If you have strict CSP, allow jsDelivr CDN:
+   ```ruby
+   # config/initializers/content_security_policy.rb
+   Rails.application.config.content_security_policy do |policy|
+     policy.script_src :self, "https://cdn.jsdelivr.net"
+     policy.style_src :self, "https://cdn.jsdelivr.net"
+   end
+   ```
+
+### Theme Customization
+
+The default Catppuccin Mocha theme provides excellent readability in both light and dark modes. The theme colors are carefully chosen to match the dashboard's design:
+
+**Key Colors:**
+- Keywords (def, class, if): Purple/Mauve
+- Strings: Yellow/Peach
+- Comments: Gray/Overlay
+- Methods: Blue/Sapphire
+- Symbols: Green/Teal
+- Numbers: Peach/Orange
+
+If you need to customize the theme, you can modify the Highlight.js theme in your application's CSS.
+
 ## Future Enhancements
 
 Potential improvements for future versions:
 
-1. **Syntax Highlighting** - Color-coded Ruby syntax
+1. ~~**Syntax Highlighting**~~ ✅ **Completed in v0.1.24** - Color-coded syntax with Catppuccin Mocha theme
 2. **Inline Annotations** - Show variable values, types
 3. **Jump to Definition** - Click to navigate to method definitions
 4. **Code Search** - Search within displayed source
