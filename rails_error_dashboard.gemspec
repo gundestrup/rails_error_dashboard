@@ -42,6 +42,8 @@ Gem::Specification.new do |spec|
   spec.metadata["source_code_uri"] = "https://github.com/AnjanJ/rails_error_dashboard"
   spec.metadata["changelog_uri"] = "https://github.com/AnjanJ/rails_error_dashboard/blob/main/CHANGELOG.md"
   spec.metadata["documentation_uri"] = "https://rails-error-dashboard.anjan.dev"
+  spec.metadata["bug_tracker_uri"] = "https://github.com/AnjanJ/rails_error_dashboard/issues"
+  # spec.metadata["funding_uri"] = "https://github.com/sponsors/YourUsername" # Uncomment if you set up GitHub Sponsors
 
   spec.files = Dir.chdir(File.expand_path(__dir__)) do
     Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md"]
