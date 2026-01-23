@@ -39,6 +39,18 @@ module RailsErrorDashboard
         @platform_scores = {}
       end
 
+      # Get correlation summary (if enabled, pass application filter)
+      if RailsErrorDashboard.configuration.enable_error_correlation
+        correlation = Queries::ErrorCorrelation.new(days: 7, application_id: @current_application_id)
+        @problematic_releases = correlation.problematic_releases.first(3)
+        @time_correlated_errors = correlation.time_correlated_errors.first(3)
+        @multi_error_users = correlation.multi_error_users(min_error_types: 2).first(5)
+      else
+        @problematic_releases = []
+        @time_correlated_errors = []
+        @multi_error_users = []
+      end
+
       # Get critical alerts (critical/high severity errors from last hour)
       # Filter by priority_level in database instead of loading all records into memory
       @critical_alerts = ErrorLog

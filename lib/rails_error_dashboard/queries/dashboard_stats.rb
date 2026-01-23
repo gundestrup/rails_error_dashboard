@@ -38,7 +38,8 @@ module RailsErrorDashboard
               affected_users_change: affected_users_change,
               trend_percentage: trend_percentage,
               trend_direction: trend_direction,
-              top_errors_by_impact: top_errors_by_impact
+              top_errors_by_impact: top_errors_by_impact,
+              average_resolution_time: average_resolution_time
             }
           end
         rescue => e
@@ -66,7 +67,8 @@ module RailsErrorDashboard
             affected_users_change: 0,
             trend_percentage: 0.0,
             trend_direction: :stable,
-            top_errors_by_impact: []
+            top_errors_by_impact: [],
+            average_resolution_time: nil
           }
         end
       end
@@ -308,7 +310,7 @@ module RailsErrorDashboard
         end
       end
 
-      # Get top 5 errors ranked by impact score
+      # Get top 6 errors ranked by impact score
       # Impact = affected_users_count × occurrence_count
       def top_errors_by_impact
         base_scope.where("occurred_at >= ?", 7.days.ago)
@@ -317,7 +319,7 @@ module RailsErrorDashboard
                         COUNT(DISTINCT user_id) as affected_users,
                         COUNT(DISTINCT user_id) * occurrence_count as impact_score")
                 .order("impact_score DESC")
-                .limit(5)
+                .limit(6)
                 .map do |error|
                   full_error = ErrorLog.find(error.id)
                   {
@@ -331,6 +333,19 @@ module RailsErrorDashboard
                     occurred_at: full_error.occurred_at
                   }
                 end
+      end
+
+      # Calculate average resolution time (MTTR) in hours for the last 30 days
+      def average_resolution_time
+        resolved_errors = base_scope.resolved.where("resolved_at >= ?", 30.days.ago)
+        return nil if resolved_errors.empty?
+
+        total_seconds = resolved_errors.sum do |error|
+          (error.resolved_at - error.occurred_at).to_i
+        end
+
+        average_seconds = total_seconds / resolved_errors.count.to_f
+        (average_seconds / 3600.0).round(2) # Convert to hours
       end
     end
   end

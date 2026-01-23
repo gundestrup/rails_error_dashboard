@@ -378,7 +378,7 @@
     const times = <%= raw @resolution_times.values.map { |v| v || 0 }.to_json %>;
 
     new Chart(resolutionTimeCtx, {
-      type: 'horizontalBar',
+      type: 'bar',
       data: {
         labels: platforms,
         datasets: [{
@@ -390,6 +390,7 @@
         }]
       },
       options: {
+        indexAxis: 'y', // Horizontal bar chart
         responsive: true,
         maintainAspectRatio: false,
         plugins: {

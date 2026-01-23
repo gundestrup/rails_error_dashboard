@@ -45,8 +45,23 @@
       </div>
     </div>
 
+    <!-- Unresolved Errors Card -->
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="card stat-card h-100">
+        <div class="card-body text-center">
+          <div class="stat-label mb-2">UNRESOLVED ERRORS</div>
+          <div class="stat-value text-danger">
+            <%= @stats[:unresolved] %>
+          </div>
+          <small class="text-muted">
+            Pending resolution
+          </small>
+        </div>
+      </div>
+    </div>
+
     <!-- Trend Card -->
-    <div class="col-12 col-lg-4">
+    <div class="col-12 col-md-6 col-lg-4">
       <div class="card stat-card h-100">
         <div class="card-body text-center">
           <div class="stat-label mb-2">ERROR TREND</div>
@@ -60,15 +75,58 @@
         </div>
       </div>
     </div>
+
+    <!-- Resolution Rate Card -->
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="card stat-card h-100">
+        <div class="card-body text-center">
+          <div class="stat-label mb-2">RESOLUTION RATE</div>
+          <%
+            total_errors = @stats[:resolved] + @stats[:unresolved]
+            resolution_rate = total_errors > 0 ? ((@stats[:resolved].to_f / total_errors) * 100).round(1) : 0.0
+          %>
+          <div class="stat-value <%= resolution_rate >= 80 ? 'text-success' : resolution_rate >= 50 ? 'text-warning' : 'text-danger' %>">
+            <%= resolution_rate %>%
+          </div>
+          <small class="text-muted">
+            <%= @stats[:resolved] %> of <%= total_errors %> resolved
+          </small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Average Resolution Time Card -->
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="card stat-card h-100">
+        <div class="card-body text-center">
+          <div class="stat-label mb-2">AVG RESOLUTION TIME</div>
+          <% if @stats[:average_resolution_time].present? %>
+            <div class="stat-value text-warning">
+              <%= @stats[:average_resolution_time] %>h
+            </div>
+            <small class="text-muted">
+              Mean time to resolution
+            </small>
+          <% else %>
+            <div class="stat-value text-muted">
+              --
+            </div>
+            <small class="text-muted">
+              No resolved errors yet
+            </small>
+          <% end %>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <!-- Top 5 Errors by Impact (Mobile: stack, Desktop: 2 columns) -->
+  <!-- Top 6 Errors by Impact (Mobile: stack, Desktop: 2 columns) -->
   <% if @stats[:top_errors_by_impact].any? %>
     <div class="card mb-4">
       <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0">
           <i class="bi bi-exclamation-triangle me-2"></i>
-          Top 5 Errors by Impact
+          Top 6 Errors by Impact
         </h5>
         <%= link_to "View All Errors →", errors_path, class: "btn btn-sm btn-outline-primary" %>
       </div>
@@ -164,6 +222,126 @@
                       <span class="text-muted">Unresolved:</span>
                       <strong><%= health[:unresolved_errors] %></strong>
                     </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Correlation Summary (Last 7 days) -->
+  <% if RailsErrorDashboard.configuration.enable_error_correlation && (@problematic_releases.any? || @time_correlated_errors.any? || @multi_error_users.any?) %>
+    <%
+      # Calculate column width based on number of cards present
+      cards_present = [@problematic_releases.any?, @time_correlated_errors.any?, @multi_error_users.any?].count(true)
+      col_class = case cards_present
+                  when 1 then "col-12"
+                  when 2 then "col-12 col-lg-6"
+                  else "col-12 col-lg-4"
+                  end
+    %>
+    <div class="card mb-4">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+          <i class="bi bi-diagram-3 me-2"></i>
+          Error Correlation Insights
+        </h5>
+        <%= link_to "Full Analysis →", correlation_errors_path, class: "btn btn-sm btn-outline-primary" %>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <!-- Problematic Releases -->
+          <% if @problematic_releases.any? %>
+            <div class="<%= col_class %>">
+              <div class="card h-100 border-warning">
+                <div class="card-body">
+                  <h6 class="mb-3">
+                    <i class="bi bi-tag me-2"></i>
+                    Problematic Releases
+                  </h6>
+                  <div class="list-group list-group-flush">
+                    <% @problematic_releases.each do |release| %>
+                      <div class="list-group-item px-0 py-2">
+                        <div class="d-flex justify-content-between align-items-start">
+                          <div class="flex-grow-1">
+                            <code class="small"><%= release[:version] || release[:git_sha]&.truncate(8, omission: '') %></code>
+                            <div class="small text-muted">
+                              <%= release[:error_count] %> error<%= release[:error_count] != 1 ? 's' : '' %> •
+                              <%= release[:unique_types] %> type<%= release[:unique_types] != 1 ? 's' : '' %>
+                            </div>
+                          </div>
+                          <span class="badge bg-danger"><%= release[:severity_score] %></span>
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% end %>
+
+          <!-- Time-Correlated Errors -->
+          <% if @time_correlated_errors.any? %>
+            <div class="<%= col_class %>">
+              <div class="card h-100 border-info">
+                <div class="card-body">
+                  <h6 class="mb-3">
+                    <i class="bi bi-clock-history me-2"></i>
+                    Time-Correlated Errors
+                  </h6>
+                  <div class="list-group list-group-flush">
+                    <% @time_correlated_errors.each do |group| %>
+                      <div class="list-group-item px-0 py-2">
+                        <div class="small">
+                          <strong><%= group[:error_types].size %> error types</strong>
+                          <div class="text-muted">
+                            occurred together <%= group[:occurrences] %> time<%= group[:occurrences] != 1 ? 's' : '' %>
+                          </div>
+                          <div class="mt-1">
+                            <% group[:error_types].first(2).each do |type| %>
+                              <code class="small d-block text-truncate"><%= type %></code>
+                            <% end %>
+                            <% if group[:error_types].size > 2 %>
+                              <small class="text-muted">+<%= group[:error_types].size - 2 %> more</small>
+                            <% end %>
+                          </div>
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% end %>
+
+          <!-- Multi-Error Users -->
+          <% if @multi_error_users.any? %>
+            <div class="<%= col_class %>">
+              <div class="card h-100 border-danger">
+                <div class="card-body">
+                  <h6 class="mb-3">
+                    <i class="bi bi-people-fill me-2"></i>
+                    Users with Multiple Errors
+                  </h6>
+                  <div class="list-group list-group-flush">
+                    <% @multi_error_users.each do |user| %>
+                      <div class="list-group-item px-0 py-2">
+                        <div class="d-flex justify-content-between align-items-start">
+                          <div class="flex-grow-1">
+                            <div class="small">
+                              User ID: <strong><%= user[:user_id] %></strong>
+                            </div>
+                            <div class="small text-muted">
+                              <%= user[:error_types].size %> different error type<%= user[:error_types].size != 1 ? 's' : '' %>
+                            </div>
+                          </div>
+                          <span class="badge bg-danger"><%= user[:total_errors] %></span>
+                        </div>
+                      </div>
+                    <% end %>
                   </div>
                 </div>
               </div>
