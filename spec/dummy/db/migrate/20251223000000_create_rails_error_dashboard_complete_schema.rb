@@ -18,7 +18,7 @@ class CreateRailsErrorDashboardCompleteSchema < ActiveRecord::Migration[7.0]
       t.string :version, null: false
       t.datetime :created_at, null: false
     end
-    execute "INSERT INTO rails_error_dashboard_schema_markers (marker_type, version, created_at) VALUES ('squashed_migration', '20260122000000', '#{Time.current.to_s(:db)}')"
+    execute "INSERT INTO rails_error_dashboard_schema_markers (marker_type, version, created_at) VALUES ('squashed_migration', '20260122000000', '#{Time.current}')"
 
     # Create applications table
     create_table :rails_error_dashboard_applications do |t|
