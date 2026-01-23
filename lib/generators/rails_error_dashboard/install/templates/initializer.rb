@@ -22,8 +22,9 @@ RailsErrorDashboard.configure do |config|
   # User model for error associations
   config.user_model = "User"
 
-  # Error retention policy (days to keep errors before auto-deletion)
-  config.retention_days = 90
+  # Error retention policy - nil means keep forever (no automatic deletion)
+  # To manually cleanup old errors: rails error_dashboard:cleanup_resolved DAYS=90
+  config.retention_days = nil
 
   # ============================================================================
   # NOTIFICATION SETTINGS
@@ -120,8 +121,8 @@ RailsErrorDashboard.configure do |config|
   # config.async_adapter = :sidekiq  # Options: :sidekiq, :solid_queue, :async
 
 <% end -%>
-  # Backtrace size limiting (reduces storage by ~80%)
-  config.max_backtrace_lines = 50
+  # Backtrace size limiting (100 lines is industry standard: Rollbar, Airbrake, Bugsnag)
+  config.max_backtrace_lines = 100
 
 <% if @enable_error_sampling -%>
   # Error Sampling - ENABLED

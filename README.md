@@ -789,15 +789,17 @@ See [Customization Guide](docs/CUSTOMIZATION.md).
 <details>
 <summary><strong>How long are errors stored?</strong></summary>
 
-Forever by default. Configure retention policy:
+Forever by default (no automatic deletion). Manual cleanup with rake task:
 
-```ruby
-RailsErrorDashboard.configure do |config|
-  config.retention_days = 90  # Auto-delete after 90 days
-end
+```bash
+# Delete resolved errors older than 90 days
+rails error_dashboard:cleanup_resolved DAYS=90
+
+# Filter by application name
+rails error_dashboard:cleanup_resolved DAYS=30 APP_NAME="My App"
 ```
 
-Or clean up manually with rake tasks. See [Database Optimization](docs/guides/DATABASE_OPTIMIZATION.md).
+Or schedule with cron/whenever. See [Database Optimization](docs/guides/DATABASE_OPTIMIZATION.md).
 </details>
 
 <details>

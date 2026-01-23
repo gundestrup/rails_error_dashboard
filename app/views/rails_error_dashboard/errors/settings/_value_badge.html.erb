@@ -245,6 +245,32 @@
 <%
     end
 
+  when :retention_days
+    # Show retention configuration with manual cleanup instructions
+    if value.present?
+%>
+    <div>
+      <span class="badge bg-warning fs-6"><%= value %> days</span>
+      <small class="text-warning d-block">
+        <i class="bi bi-exclamation-triangle"></i> Manual cleanup required
+      </small>
+      <small class="text-muted d-block mt-1">
+        Run: <code class="small">rails error_dashboard:cleanup_resolved DAYS=<%= value %></code>
+      </small>
+    </div>
+<%
+    else
+%>
+    <div>
+      <span class="badge bg-success fs-6"><i class="bi bi-infinity"></i> Keep Forever</span>
+      <small class="text-muted d-block">No automatic deletion</small>
+      <small class="text-muted d-block mt-1">
+        To cleanup: <code class="small">rails error_dashboard:cleanup_resolved DAYS=90</code>
+      </small>
+    </div>
+<%
+    end
+
   else
     # Default rendering
     if value.present?

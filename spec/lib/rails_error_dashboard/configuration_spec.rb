@@ -10,7 +10,7 @@ RSpec.describe RailsErrorDashboard::Configuration do
       it { expect(config.dashboard_username).to eq("gandalf") }
       it { expect(config.dashboard_password).to eq("youshallnotpass") }
       it { expect(config.user_model).to be_nil } # Auto-detected if not set
-      it { expect(config.retention_days).to eq(90) }
+      it { expect(config.retention_days).to be_nil } # Keep forever by default (no auto-deletion)
       it { expect(config.enable_middleware).to be true }
       it { expect(config.enable_error_subscriber).to be true }
     end
@@ -36,8 +36,8 @@ RSpec.describe RailsErrorDashboard::Configuration do
         expect(config.async_adapter).to eq(:sidekiq)
       end
 
-      it "sets max_backtrace_lines to 50" do
-        expect(config.max_backtrace_lines).to eq(50)
+      it "sets max_backtrace_lines to 100" do
+        expect(config.max_backtrace_lines).to eq(100)
       end
 
       it "initializes notification_callbacks hash" do

@@ -9,7 +9,7 @@
       settings: {
         enable_middleware: { label: "Error Middleware", description: "Catches unhandled exceptions", type: :boolean },
         enable_error_subscriber: { label: "Rails.error Subscriber", description: "Subscribes to Rails error events", type: :boolean },
-        retention_days: { label: "Data Retention", description: "How long errors are kept", type: :integer, unit: "days" },
+        retention_days: { label: "Data Retention", description: "Manual cleanup only (run: rails error_dashboard:cleanup_resolved DAYS=90)", type: :retention_days },
         max_backtrace_lines: { label: "Max Backtrace Lines", description: "Stack trace depth limit", type: :integer, unit: "lines" },
         sampling_rate: { label: "Sampling Rate", description: "Percentage of errors captured", type: :percentage }
       }

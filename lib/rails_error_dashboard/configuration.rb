@@ -136,7 +136,9 @@ module RailsErrorDashboard
 
       @use_separate_database = ENV.fetch("USE_SEPARATE_ERROR_DB", "false") == "true"
 
-      @retention_days = 90
+      # Retention policy - nil means keep forever (no automatic deletion)
+      # Users can run 'rails error_dashboard:cleanup_resolved DAYS=90' to manually clean up
+      @retention_days = nil
 
       @enable_middleware = true
       @enable_error_subscriber = true
@@ -147,7 +149,7 @@ module RailsErrorDashboard
       @sampling_rate = 1.0 # 100% by default
       @async_logging = false
       @async_adapter = :sidekiq # Battle-tested default
-      @max_backtrace_lines = 50
+      @max_backtrace_lines = 100 # Matches industry standard (Rollbar, Airbrake)
 
       # Rate limiting defaults
       @enable_rate_limiting = false # OFF by default (opt-in)

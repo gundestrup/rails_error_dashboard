@@ -98,7 +98,7 @@ RSpec.describe RailsErrorDashboard::Generators::InstallGenerator, type: :generat
 
         expect(initializer_content).to include("config.enable_middleware = true")
         expect(initializer_content).to include("config.enable_error_subscriber = true")
-        expect(initializer_content).to include("config.retention_days = 90")
+        expect(initializer_content).to include("config.retention_days = nil")
       end
     end
 
@@ -314,8 +314,8 @@ RSpec.describe RailsErrorDashboard::Generators::InstallGenerator, type: :generat
 
       expect(initializer_content).to include('config.dashboard_username = ENV.fetch("ERROR_DASHBOARD_USER", "gandalf")')
       expect(initializer_content).to include('config.dashboard_password = ENV.fetch("ERROR_DASHBOARD_PASSWORD", "youshallnotpass")')
-      expect(initializer_content).to include("config.retention_days = 90")
-      expect(initializer_content).to include("config.max_backtrace_lines = 50")
+      expect(initializer_content).to include("config.retention_days = nil")
+      expect(initializer_content).to include("config.max_backtrace_lines = 100")
     end
   end
 

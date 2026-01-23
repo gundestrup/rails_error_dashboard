@@ -14,7 +14,7 @@ RSpec.describe "Backtrace Limiting", type: :integration do
     RailsErrorDashboard.reset_configuration!
   end
 
-  describe "with default max_backtrace_lines (50)" do
+  describe "with default max_backtrace_lines (100)" do
     it "stores full backtrace when under limit" do
       error = StandardError.new("Short backtrace")
       error.set_backtrace(10.times.map { |i| "line_#{i}.rb:#{i}" })
@@ -27,29 +27,29 @@ RSpec.describe "Backtrace Limiting", type: :integration do
 
     it "truncates backtrace when over limit" do
       error = StandardError.new("Long backtrace")
-      error.set_backtrace(100.times.map { |i| "line_#{i}.rb:#{i}" })
+      error.set_backtrace(200.times.map { |i| "line_#{i}.rb:#{i}" })
 
       error_log = RailsErrorDashboard::Commands::LogError.call(error, {})
 
-      # Should have exactly 50 lines plus truncation notice
+      # Should have exactly 100 lines plus truncation notice
       lines = error_log.backtrace.lines
-      expect(lines.count).to eq(51)  # 50 lines + 1 truncation notice
-      expect(error_log.backtrace).to include("... (50 more lines truncated)")
+      expect(lines.count).to eq(101)  # 100 lines + 1 truncation notice
+      expect(error_log.backtrace).to include("... (100 more lines truncated)")
     end
 
-    it "includes first 50 lines when truncating" do
+    it "includes first 100 lines when truncating" do
       error = StandardError.new("Long backtrace")
-      backtrace_lines = 100.times.map { |i| "line_#{i}.rb:#{i}" }
+      backtrace_lines = 200.times.map { |i| "line_#{i}.rb:#{i}" }
       error.set_backtrace(backtrace_lines)
 
       error_log = RailsErrorDashboard::Commands::LogError.call(error, {})
 
       # Verify first line is included
       expect(error_log.backtrace).to include("line_0.rb:0")
-      # Verify 49th line is included
-      expect(error_log.backtrace).to include("line_49.rb:49")
-      # Verify 50th line is NOT included (truncated)
-      expect(error_log.backtrace).not_to include("line_50.rb:50")
+      # Verify 99th line is included
+      expect(error_log.backtrace).to include("line_99.rb:99")
+      # Verify 100th line is NOT included (truncated)
+      expect(error_log.backtrace).not_to include("line_100.rb:100")
     end
   end
 
@@ -140,23 +140,23 @@ RSpec.describe "Backtrace Limiting", type: :integration do
 
     it "handles backtrace with exactly max_lines" do
       error = StandardError.new("Exact limit")
-      error.set_backtrace(50.times.map { |i| "line_#{i}.rb:#{i}" })
+      error.set_backtrace(100.times.map { |i| "line_#{i}.rb:#{i}" })
 
       error_log = RailsErrorDashboard::Commands::LogError.call(error, {})
 
-      # Exactly 50 lines, no truncation
-      expect(error_log.backtrace.lines.count).to eq(50)
+      # Exactly 100 lines, no truncation
+      expect(error_log.backtrace.lines.count).to eq(100)
       expect(error_log.backtrace).not_to include("truncated")
     end
 
     it "handles backtrace with max_lines + 1" do
       error = StandardError.new("One over limit")
-      error.set_backtrace(51.times.map { |i| "line_#{i}.rb:#{i}" })
+      error.set_backtrace(101.times.map { |i| "line_#{i}.rb:#{i}" })
 
       error_log = RailsErrorDashboard::Commands::LogError.call(error, {})
 
-      # 50 lines + truncation notice
-      expect(error_log.backtrace.lines.count).to eq(51)
+      # 100 lines + truncation notice
+      expect(error_log.backtrace.lines.count).to eq(101)
       expect(error_log.backtrace).to include("... (1 more lines truncated)")
     end
   end
@@ -175,12 +175,13 @@ RSpec.describe "Backtrace Limiting", type: :integration do
       small_log = RailsErrorDashboard::Commands::LogError.call(small_error, {})
 
       # Large backtrace should be truncated to similar size as small one
-      # (50 lines vs 10 lines, not 1000 vs 10)
+      # (100 lines vs 10 lines, not 1000 vs 10)
       large_size = large_log.backtrace.bytesize
       small_size = small_log.backtrace.bytesize
 
-      # Large should be less than 10x the small (not 100x)
-      expect(large_size).to be < (small_size * 10)
+      # Large should be less than 15x the small (not 100x)
+      # 100 lines vs 10 lines = 10x, add buffer for truncation message
+      expect(large_size).to be < (small_size * 15)
     end
 
     it "logs thousands of errors quickly with truncation" do
