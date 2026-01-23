@@ -3,7 +3,11 @@
 require "rails_helper"
 
 RSpec.describe RailsErrorDashboard do
-  # Clean up configuration after each test
+  # Clean up configuration before and after each test
+  before do
+    described_class.reset_configuration!
+  end
+
   after do
     described_class.reset_configuration!
   end
