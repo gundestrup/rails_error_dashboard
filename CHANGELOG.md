@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.4] - 2026-03-02
+
+### Fixed
+- **Separate database migration path (#83):** Install generator now copies migrations to `db/error_dashboard_migrate/` when separate database mode is selected — previously always copied to `db/migrate/` regardless of database mode
+- **Install crash with separate database (#83):** Replaced `rails_command` migration copier with direct file copy — the old approach booted the app during install, which crashed with `AdapterNotSpecified` because `database.yml` wasn't configured yet
+- **Engine boot guard (#83):** The engine's `connects_to` initializer now gracefully skips with a log warning if the database config isn't in `database.yml` yet, instead of crashing the app
+- **MySQL foreign key type mismatch (#84):** Changed 5 foreign key columns in the squashed migration from `t.integer` to `t.bigint` — MySQL/Trilogy enforces strict FK type matching and rejected the `integer` FK referencing a `bigint` PK. Affected columns: `error_logs.application_id`, `error_occurrences.error_log_id`, `cascade_patterns.parent_error_id`, `cascade_patterns.child_error_id`, `error_comments.error_log_id`
+
+### Improved
+- **Shared database install UX:** The installer now asks whether this is the first app or joining an existing shared database, and accepts the existing database name (with automatic environment suffix stripping)
+
+---
+
 ## [0.2.3] - 2026-02-28
 
 ### Fixed
