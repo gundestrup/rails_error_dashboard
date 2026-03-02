@@ -1,6 +1,6 @@
 ---
 layout: default
-title: Home
+title: "Self-Hosted Error Tracking for Rails"
 ---
 
 # Rails Error Dashboard

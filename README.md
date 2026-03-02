@@ -1,6 +1,7 @@
 # Rails Error Dashboard
 
 [![Gem Version](https://badge.fury.io/rb/rails_error_dashboard.svg)](https://badge.fury.io/rb/rails_error_dashboard)
+[![Downloads](https://img.shields.io/gem/dt/rails_error_dashboard)](https://rubygems.org/gems/rails_error_dashboard)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://github.com/AnjanJ/rails_error_dashboard/workflows/Tests/badge.svg)](https://github.com/AnjanJ/rails_error_dashboard/actions)
 
@@ -25,6 +26,20 @@ gem 'rails_error_dashboard'
 Username: `gandalf` · Password: `youshallnotpass`
 
 Experience the full dashboard with 480+ realistic Rails errors, LOTR-themed demo data, cause chains, enriched context, auto-reopened errors, and all features enabled.
+
+### Screenshots
+
+**Dashboard Overview** — Real-time error stats, severity breakdown, and trend charts at a glance.
+
+![Dashboard Overview](docs/images/dashboard-overview.png)
+
+**Error Detail** — Full stack trace, cause chain, enriched context, and workflow management.
+
+![Error Detail](docs/images/error-detail.png)
+
+**Analytics** — Error trends, platform health, correlation insights, and pattern detection.
+
+![Analytics](docs/images/analytics.png)
 
 ---
 

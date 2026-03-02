@@ -5,14 +5,16 @@ Gem::Specification.new do |spec|
   spec.version     = RailsErrorDashboard::VERSION
   spec.authors     = [ "Anjan Jagirdar" ]
   spec.email       = [ "anjan.jagirdar@gmail.com" ]
-  spec.homepage    = "https://github.com/AnjanJ/rails_error_dashboard"
-  spec.summary     = "Self-hosted Rails error monitoring — free, forever. Zero SaaS fees, zero lock-in."
-  spec.description = "Own your errors. Own your stack. A fully open-source, self-hosted error dashboard " \
-                     "for solo founders, indie hackers, and small teams. Professional error tracking with " \
-                     "beautiful UI, multi-channel notifications (Slack, Email, Discord, PagerDuty), " \
-                     "platform detection (iOS/Android/Web/API), and analytics. 5-minute setup, works " \
-                     "out-of-the-box. Rails 7.0-8.1 compatible. ⚠️ BETA: API may change before v1.0.0. " \
-                     "🎮 Live demo: https://rails-error-dashboard.anjan.dev (gandalf/youshallnotpass)"
+  spec.homepage    = "https://AnjanJ.github.io/rails_error_dashboard"
+  spec.summary     = "Self-hosted error tracking and exception monitoring for Rails. Free, forever."
+  spec.description = "Own your errors. Own your stack. A fully open-source, self-hosted error tracking " \
+                     "Rails engine for solo founders, indie hackers, and small teams. Exception monitoring " \
+                     "with beautiful dashboard UI, multi-channel notifications (Slack, Email, Discord, " \
+                     "PagerDuty), platform detection (iOS/Android/Web/API), advanced analytics, workflow " \
+                     "management, and cause chain capture. A self-hosted Sentry alternative with 5-minute " \
+                     "setup that works out-of-the-box. Production error monitoring for Rails 7.0-8.1. " \
+                     "BETA: API may change before v1.0.0. " \
+                     "Live demo: https://rails-error-dashboard.anjan.dev (gandalf/youshallnotpass)"
   spec.license     = "MIT"
   spec.required_ruby_version = ">= 3.2.0"
 
