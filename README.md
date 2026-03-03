@@ -4,6 +4,7 @@
 [![Downloads](https://img.shields.io/gem/dt/rails_error_dashboard)](https://rubygems.org/gems/rails_error_dashboard)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://github.com/AnjanJ/rails_error_dashboard/workflows/Tests/badge.svg)](https://github.com/AnjanJ/rails_error_dashboard/actions)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?logo=buymeacoffee)](https://buymeacoffee.com/anjanj)
 
 ## Self-hosted Rails error monitoring — free, forever.
 
@@ -970,6 +971,12 @@ Special thanks to:
 See [CONTRIBUTORS.md](CONTRIBUTORS.md) for the complete list of contributors and their contributions.
 
 Want to contribute? Check out our [Contributing Guide](CONTRIBUTING.md)!
+
+---
+
+## Support
+
+If this gem saves you some headaches (or some money on error tracking SaaS), consider [buying me a coffee](https://buymeacoffee.com/anjanj). It keeps the project going and lets me know people are finding it useful.
 
 ---
 
