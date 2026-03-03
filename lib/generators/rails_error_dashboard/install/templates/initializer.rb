@@ -11,6 +11,24 @@ RailsErrorDashboard.configure do |config|
   config.dashboard_username = ENV.fetch("ERROR_DASHBOARD_USER", "gandalf")
   config.dashboard_password = ENV.fetch("ERROR_DASHBOARD_PASSWORD", "youshallnotpass")
 
+  # === Custom Authentication (optional) ===
+  # Use your app's existing auth instead of HTTP Basic Auth.
+  # The lambda runs in controller context (via instance_exec), giving access to
+  # current_user, session, request, params, cookies, etc.
+  # Return truthy to allow access, falsy to deny (403 Forbidden).
+  #
+  # Devise example:
+  #   config.authenticate_with = -> { current_user&.admin? }
+  #
+  # Warden example:
+  #   config.authenticate_with = -> { warden.authenticated?(:admin) }
+  #
+  # Session-based example:
+  #   config.authenticate_with = -> { session[:dashboard_admin] == true }
+  #
+  # When nil (default), HTTP Basic Auth above is used instead.
+  # config.authenticate_with = nil
+
   # ============================================================================
   # CORE FEATURES (Always Enabled)
   # ============================================================================

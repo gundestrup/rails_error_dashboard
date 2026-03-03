@@ -290,6 +290,15 @@ RSpec.describe RailsErrorDashboard::Generators::InstallGenerator, type: :generat
       expect(initializer_content).to include("ADDITIONAL CONFIGURATION")
     end
 
+    it "includes authenticate_with documentation with Devise example" do
+      initializer_content = File.read("#{destination_root}/config/initializers/rails_error_dashboard.rb")
+
+      expect(initializer_content).to include("authenticate_with")
+      expect(initializer_content).to include("Devise")
+      expect(initializer_content).to include("current_user")
+      expect(initializer_content).to include("instance_exec")
+    end
+
     it "provides helpful comments for each feature" do
       initializer_content = File.read("#{destination_root}/config/initializers/rails_error_dashboard.rb")
 
