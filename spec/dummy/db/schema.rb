@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2026_02_21_000002) do
+ActiveRecord::Schema[7.0].define(version: 2026_03_04_000001) do
   create_table "rails_error_dashboard_applications", force: :cascade do |t|
     t.string "name", limit: 255, null: false
     t.text "description"
@@ -106,6 +106,7 @@ ActiveRecord::Schema[7.0].define(version: 2026_02_21_000002) do
     t.text "environment_info"
     t.datetime "reopened_at"
     t.text "breadcrumbs"
+    t.text "system_health"
     t.index [ "app_version" ], name: "index_rails_error_dashboard_error_logs_on_app_version"
     t.index [ "application_id", "occurred_at" ], name: "index_error_logs_on_app_occurred"
     t.index [ "application_id", "resolved" ], name: "index_error_logs_on_app_resolved"

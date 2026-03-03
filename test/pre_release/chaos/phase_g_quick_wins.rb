@@ -373,6 +373,79 @@ end
 puts ""
 
 # ---------------------------------------------------------------------------
+# G10: System Health Snapshot
+# ---------------------------------------------------------------------------
+PreReleaseTestHarness.section("G10: System health snapshot")
+
+# Save original config
+original_system_health = RailsErrorDashboard.configuration.enable_system_health
+
+begin
+  # Enable system health
+  RailsErrorDashboard.configuration.enable_system_health = true
+
+  health_error = begin
+    raise RuntimeError, "system health test #{SecureRandom.hex(4)}"
+  rescue => e
+    log_error_and_find(e, { controller_name: "health_test", platform: "Web" })
+  end
+
+  assert "G10: error persisted", health_error.persisted?
+
+  if RailsErrorDashboard::ErrorLog.column_names.include?("system_health")
+    assert "G10: system_health populated", health_error.system_health.present?
+
+    if health_error.system_health.present?
+      health = JSON.parse(health_error.system_health, symbolize_names: true)
+      assert "G10: health has :gc", health[:gc].is_a?(Hash)
+      assert "G10: health has :thread_count", health[:thread_count].is_a?(Integer)
+      assert "G10: health has :captured_at", health[:captured_at].present?
+      assert "G10: health has :connection_pool", health[:connection_pool].is_a?(Hash)
+
+      # Verify GC sub-keys
+      if health[:gc]
+        assert "G10: gc has heap_live_slots", health[:gc][:heap_live_slots].is_a?(Integer)
+        assert "G10: gc has major_gc_count", health[:gc][:major_gc_count].is_a?(Integer)
+      end
+
+      # Verify connection pool sub-keys
+      if health[:connection_pool]
+        assert "G10: pool has :size", health[:connection_pool][:size].is_a?(Integer)
+        assert "G10: pool has :busy", health[:connection_pool].key?(:busy)
+      end
+    end
+  else
+    puts "  SKIP: system_health column not present (migration not run)"
+  end
+
+  # Verify snapshot performance
+  assert_no_crash("G10: snapshot timing < 5ms") do
+    start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    RailsErrorDashboard::Services::SystemHealthSnapshot.capture
+    elapsed_ms = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time) * 1000
+    assert "G10: snapshot < 5ms", elapsed_ms < 5,
+      "took #{elapsed_ms.round(2)}ms"
+  end
+
+  # Verify disabled by default
+  RailsErrorDashboard.configuration.enable_system_health = false
+
+  disabled_error = begin
+    raise RuntimeError, "system health disabled test #{SecureRandom.hex(4)}"
+  rescue => e
+    log_error_and_find(e, { controller_name: "health_disabled_test", platform: "Web" })
+  end
+
+  if RailsErrorDashboard::ErrorLog.column_names.include?("system_health")
+    assert "G10: system_health nil when disabled", disabled_error.system_health.nil?,
+      "expected nil, got #{disabled_error.system_health&.slice(0, 50)}"
+  end
+ensure
+  RailsErrorDashboard.configuration.enable_system_health = original_system_health
+end
+puts ""
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 exit_code = PreReleaseTestHarness.summary("PHASE G")

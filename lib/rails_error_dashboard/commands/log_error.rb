@@ -32,6 +32,11 @@ module RailsErrorDashboard
           context = context.merge(_serialized_breadcrumbs: Services::BreadcrumbCollector.harvest)
         end
 
+        # Capture system health NOW (metrics are time-sensitive, different thread = different state)
+        if RailsErrorDashboard.configuration.enable_system_health
+          context = context.merge(_serialized_system_health: Services::SystemHealthSnapshot.capture)
+        end
+
         # Enqueue the async job using ActiveJob
         # The queue adapter (:sidekiq, :solid_queue, :async) is configured separately
         AsyncErrorLoggingJob.perform_later(exception_data, context)
@@ -166,6 +171,12 @@ module RailsErrorDashboard
             filtered = Services::BreadcrumbCollector.filter_sensitive(raw_breadcrumbs)
             attributes[:breadcrumbs] = filtered.to_json
           end
+        end
+
+        # Capture system health snapshot (if enabled and column exists)
+        if ErrorLog.column_names.include?("system_health") && RailsErrorDashboard.configuration.enable_system_health
+          health_data = @context[:_serialized_system_health] || Services::SystemHealthSnapshot.capture
+          attributes[:system_health] = health_data.to_json
         end
 
         # Find existing error or create new one
