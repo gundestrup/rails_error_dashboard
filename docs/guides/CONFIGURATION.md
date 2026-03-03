@@ -150,6 +150,22 @@ Complete reference of all 43+ configuration options with defaults, types, and de
 | `only_show_app_code_source` | Boolean | `true` | Hide gem/vendor code (security) |
 | `git_branch_strategy` | Symbol | `:commit_sha` | Branch strategy (`:commit_sha`, `:current_branch`, `:main`) |
 
+### Breadcrumbs — Request Activity Trail (NEW!)
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enable_breadcrumbs` | Boolean | `false` | Capture request activity trail (SQL, controller, cache, etc.) |
+| `breadcrumb_buffer_size` | Integer | `40` | Max breadcrumbs per request (ring buffer) |
+| `breadcrumb_categories` | Array/nil | `nil` | Categories to capture (`nil` = all; or `[:sql, :controller, :cache, :job, :mailer, :deprecation, :custom]`) |
+| `enable_n_plus_one_detection` | Boolean | `true` | Detect N+1 query patterns in SQL breadcrumbs (display-time analysis) |
+| `n_plus_one_threshold` | Integer | `3` | Min repetitions to flag as N+1 (min: 2) |
+
+### System Health Snapshot (NEW!)
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enable_system_health` | Boolean | `false` | Capture GC, memory, threads, connection pool at error time |
+
 ### Internal Logging & Debugging
 
 | Option | Type | Default | Description |
@@ -605,6 +621,132 @@ end
 - **Read-only**: Dashboard only reads files, never modifies
 - **Path validation**: Only files within app root can be accessed
 - **No external calls**: All processing happens locally
+
+---
+
+## Breadcrumbs — Request Activity Trail (NEW!)
+
+Breadcrumbs capture a timeline of events (SQL queries, controller actions, cache operations, etc.) during a request, then store them with the error for instant debugging context.
+
+### Basic Configuration
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  # Enable breadcrumbs
+  config.enable_breadcrumbs = true
+end
+```
+
+### Advanced Configuration
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_breadcrumbs = true
+
+  # Max events per request (default: 40, ring buffer drops oldest when full)
+  config.breadcrumb_buffer_size = 40
+
+  # Limit which categories are captured (default: nil = all)
+  # Options: :sql, :controller, :cache, :job, :mailer, :deprecation, :custom
+  config.breadcrumb_categories = [ :sql, :controller ]  # Only SQL and controller events
+
+  # N+1 query detection (analyzes SQL breadcrumbs at display time)
+  config.enable_n_plus_one_detection = true  # Default: true
+  config.n_plus_one_threshold = 3            # Min repetitions to flag (default: 3, min: 2)
+end
+```
+
+### Manual Breadcrumbs
+
+Add custom breadcrumbs from anywhere in your application code:
+
+```ruby
+RailsErrorDashboard.add_breadcrumb("checkout started", { cart_id: 123 })
+RailsErrorDashboard.add_breadcrumb("payment processed", { provider: "stripe", amount: 99.99 })
+```
+
+### Captured Events
+
+| Event | Category | What's Captured |
+|-------|----------|----------------|
+| `sql.active_record` | `sql` | SQL query (first 200 chars) + duration. Skips SCHEMA queries and internal gem queries |
+| `process_action.action_controller` | `controller` | `ControllerName#action` + duration |
+| `cache_read.active_support` | `cache` | `cache read: key` |
+| `cache_write.active_support` | `cache` | `cache write: key` |
+| `perform.active_job` | `job` | Job class name + duration |
+| `deliver.action_mailer` | `mailer` | `MailerClass to: [recipients]` |
+| `deprecation.rails` | `deprecation` | Deprecation warning message + caller location |
+
+### N+1 Query Detection
+
+When breadcrumbs and N+1 detection are both enabled, the error detail page automatically analyzes SQL breadcrumbs for repeated query patterns. A yellow warning card appears when the same normalized query shape is repeated above the threshold:
+
+```ruby
+config.enable_n_plus_one_detection = true  # ON by default
+config.n_plus_one_threshold = 3            # Flag when same pattern appears 3+ times
+```
+
+The detector normalizes SQL by replacing literal values (`WHERE id = 42` → `WHERE id = ?`) and IN lists (`IN (1, 2, 3)` → `IN (?)`) while preserving PostgreSQL double-quoted identifiers. Analysis runs at display time only — zero overhead on requests.
+
+### Use Cases
+
+```ruby
+# Development: Full breadcrumb visibility
+config.enable_breadcrumbs = true
+
+# Production: Enable with conservative buffer
+config.enable_breadcrumbs = true
+config.breadcrumb_buffer_size = 25
+
+# High-traffic: Only capture SQL and controller events
+config.enable_breadcrumbs = true
+config.breadcrumb_categories = [ :sql, :controller ]
+```
+
+### Safety
+
+- **Default OFF** — opt-in only
+- **Fixed-size ring buffer** — no unbounded memory growth
+- **Thread-local** — no mutex/lock, each request isolated
+- **Cleanup in ensure** — buffer cleared even on exceptions (Puma thread reuse safe)
+- **Every subscriber wrapped in rescue** — never raises, never blocks
+- **Sensitive data filtered** — passwords, tokens, secrets scrubbed before storage
+- **< 0.1ms/request overhead** — events already fired by Rails
+
+---
+
+## System Health Snapshot (NEW!)
+
+Capture runtime health metrics (GC stats, memory, threads, connection pool, Puma) at the moment of every error. Displayed in the error detail sidebar.
+
+### Quick Start
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.enable_system_health = true
+end
+```
+
+### What Gets Captured
+
+| Metric | Source | Notes |
+|--------|--------|-------|
+| GC stats | `GC.stat` | heap_live_slots, heap_free_slots, major_gc_count, total_allocated_objects |
+| Process memory | `/proc/self/status` | RSS in MB, Linux only (nil on macOS) |
+| Thread count | `Thread.list.count` | O(1), safe |
+| Connection pool | `ActiveRecord::Base.connection_pool.stat` | size, busy, idle, dead, waiting |
+| Puma stats | `Puma.stats` | running, max_threads, pool_capacity, backlog (when available) |
+
+### Safety
+
+- **Default OFF** — opt-in only
+- **Sub-millisecond** — total snapshot < 1ms
+- **Every metric individually wrapped** in `rescue => nil`
+- **Top-level rescue** — returns `{ captured_at: ... }` if everything fails (never raises)
+- **No ObjectSpace scanning** — never calls `each_object` or `count_objects`
+- **No Thread backtraces** — only `.count`, never `.map(&:backtrace)`
+- **No subprocess** — memory via procfs only, no `ps`, no fork, no backtick
+- **No global state** — no Thread.current, no mutex, no memoization
 
 ---
 
@@ -1205,6 +1347,26 @@ RailsErrorDashboard.configure do |config|
 
   # Branch strategy for repository links (default: :commit_sha)
   config.git_branch_strategy = :commit_sha
+
+  # ============================================================================
+  # BREADCRUMBS (NEW!)
+  # ============================================================================
+
+  # Enable breadcrumbs (request activity trail)
+  config.enable_breadcrumbs = true
+
+  # Max events per request (default: 40)
+  config.breadcrumb_buffer_size = 40
+
+  # Capture all categories (default: nil = all)
+  # config.breadcrumb_categories = [:sql, :controller, :cache, :job, :mailer, :custom]
+
+  # ============================================================================
+  # SYSTEM HEALTH SNAPSHOT (NEW!)
+  # ============================================================================
+
+  # Capture GC, memory, threads, connection pool at error time
+  config.enable_system_health = true
 
   # ============================================================================
   # ADDITIONAL CONFIGURATION

@@ -83,6 +83,12 @@ class CreateRailsErrorDashboardCompleteSchema < ActiveRecord::Migration[7.0]
       # Auto-reopen tracking (from 20260221000002)
       t.datetime :reopened_at
 
+      # Breadcrumbs (from 20260303000001)
+      t.text :breadcrumbs
+
+      # System health snapshot (from 20260304000001)
+      t.text :system_health
+
       t.timestamps
     end
 

@@ -27,6 +27,16 @@ module RailsErrorDashboard
           cause_chain: serialize_cause_chain(exception)
         }
 
+        # Harvest breadcrumbs NOW (before job dispatch — different thread won't have them)
+        if RailsErrorDashboard.configuration.enable_breadcrumbs
+          context = context.merge(_serialized_breadcrumbs: Services::BreadcrumbCollector.harvest)
+        end
+
+        # Capture system health NOW (metrics are time-sensitive, different thread = different state)
+        if RailsErrorDashboard.configuration.enable_system_health
+          context = context.merge(_serialized_system_health: Services::SystemHealthSnapshot.capture)
+        end
+
         # Enqueue the async job using ActiveJob
         # The queue adapter (:sidekiq, :solid_queue, :async) is configured separately
         AsyncErrorLoggingJob.perform_later(exception_data, context)
@@ -145,6 +155,29 @@ module RailsErrorDashboard
 
         # Apply sensitive data filtering (on by default)
         attributes = Services::SensitiveDataFilter.filter_attributes(attributes)
+
+        # Harvest breadcrumbs (if enabled and column exists)
+        if ErrorLog.column_names.include?("breadcrumbs") && RailsErrorDashboard.configuration.enable_breadcrumbs
+          # Sync path: harvest from current thread
+          raw_breadcrumbs = Services::BreadcrumbCollector.harvest
+
+          # Async path fallback: use pre-serialized breadcrumbs from call_async context
+          if raw_breadcrumbs.empty?
+            serialized = @context[:_serialized_breadcrumbs]
+            raw_breadcrumbs = serialized if serialized.is_a?(Array)
+          end
+
+          if raw_breadcrumbs.is_a?(Array) && raw_breadcrumbs.any?
+            filtered = Services::BreadcrumbCollector.filter_sensitive(raw_breadcrumbs)
+            attributes[:breadcrumbs] = filtered.to_json
+          end
+        end
+
+        # Capture system health snapshot (if enabled and column exists)
+        if ErrorLog.column_names.include?("system_health") && RailsErrorDashboard.configuration.enable_system_health
+          health_data = @context[:_serialized_system_health] || Services::SystemHealthSnapshot.capture
+          attributes[:system_health] = health_data.to_json
+        end
 
         # Find existing error or create new one
         # This ensures accurate occurrence tracking

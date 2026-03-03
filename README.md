@@ -4,6 +4,7 @@
 [![Downloads](https://img.shields.io/gem/dt/rails_error_dashboard)](https://rubygems.org/gems/rails_error_dashboard)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://github.com/AnjanJ/rails_error_dashboard/workflows/Tests/badge.svg)](https://github.com/AnjanJ/rails_error_dashboard/actions)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?logo=buymeacoffee)](https://buymeacoffee.com/anjanj)
 
 ## Self-hosted Rails error monitoring — free, forever.
 
@@ -158,7 +159,7 @@ Detect cyclical patterns (business hours, nighttime, weekend rhythms) and error 
 **Plus: Developer Insights Dashboard** 💡
 Built-in analytics dashboard with severity detection, platform stability scoring, actionable recommendations, and recent error activity summaries (always available, no configuration needed).
 
-#### 🔍 Source Code Integration (NEW!)
+#### 🔍 Source Code Integration
 
 **View actual source code directly in error backtraces** - no need to switch to your editor or GitHub.
 
@@ -168,21 +169,49 @@ Built-in analytics dashboard with severity detection, platform stability scoring
 - **Smart Caching** - Fast performance with 1-hour cache (configurable)
 - **Security Controls** - Only shows your app code by default (not gems/frameworks)
 
-**Perfect for debugging:**
-- Understand the code context without leaving the dashboard
-- Identify code ownership with git blame
-- Quick navigation to your repository
-- See recent changes that might have caused the error
-
 ```ruby
-# Enable in config/initializers/rails_error_dashboard.rb
 config.enable_source_code_integration = true
-config.source_code_context_lines = 7
 config.enable_git_blame = true
-config.git_repository_url = "https://github.com/user/repo"
 ```
 
 **📖 [Complete documentation →](docs/SOURCE_CODE_INTEGRATION.md)**
+
+#### 🥖 Breadcrumbs — Request Activity Trail (NEW!)
+
+**See exactly what happened before the crash** — SQL queries, controller actions, cache operations, job executions, and mailer deliveries captured automatically via `ActiveSupport::Notifications`.
+
+- **Automatic capture** — Zero config beyond the enable flag (Rails already emits the events)
+- **Timeline display** — Color-coded event list on each error's detail page
+- **Deprecation warnings** — `deprecation.rails` events captured with caller location
+- **N+1 detection** — Repeated SQL patterns flagged automatically at display time
+- **Custom breadcrumbs** — `RailsErrorDashboard.add_breadcrumb("checkout started", { cart_id: 123 })`
+- **Safe by design** — Fixed-size ring buffer, thread-local, every subscriber wrapped in rescue
+- **Async-compatible** — Breadcrumbs harvested before background job dispatch
+
+```ruby
+config.enable_breadcrumbs = true
+config.breadcrumb_buffer_size = 40  # Max events per request
+```
+
+**📖 [Complete documentation →](docs/FEATURES.md#breadcrumbs--request-activity-trail-new)**
+
+#### 💓 System Health Snapshot (NEW!)
+
+**Know your app's runtime state at the moment of failure** — GC stats, process memory, thread count, connection pool utilization, and Puma thread stats captured automatically when errors occur.
+
+- **GC stats** — Heap live/free slots, major GC count, total allocated objects
+- **Process memory** — RSS in MB (Linux procfs only, no subprocess/fork)
+- **Thread count** — `Thread.list.count` (O(1), safe)
+- **Connection pool** — Size, busy, idle, dead, waiting connections
+- **Puma stats** — Running threads, max threads, pool capacity, backlog
+- **Sub-millisecond** — Total snapshot < 1ms, every metric individually rescue-wrapped
+- **Safe by design** — No ObjectSpace scanning, no Thread backtraces, no subprocess calls
+
+```ruby
+config.enable_system_health = true
+```
+
+**📖 [Complete documentation →](docs/FEATURES.md#system-health-snapshot-new)**
 
 #### 🆕 v0.2 Quick Wins (NEW!)
 
@@ -973,6 +1002,12 @@ Special thanks to:
 See [CONTRIBUTORS.md](CONTRIBUTORS.md) for the complete list of contributors and their contributions.
 
 Want to contribute? Check out our [Contributing Guide](CONTRIBUTING.md)!
+
+---
+
+## Support
+
+If this gem saves you some headaches (or some money on error tracking SaaS), consider [buying me a coffee](https://buymeacoffee.com/anjanj). It keeps the project going and lets me know people are finding it useful.
 
 ---
 
