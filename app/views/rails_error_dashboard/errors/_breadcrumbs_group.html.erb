@@ -79,6 +79,69 @@
             <% end %>
           <% end %>
 
+          <% cache_analysis = RailsErrorDashboard::Services::CacheAnalyzer.call(breadcrumbs) %>
+          <% if cache_analysis %>
+            <div class="card mb-4" id="section-cache-health" style="border-color: var(--bs-info);">
+              <div class="card-header bg-white">
+                <h5 class="mb-0">
+                  <i class="bi bi-lightning-charge text-info"></i> Cache Health
+                  <span class="badge bg-info text-dark"><%= cache_analysis[:reads] + cache_analysis[:writes] %> operations</span>
+                </h5>
+                <small class="text-muted">Cache activity analysis from this request's breadcrumbs</small>
+              </div>
+              <div class="card-body">
+                <div class="row text-center mb-3">
+                  <div class="col-4">
+                    <div class="fs-4 fw-bold"><%= cache_analysis[:reads] %></div>
+                    <small class="text-muted">Reads</small>
+                  </div>
+                  <div class="col-4">
+                    <div class="fs-4 fw-bold"><%= cache_analysis[:writes] %></div>
+                    <small class="text-muted">Writes</small>
+                  </div>
+                  <div class="col-4">
+                    <% if cache_analysis[:hit_rate] %>
+                      <div class="fs-4 fw-bold text-<%= cache_analysis[:hit_rate] >= 80 ? 'success' : cache_analysis[:hit_rate] >= 50 ? 'warning' : 'danger' %>">
+                        <%= cache_analysis[:hit_rate] %>%
+                      </div>
+                      <small class="text-muted">Hit Rate</small>
+                    <% else %>
+                      <div class="fs-4 fw-bold text-muted">--</div>
+                      <small class="text-muted">Hit Rate</small>
+                    <% end %>
+                  </div>
+                </div>
+
+                <% if cache_analysis[:hits] > 0 || cache_analysis[:misses] > 0 %>
+                  <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                      <small><span class="badge bg-success"><%= cache_analysis[:hits] %> hits</span></small>
+                      <small><span class="badge bg-danger"><%= cache_analysis[:misses] %> misses</span></small>
+                    </div>
+                    <% hit_pct = cache_analysis[:hit_rate] || 0 %>
+                    <div class="progress" style="height: 6px;">
+                      <div class="progress-bar bg-success" style="width: <%= hit_pct %>%"></div>
+                      <div class="progress-bar bg-danger" style="width: <%= 100 - hit_pct %>%"></div>
+                    </div>
+                  </div>
+                <% end %>
+
+                <% if cache_analysis[:unknown] > 0 %>
+                  <small class="text-muted d-block mb-2">
+                    <i class="bi bi-info-circle"></i> <%= cache_analysis[:unknown] %> read<%= cache_analysis[:unknown] == 1 ? "" : "s" %> with unknown hit status (older breadcrumbs)
+                  </small>
+                <% end %>
+
+                <div class="d-flex justify-content-between">
+                  <small class="text-muted">Total cache time: <strong><%= "%.1f" % cache_analysis[:total_duration_ms] %>ms</strong></small>
+                  <% if cache_analysis[:slowest] && cache_analysis[:slowest][:duration_ms] > 0 %>
+                    <small class="text-muted">Slowest: <strong><%= "%.1f" % cache_analysis[:slowest][:duration_ms] %>ms</strong></small>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+          <% end %>
+
           <div class="card mb-4" id="section-breadcrumbs">
             <div class="card-header bg-white">
               <h5 class="mb-0">

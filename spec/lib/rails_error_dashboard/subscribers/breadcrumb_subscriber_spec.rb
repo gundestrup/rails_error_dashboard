@@ -125,6 +125,38 @@ RSpec.describe RailsErrorDashboard::Subscribers::BreadcrumbSubscriber do
       expect(cache_crumbs.last[:m]).to include("users/1")
     end
 
+    it "captures hit metadata on cache reads" do
+      ActiveSupport::Notifications.instrument("cache_read.active_support", {
+        key: "users/1",
+        hit: true
+      }) { }
+
+      breadcrumbs = collector.harvest
+      crumb = breadcrumbs.select { |c| c[:c] == "cache" }.last
+      expect(crumb[:meta]).to eq({ hit: "true" })
+    end
+
+    it "captures miss metadata on cache reads" do
+      ActiveSupport::Notifications.instrument("cache_read.active_support", {
+        key: "users/2",
+        hit: false
+      }) { }
+
+      breadcrumbs = collector.harvest
+      crumb = breadcrumbs.select { |c| c[:c] == "cache" }.last
+      expect(crumb[:meta]).to eq({ hit: "false" })
+    end
+
+    it "does not add metadata for cache writes" do
+      ActiveSupport::Notifications.instrument("cache_write.active_support", {
+        key: "users/1"
+      }) { }
+
+      breadcrumbs = collector.harvest
+      crumb = breadcrumbs.select { |c| c[:c] == "cache" }.last
+      expect(crumb[:meta]).to be_nil
+    end
+
     it "adds cache write breadcrumb" do
       ActiveSupport::Notifications.instrument("cache_write.active_support", {
         key: "users/1"

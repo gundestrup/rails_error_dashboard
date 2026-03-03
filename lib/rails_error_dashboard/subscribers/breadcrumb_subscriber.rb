@@ -158,7 +158,12 @@ module RailsErrorDashboard
           key = payload[:key].to_s
           message = "cache #{operation}: #{key}"
 
-          Services::BreadcrumbCollector.add("cache", message, duration_ms: event.duration)
+          metadata = nil
+          if operation == "read" && !payload[:hit].nil?
+            metadata = { hit: payload[:hit] }
+          end
+
+          Services::BreadcrumbCollector.add("cache", message, duration_ms: event.duration, metadata: metadata)
         end
 
         def handle_job(event)
