@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "filepath=\"$TOOL_INPUT_FILE_PATH$TOOL_INPUT_file_path\"; if [ -n \"$filepath\" ] && echo \"$filepath\" | grep -q '\\.rb$'; then cd /Users/aj/code/rails_error_dashboard && bundle exec rubocop -a \"$filepath\" 2>&1 | tail -5; true; fi",
+            "timeout": 15000
+          }
+        ]
+      }
+    ]
+  }
+}
