@@ -170,10 +170,10 @@ end
 **Using Devise or another auth system?** Replace HTTP Basic Auth with a lambda:
 
 ```ruby
-config.authenticate_with = -> { current_user&.admin? }
+config.authenticate_with = -> { warden.authenticated? }
 ```
 
-See the [Configuration Guide](guides/CONFIGURATION.md#custom-authentication) for Warden, session-based, and other examples.
+> **Note:** Devise helpers like `current_user` are not available in the engine controller context. Use `warden` directly instead. See the [Configuration Guide](guides/CONFIGURATION.md#custom-authentication) for details and examples.
 
 You can enable or disable any feature at any time by editing this file. Just change `true` to `false` (or vice versa) and restart your Rails server.
 
@@ -312,8 +312,10 @@ config.dashboard_password = "your_password"
 
 **Using custom auth (Devise/Warden)?** Verify your lambda works:
 ```ruby
-config.authenticate_with = -> { current_user&.admin? }
+config.authenticate_with = -> { warden.authenticated? }
 ```
+**Common mistake:** Using `current_user` — this will raise `NameError` because Devise helpers aren't available in the engine controller. Use `warden` directly instead.
+
 Check `log/production.log` for `[RailsErrorDashboard] authenticate_with lambda raised` messages — these indicate your lambda is raising an error (which results in 403 denied).
 
 **Restart server** after changing configuration:

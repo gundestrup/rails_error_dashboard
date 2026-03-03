@@ -432,7 +432,7 @@ module RailsErrorDashboard
         end
         say "Authentication:", :cyan
         say "  Default: HTTP Basic Auth (gandalf/youshallnotpass)", :white
-        say "  Devise/Warden: config.authenticate_with = -> { current_user&.admin? }", :white
+        say "  Devise/Warden: config.authenticate_with = -> { warden.authenticated? }", :white
         say "  Session-based: config.authenticate_with = -> { session[:admin] == true }", :white
         say "  See: https://github.com/AnjanJ/rails_error_dashboard/blob/main/docs/guides/CONFIGURATION.md#custom-authentication", :white
         say "\n"

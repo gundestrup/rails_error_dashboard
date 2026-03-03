@@ -319,7 +319,7 @@ RailsErrorDashboard.configure do |config|
   config.dashboard_password = ENV.fetch('ERROR_DASHBOARD_PASSWORD', 'youshallnotpass')
 
   # Or use your existing auth (Devise, Warden, etc.) instead of Basic Auth:
-  # config.authenticate_with = -> { current_user&.admin? }
+  # config.authenticate_with = -> { warden.authenticated? }
 
   # ============================================================================
   # OPTIONAL FEATURES (Enable as needed)

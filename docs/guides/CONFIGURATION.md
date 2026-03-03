@@ -280,22 +280,34 @@ If you use Devise, Warden, or any other auth system, you can replace HTTP Basic 
 
 ```ruby
 RailsErrorDashboard.configure do |config|
-  # Devise
-  config.authenticate_with = -> { current_user&.admin? }
+  # Devise/Warden — use warden directly (recommended)
+  config.authenticate_with = -> {
+    if warden.authenticated?
+      true
+    else
+      redirect_to main_app.new_user_session_path, allow_other_host: true
+    end
+  }
 
-  # Warden
+  # Warden with admin scope
   config.authenticate_with = -> { warden.authenticated?(:admin) }
 
   # Session-based
   config.authenticate_with = -> { session[:dashboard_admin] == true }
-
-  # Role-based
-  config.authenticate_with = -> { current_user&.role.in?(["admin", "developer"]) }
 end
 ```
 
+> **Important: Engine controller context.** The lambda runs inside the engine's controller, which inherits from `ActionController::Base` — not your app's `ApplicationController`. This means Devise helpers like `current_user` and `authenticate_user!` are **not available**. Use `warden` (the underlying Rack middleware) instead:
+>
+> | Works | Doesn't work |
+> |-------|-------------|
+> | `warden.authenticated?` | `current_user` |
+> | `warden.user` | `authenticate_user!` |
+> | `warden.authenticate(:scope => :user)` | `user_signed_in?` |
+> | `session`, `cookies`, `request`, `params` | Devise helper methods |
+
 **How it works:**
-- The lambda has full access to `current_user`, `session`, `request`, `params`, `cookies`, etc.
+- The lambda has access to `warden`, `session`, `request`, `params`, `cookies`, `redirect_to`, etc.
 - **Truthy return** → access granted
 - **Falsy return** (including `nil`) → 403 Forbidden
 - **Lambda raises** → rescued, logged, 403 (fail closed)

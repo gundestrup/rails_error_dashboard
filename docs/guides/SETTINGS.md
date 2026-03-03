@@ -338,7 +338,7 @@ Run `echo $OPTION` in your shell to see actual environment value.
 **Solution for custom auth (403)**:
 1. Verify your `authenticate_with` lambda returns truthy for authorized users
 2. Check logs for `[RailsErrorDashboard] authenticate_with lambda raised` — this means the lambda is erroring
-3. Ensure `current_user` or other helpers are available in the controller context
+3. Use `warden` instead of `current_user` — Devise helpers are not available in the engine controller (see [Custom Authentication](CONFIGURATION.md#custom-authentication))
 
 ---
 
