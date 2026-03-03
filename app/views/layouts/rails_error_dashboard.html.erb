@@ -3,6 +3,7 @@
   <head>
     <title><%= content_for?(:page_title) ? "#{content_for(:page_title)} | " : "" %><%= Rails.application.class.module_parent_name %> - Error Dashboard</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="turbo-visit-control" content="reload">
     <% if respond_to?(:csrf_meta_tags) %>
       <%= csrf_meta_tags %>
     <% end %>
@@ -1382,7 +1383,7 @@ body.dark-mode .skeleton {
     </style>
   </head>
 
-  <body>
+  <body data-turbo="false">
     <!-- Toast Container -->
     <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;">
       <!-- Toasts will be dynamically inserted here -->
