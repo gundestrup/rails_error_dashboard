@@ -125,7 +125,7 @@ Modern Bootstrap 5 UI with dark/light mode, responsive design, real-time statist
 Error assignment and status tracking, priority levels (critical/high/medium/low), snooze functionality, comment threads, batch operations (bulk resolve/delete), resolution tracking with references.
 
 #### 🔒 Security & Privacy
-HTTP Basic Auth or custom authentication (Devise, Warden, session-based), environment-based settings, optional separate database for isolation. Your data stays on your server - no third-party access.
+HTTP Basic Auth or custom authentication via `config.authenticate_with` lambda (Devise, Warden, session-based — runs in controller context with access to `warden`, `session`, `request`). Environment-based settings, optional separate database for isolation. Your data stays on your server - no third-party access.
 
 ### Optional Features (Choose During Install)
 

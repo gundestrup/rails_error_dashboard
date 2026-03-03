@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - 2026-03-03
 
 ### Added
+- **Flexible authentication via lambda (#85)** — `config.authenticate_with` lets you use Devise, Warden, session-based, or any custom auth instead of HTTP Basic Auth. The lambda runs in controller context via `instance_exec`, with access to `warden`, `session`, `request`, `params`, `cookies`, and `redirect_to`. Fail-closed: exceptions are rescued, logged, and result in 403 Forbidden
 - **Deprecation Warnings page** — Aggregate view of all deprecation warnings across errors, grouped by message and source, with occurrence counts, affected error links, and time range filtering (7/30/90 days). Available at `/errors/deprecations` when breadcrumbs are enabled
 - **N+1 Query Patterns page** — Cross-error view of N+1 query patterns grouped by SQL fingerprint, showing total occurrences, affected errors, cumulative query time, and sample queries. Available at `/errors/n_plus_one_summary` when breadcrumbs are enabled
 - **Cache Health page** — Per-error cache performance overview sorted worst-first, showing hit rate, read/write counts, slowest operations, and total cache time. Available at `/errors/cache_health_summary` when breadcrumbs are enabled
