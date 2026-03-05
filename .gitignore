@@ -27,8 +27,8 @@ coverage/
 .byebug_history
 log/
 
-# Ignore Claude IDE settings
-.claude/settings.local.json
+# Ignore Claude Code settings, skills, and agents
+.claude/
 
 # Ignore JetBrains IDE settings
 .idea
@@ -51,6 +51,7 @@ app/assets/stylesheets/rails_error_dashboard/*.css.map
 .DS_Store
 
 # Private research/planning docs (not for public repo)
+AGENTS.md
 DEEP_INTROSPECTION_ANALYSIS.md
 FAULTLINE_COMPARISON.md
 HOST_APP_SAFETY.md
@@ -58,3 +59,6 @@ ROADMAP.md
 TIMESERIES_ANALYSIS.md
 seo/
 blog/
+
+# Task management (local working files)
+tasks/
