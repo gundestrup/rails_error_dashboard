@@ -127,6 +127,15 @@ module RailsErrorDashboard
     # System health snapshot (GC, memory, threads, connection pool at error time)
     attr_accessor :enable_system_health            # Master switch (default: false)
 
+    # Local variable capture via TracePoint(:raise)
+    attr_accessor :enable_local_variables            # Master switch (default: false)
+    attr_accessor :local_variable_max_count           # Max variables to capture (default: 15)
+    attr_accessor :local_variable_max_depth           # Max object nesting depth (default: 3)
+    attr_accessor :local_variable_max_string_length   # Max string value length (default: 200)
+    attr_accessor :local_variable_max_array_items     # Max array items to serialize (default: 10)
+    attr_accessor :local_variable_max_hash_items      # Max hash entries to serialize (default: 20)
+    attr_accessor :local_variable_filter_patterns     # Additional sensitive name patterns (default: [])
+
     # Notification callbacks (managed via helper methods, not set directly)
     attr_reader :notification_callbacks
 
@@ -238,6 +247,15 @@ module RailsErrorDashboard
       # System health snapshot defaults - OFF by default (opt-in)
       @enable_system_health = false  # Capture GC, memory, threads, connection pool at error time
 
+      # Local variable capture defaults - OFF by default (opt-in)
+      @enable_local_variables = false           # TracePoint(:raise) for local var capture
+      @local_variable_max_count = 15            # Max variables per exception
+      @local_variable_max_depth = 3             # Max nesting depth for objects
+      @local_variable_max_string_length = 200   # Truncate strings beyond this
+      @local_variable_max_array_items = 10      # Max array items to serialize
+      @local_variable_max_hash_items = 20       # Max hash entries to serialize
+      @local_variable_filter_patterns = []      # Additional sensitive variable name patterns
+
       # Internal logging defaults - SILENT by default
       @enable_internal_logging = false  # Opt-in for debugging
       @log_level = :silent  # Silent by default, use :debug, :info, :warn, :error, or :silent
@@ -328,6 +346,19 @@ module RailsErrorDashboard
       # Validate n_plus_one_threshold (must be at least 2 if detection enabled)
       if enable_n_plus_one_detection && n_plus_one_threshold && n_plus_one_threshold < 2
         errors << "n_plus_one_threshold must be at least 2 (got: #{n_plus_one_threshold})"
+      end
+
+      # Validate local variable capture settings
+      if enable_local_variables
+        if local_variable_max_count && local_variable_max_count < 1
+          errors << "local_variable_max_count must be at least 1 (got: #{local_variable_max_count})"
+        end
+        if local_variable_max_depth && local_variable_max_depth < 1
+          errors << "local_variable_max_depth must be at least 1 (got: #{local_variable_max_depth})"
+        end
+        if local_variable_max_string_length && local_variable_max_string_length < 1
+          errors << "local_variable_max_string_length must be at least 1 (got: #{local_variable_max_string_length})"
+        end
       end
 
       # Validate notification dependencies

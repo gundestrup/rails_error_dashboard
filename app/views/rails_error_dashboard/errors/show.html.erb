@@ -59,6 +59,8 @@
     <div class="col-md-8">
       <%= render "error_info", error: @error %>
 
+      <%= render "local_variables", error: @error %>
+
       <%= render "request_context", error: @error %>
 
       <%= render "breadcrumbs_group", error: @error %>

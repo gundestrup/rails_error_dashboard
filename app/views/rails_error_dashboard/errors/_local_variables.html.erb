@@ -1,0 +1,46 @@
+      <!-- Local Variables (captured via TracePoint) -->
+      <% if RailsErrorDashboard.configuration.enable_local_variables && error.respond_to?(:local_variables) && error.local_variables.present? %>
+        <% local_vars = JSON.parse(error.local_variables) rescue {} %>
+        <% if local_vars.any? %>
+          <div class="card mb-4" id="section-local-variables">
+            <div class="card-header bg-white">
+              <h5 class="mb-0">
+                <i class="bi bi-braces"></i> Local Variables
+                <span class="badge bg-secondary"><%= local_vars.size %> captured</span>
+              </h5>
+              <small class="text-muted">Variables from the stack frame where the exception was raised</small>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th width="200">Variable</th>
+                      <th width="120">Type</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% local_vars.each do |name, info| %>
+                      <tr>
+                        <td><code><%= name %></code></td>
+                        <td><small class="text-muted"><%= info["type"] %></small></td>
+                        <td>
+                          <% if info["filtered"] %>
+                            <span class="badge bg-warning text-dark">[FILTERED]</span>
+                          <% else %>
+                            <code style="word-break: break-all; font-size: 0.85em;"><%= truncate(info["value"].to_s, length: 500) %></code>
+                            <% if info["truncated"] %>
+                              <span class="badge bg-info text-dark ms-1" style="font-size: 0.7em;">truncated</span>
+                            <% end %>
+                          <% end %>
+                        </td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      <% end %>

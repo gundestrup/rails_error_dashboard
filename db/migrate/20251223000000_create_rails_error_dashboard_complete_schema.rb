@@ -89,6 +89,9 @@ class CreateRailsErrorDashboardCompleteSchema < ActiveRecord::Migration[7.0]
       # System health snapshot (from 20260304000001)
       t.text :system_health
 
+      # Local variable capture (from 20260306000001)
+      t.text :local_variables
+
       t.timestamps
     end
 

@@ -489,5 +489,100 @@ RSpec.describe RailsErrorDashboard::Commands::LogError do
         }.not_to have_enqueued_job(RailsErrorDashboard::SlackErrorNotificationJob)
       end
     end
+
+    context "local variable capture" do
+      before do
+        RailsErrorDashboard.configuration.enable_local_variables = true
+        RailsErrorDashboard.configuration.filter_sensitive_data = true
+        RailsErrorDashboard::Services::SensitiveDataFilter.reset!
+      end
+
+      after do
+        RailsErrorDashboard::Services::SensitiveDataFilter.reset!
+      end
+
+      it "stores filtered local variables when enabled and column exists" do
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("local_variables")
+
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_locals, { user_name: "Gandalf", password: "secret123", count: 42 })
+
+        described_class.call(exc, context)
+        error_log = RailsErrorDashboard::ErrorLog.last
+
+        expect(error_log.local_variables).to be_present
+        parsed = JSON.parse(error_log.local_variables)
+        expect(parsed["user_name"]["value"]).to eq("Gandalf")
+        expect(parsed["password"]["value"]).to eq("[FILTERED]")
+        expect(parsed["password"]["filtered"]).to be true
+        expect(parsed["count"]["value"]).to eq(42)
+      end
+
+      it "does not store local variables when feature is disabled" do
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("local_variables")
+
+        RailsErrorDashboard.configuration.enable_local_variables = false
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_locals, { data: "should not be stored" })
+
+        described_class.call(exc, context)
+        error_log = RailsErrorDashboard::ErrorLog.last
+
+        expect(error_log.local_variables).to be_nil
+      end
+
+      it "handles missing local_variables column gracefully" do
+        allow(RailsErrorDashboard::ErrorLog).to receive(:column_names)
+          .and_return(RailsErrorDashboard::ErrorLog.column_names - [ "local_variables" ])
+
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_locals, { data: "test" })
+
+        expect {
+          described_class.call(exc, context)
+        }.to change(RailsErrorDashboard::ErrorLog, :count).by(1)
+      end
+
+      it "handles exception without @_red_locals" do
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("local_variables")
+
+        described_class.call(exception, context)
+        error_log = RailsErrorDashboard::ErrorLog.last
+
+        expect(error_log.local_variables).to be_nil
+      end
+
+      it "handles VariableSerializer failure gracefully" do
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("local_variables")
+
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_locals, { data: "test" })
+
+        # VariableSerializer.call has internal rescue => {} so it never raises to caller.
+        # When it fails internally, it returns {} which gets written as "{}".
+        allow(RailsErrorDashboard::Services::VariableSerializer).to receive(:call)
+          .and_return({})
+
+        # Error log is still created — serializer failure doesn't block capture
+        expect {
+          described_class.call(exc, context)
+        }.to change(RailsErrorDashboard::ErrorLog, :count).by(1)
+      end
+
+      it "uses pre-serialized locals from async context" do
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("local_variables")
+
+        pre_serialized = { "name" => { type: "String", value: "Gandalf", truncated: false } }
+        ctx = context.merge(_serialized_local_variables: pre_serialized)
+
+        # Exception without @_red_locals (async path — already extracted)
+        described_class.call(exception, ctx)
+        error_log = RailsErrorDashboard::ErrorLog.last
+
+        expect(error_log.local_variables).to be_present
+        parsed = JSON.parse(error_log.local_variables)
+        expect(parsed["name"]["value"]).to eq("Gandalf")
+      end
+    end
   end
 end

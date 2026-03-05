@@ -37,6 +37,14 @@ module RailsErrorDashboard
           context = context.merge(_serialized_system_health: Services::SystemHealthSnapshot.capture)
         end
 
+        # Capture local variables NOW (TracePoint attaches to exception, must extract before job dispatch)
+        if RailsErrorDashboard.configuration.enable_local_variables
+          raw_locals = Services::LocalVariableCapturer.extract(exception)
+          if raw_locals.is_a?(Hash) && raw_locals.any?
+            context = context.merge(_serialized_local_variables: Services::VariableSerializer.call(raw_locals))
+          end
+        end
+
         # Enqueue the async job using ActiveJob
         # The queue adapter (:sidekiq, :solid_queue, :async) is configured separately
         AsyncErrorLoggingJob.perform_later(exception_data, context)
@@ -177,6 +185,18 @@ module RailsErrorDashboard
         if ErrorLog.column_names.include?("system_health") && RailsErrorDashboard.configuration.enable_system_health
           health_data = @context[:_serialized_system_health] || Services::SystemHealthSnapshot.capture
           attributes[:system_health] = health_data.to_json
+        end
+
+        # Capture local variables (if enabled and column exists)
+        if ErrorLog.column_names.include?("local_variables") && RailsErrorDashboard.configuration.enable_local_variables
+          # Sync path: extract from exception ivar
+          raw_locals = Services::LocalVariableCapturer.extract(@exception)
+          # Async path fallback: use pre-serialized locals from call_async context
+          raw_locals ||= @context[:_serialized_local_variables]
+          if raw_locals.is_a?(Hash) && raw_locals.any?
+            serialized = raw_locals == @context[:_serialized_local_variables] ? raw_locals : Services::VariableSerializer.call(raw_locals)
+            attributes[:local_variables] = serialized.to_json
+          end
         end
 
         # Find existing error or create new one
