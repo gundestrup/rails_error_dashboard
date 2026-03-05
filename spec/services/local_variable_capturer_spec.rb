@@ -186,7 +186,9 @@ RSpec.describe RailsErrorDashboard::Services::LocalVariableCapturer do
         exception = e
       end
 
-      # eval'd code starts with "<" which is filtered
+      # Ruby 3.3+: path starts with "<" (e.g. "<eval>")
+      # Ruby 3.2:  path starts with "(" (e.g. "(eval)")
+      # Both are filtered by skip_path?
       locals = described_class.extract(exception)
       expect(locals).to be_nil
     end

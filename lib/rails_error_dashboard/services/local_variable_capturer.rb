@@ -92,7 +92,8 @@ module RailsErrorDashboard
             path.include?("/vendor/") ||
             path.include?("/ruby/") ||
             path.include?("rails_error_dashboard") ||
-            path.start_with?("<") # eval, irb, etc.
+            path.start_with?("<") ||   # Ruby 3.3+: <eval>, <irb>, etc.
+            path.start_with?("(")      # Ruby 3.2: (eval), (irb), etc.
         end
 
         # Extract local variables from a binding (per-variable rescue)
