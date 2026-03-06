@@ -70,8 +70,9 @@ module RailsErrorDashboard
         RailsErrorDashboard::Subscribers::BreadcrumbSubscriber.subscribe!
       end
 
-      # Enable TracePoint(:raise) for local variable capture
-      if RailsErrorDashboard.configuration.enable_local_variables
+      # Enable TracePoint(:raise) for local variable and/or instance variable capture
+      if RailsErrorDashboard.configuration.enable_local_variables ||
+         RailsErrorDashboard.configuration.enable_instance_variables
         RailsErrorDashboard::Services::LocalVariableCapturer.enable!
       end
     end

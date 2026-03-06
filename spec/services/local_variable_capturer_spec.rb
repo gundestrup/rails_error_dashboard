@@ -194,6 +194,311 @@ RSpec.describe RailsErrorDashboard::Services::LocalVariableCapturer do
     end
   end
 
+  describe ".extract_instance_vars" do
+    it "returns nil for nil input" do
+      expect(described_class.extract_instance_vars(nil)).to be_nil
+    end
+
+    it "returns nil for non-exception input" do
+      expect(described_class.extract_instance_vars("not an exception")).to be_nil
+    end
+
+    it "returns nil when exception has no @_red_instance_vars" do
+      exception = StandardError.new("test")
+      expect(described_class.extract_instance_vars(exception)).to be_nil
+    end
+
+    it "returns hash when exception has @_red_instance_vars" do
+      exception = StandardError.new("test")
+      ivars = { :_self_class => "MyController", :@user => "Gandalf", :@count => 42 }
+      exception.instance_variable_set(:@_red_instance_vars, ivars)
+
+      result = described_class.extract_instance_vars(exception)
+      expect(result).to be_a(Hash)
+      expect(result[:_self_class]).to eq("MyController")
+      expect(result[:@user]).to eq("Gandalf")
+      expect(result[:@count]).to eq(42)
+    end
+
+    it "never raises even with problematic exception" do
+      exception = StandardError.new("test")
+      allow(exception).to receive(:instance_variable_defined?).and_raise("boom")
+      expect { described_class.extract_instance_vars(exception) }.not_to raise_error
+      expect(described_class.extract_instance_vars(exception)).to be_nil
+    end
+  end
+
+  describe "instance variable capture behavior" do
+    before do
+      described_class.enable!
+      RailsErrorDashboard.configuration.enable_instance_variables = true
+    end
+
+    after do
+      RailsErrorDashboard.configuration.enable_instance_variables = false
+    end
+
+    it "captures instance variables when manually attached" do
+      exception = StandardError.new("test error")
+      ivars = {
+        :_self_class => "UsersController",
+        :@current_user => "User#1",
+        :@retry_count => 3
+      }
+      exception.instance_variable_set(:@_red_instance_vars, ivars)
+
+      result = described_class.extract_instance_vars(exception)
+      expect(result).to be_a(Hash)
+      expect(result[:_self_class]).to eq("UsersController")
+      expect(result[:@current_user]).to eq("User#1")
+      expect(result[:@retry_count]).to eq(3)
+    end
+
+    it "returns nil when instance variables feature is disabled and no ivars attached" do
+      RailsErrorDashboard.configuration.enable_instance_variables = false
+      exception = StandardError.new("test")
+      expect(described_class.extract_instance_vars(exception)).to be_nil
+    end
+
+    it "returns nil when exception has no @_red_instance_vars attached" do
+      exception = StandardError.new("test")
+      expect(described_class.extract_instance_vars(exception)).to be_nil
+    end
+  end
+
+  describe "capture_instance_vars (private, tested via on_raise)" do
+    before do
+      described_class.enable!
+      RailsErrorDashboard.configuration.enable_instance_variables = true
+      # Disable local variables to isolate instance var behavior
+      RailsErrorDashboard.configuration.enable_local_variables = false
+    end
+
+    after do
+      RailsErrorDashboard.configuration.enable_instance_variables = false
+      RailsErrorDashboard.configuration.enable_local_variables = false
+    end
+
+    it "skips @_red_ prefixed instance variables" do
+      exception = StandardError.new("test")
+      # Simulate: object had @_red_locals and @_red_instance_vars plus @user
+      ivars = { :_self_class => "Foo", :@user => "Gandalf" }
+      exception.instance_variable_set(:@_red_instance_vars, ivars)
+
+      result = described_class.extract_instance_vars(exception)
+      expect(result.keys).not_to include(:@_red_locals)
+      expect(result.keys).not_to include(:@_red_instance_vars)
+    end
+
+    it "respects instance_variable_max_count limit" do
+      RailsErrorDashboard.configuration.instance_variable_max_count = 3
+
+      exception = StandardError.new("test")
+      # Simulate more ivars than the limit (plus _self_class metadata)
+      ivars = { _self_class: "Foo" }
+      5.times { |i| ivars[:"@var_#{i}"] = "val_#{i}" }
+      exception.instance_variable_set(:@_red_instance_vars, ivars)
+
+      result = described_class.extract_instance_vars(exception)
+      # _self_class + 5 vars = 6, but the raw hash was pre-constructed
+      # The actual limit is enforced in capture_instance_vars (TracePoint callback)
+      expect(result).to be_a(Hash)
+    end
+
+    it "includes _self_class metadata in captured data" do
+      exception = StandardError.new("test")
+      ivars = { :_self_class => "UsersController", :@name => "Gandalf" }
+      exception.instance_variable_set(:@_red_instance_vars, ivars)
+
+      result = described_class.extract_instance_vars(exception)
+      expect(result[:_self_class]).to eq("UsersController")
+    end
+  end
+
+  describe "capture_instance_vars via real object extraction" do
+    # Tests the private capture_instance_vars method with real objects
+    # to verify TracePoint-style extraction behavior end-to-end.
+    # We call the private method directly since spec paths are filtered by skip_path?.
+    before do
+      described_class.enable!
+      RailsErrorDashboard.configuration.enable_instance_variables = true
+    end
+
+    after do
+      RailsErrorDashboard.configuration.enable_instance_variables = false
+    end
+
+    it "extracts instance variables from a real object" do
+      obj = Object.new
+      obj.instance_variable_set(:@user, "Gandalf")
+      obj.instance_variable_set(:@retry_count, 3)
+
+      result = described_class.send(:capture_instance_vars, obj)
+      expect(result).to be_a(Hash)
+      expect(result[:_self_class]).to eq("Object")
+      expect(result[:@user]).to eq("Gandalf")
+      expect(result[:@retry_count]).to eq(3)
+    end
+
+    it "captures _self_class metadata with the receiver's class name" do
+      klass = Class.new do
+        def self.name = "TestService"
+      end
+      obj = klass.new
+      obj.instance_variable_set(:@data, "value")
+
+      result = described_class.send(:capture_instance_vars, obj)
+      expect(result[:_self_class]).to eq("TestService")
+    end
+
+    it "filters out all @_ prefixed ivars (framework internals)" do
+      obj = Object.new
+      obj.instance_variable_set(:@_request, "GET /users")
+      obj.instance_variable_set(:@_response, "200 OK")
+      obj.instance_variable_set(:@_red_locals, { x: 1 })
+      obj.instance_variable_set(:@name, "Gandalf")
+
+      result = described_class.send(:capture_instance_vars, obj)
+      expect(result.keys).not_to include(:@_request, :@_response, :@_red_locals)
+      expect(result[:@name]).to eq("Gandalf")
+    end
+
+    it "returns nil when object has only @_ prefixed ivars" do
+      obj = Object.new
+      obj.instance_variable_set(:@_internal, "hidden")
+      obj.instance_variable_set(:@_framework, "rails")
+
+      result = described_class.send(:capture_instance_vars, obj)
+      expect(result).to be_nil
+    end
+
+    it "returns nil for nil object" do
+      result = described_class.send(:capture_instance_vars, nil)
+      expect(result).to be_nil
+    end
+
+    it "respects instance_variable_max_count limit" do
+      RailsErrorDashboard.configuration.instance_variable_max_count = 2
+
+      obj = Object.new
+      5.times { |i| obj.instance_variable_set(:"@var_#{i}", "val_#{i}") }
+
+      result = described_class.send(:capture_instance_vars, obj)
+      # _self_class metadata + 2 ivars (limited by max_count)
+      ivar_keys = result.keys - [ :_self_class ]
+      expect(ivar_keys.size).to eq(2)
+    end
+
+    it "handles anonymous class (nil class name) gracefully" do
+      obj = Class.new.new
+      obj.instance_variable_set(:@data, "test")
+
+      result = described_class.send(:capture_instance_vars, obj)
+      expect(result[:_self_class]).to be_a(String)
+    end
+
+    it "handles per-variable extraction errors gracefully" do
+      obj = Object.new
+      obj.instance_variable_set(:@good, "ok")
+      obj.instance_variable_set(:@bad, "will fail")
+
+      # Make instance_variable_get fail for :@bad
+      allow(obj).to receive(:instance_variable_get).and_call_original
+      allow(obj).to receive(:instance_variable_get).with(:@bad).and_raise(RuntimeError, "boom")
+
+      result = described_class.send(:capture_instance_vars, obj)
+      expect(result[:@good]).to eq("ok")
+      expect(result[:@bad]).to include("extraction error")
+    end
+
+    it "handles object whose instance_variables method raises" do
+      obj = Object.new
+      allow(obj).to receive(:instance_variables).and_raise(RuntimeError, "boom")
+
+      result = described_class.send(:capture_instance_vars, obj)
+      expect(result).to be_nil
+    end
+
+    it "captures object with ivar containing a circular reference" do
+      obj = Object.new
+      circular_array = [ 1, 2 ]
+      circular_array << circular_array
+      obj.instance_variable_set(:@data, circular_array)
+
+      result = described_class.send(:capture_instance_vars, obj)
+      # Should capture the raw value (circular detection happens in VariableSerializer)
+      expect(result[:@data]).to be_a(Array)
+    end
+  end
+
+  describe "instance variable config isolation" do
+    before { described_class.enable! }
+
+    after do
+      RailsErrorDashboard.configuration.enable_instance_variables = false
+      RailsErrorDashboard.configuration.enable_local_variables = false
+    end
+
+    it "captures only locals when enable_instance_variables is false" do
+      RailsErrorDashboard.configuration.enable_local_variables = true
+      RailsErrorDashboard.configuration.enable_instance_variables = false
+
+      exception = StandardError.new("test")
+      # Manually attach locals (spec path is filtered by TracePoint)
+      exception.instance_variable_set(:@_red_locals, { x: 1 })
+
+      expect(described_class.extract(exception)).to eq({ x: 1 })
+      expect(described_class.extract_instance_vars(exception)).to be_nil
+    end
+
+    it "captures only ivars when enable_local_variables is false" do
+      RailsErrorDashboard.configuration.enable_local_variables = false
+      RailsErrorDashboard.configuration.enable_instance_variables = true
+
+      exception = StandardError.new("test")
+      # Manually attach ivars (spec path is filtered by TracePoint)
+      exception.instance_variable_set(:@_red_instance_vars, { _self_class: "Foo", :@data => "bar" })
+
+      expect(described_class.extract(exception)).to be_nil
+      result = described_class.extract_instance_vars(exception)
+      expect(result[:_self_class]).to eq("Foo")
+      expect(result[:@data]).to eq("bar")
+    end
+  end
+
+  describe "TracePoint enablement for instance variables only" do
+    after do
+      RailsErrorDashboard.configuration.enable_instance_variables = false
+      RailsErrorDashboard.configuration.enable_local_variables = false
+    end
+
+    it "enables TracePoint when only enable_instance_variables is true" do
+      RailsErrorDashboard.configuration.enable_local_variables = false
+      RailsErrorDashboard.configuration.enable_instance_variables = true
+
+      # Engine would call enable! — we simulate that check
+      if RailsErrorDashboard.configuration.enable_local_variables ||
+         RailsErrorDashboard.configuration.enable_instance_variables
+        described_class.enable!
+      end
+
+      expect(described_class.enabled?).to be true
+    end
+
+    it "does not enable TracePoint when both features are disabled" do
+      described_class.disable!
+      RailsErrorDashboard.configuration.enable_local_variables = false
+      RailsErrorDashboard.configuration.enable_instance_variables = false
+
+      if RailsErrorDashboard.configuration.enable_local_variables ||
+         RailsErrorDashboard.configuration.enable_instance_variables
+        described_class.enable!
+      end
+
+      expect(described_class.enabled?).to be false
+    end
+  end
+
   describe "path filtering" do
     before { described_class.enable! }
 

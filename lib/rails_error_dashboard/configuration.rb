@@ -136,6 +136,11 @@ module RailsErrorDashboard
     attr_accessor :local_variable_max_hash_items      # Max hash entries to serialize (default: 20)
     attr_accessor :local_variable_filter_patterns     # Additional sensitive name patterns (default: [])
 
+    # Instance variable capture from tp.self (receiver object at raise time)
+    attr_accessor :enable_instance_variables           # Master switch (default: false)
+    attr_accessor :instance_variable_max_count          # Max ivars to capture (default: 20)
+    attr_accessor :instance_variable_filter_patterns    # Additional sensitive ivar patterns (default: [])
+
     # Notification callbacks (managed via helper methods, not set directly)
     attr_reader :notification_callbacks
 
@@ -256,6 +261,11 @@ module RailsErrorDashboard
       @local_variable_max_hash_items = 20       # Max hash entries to serialize
       @local_variable_filter_patterns = []      # Additional sensitive variable name patterns
 
+      # Instance variable capture defaults - OFF by default (opt-in)
+      @enable_instance_variables = false         # Capture ivars from tp.self at raise time
+      @instance_variable_max_count = 20          # Max ivars per exception
+      @instance_variable_filter_patterns = []    # Additional sensitive ivar name patterns
+
       # Internal logging defaults - SILENT by default
       @enable_internal_logging = false  # Opt-in for debugging
       @log_level = :silent  # Silent by default, use :debug, :info, :warn, :error, or :silent
@@ -359,6 +369,11 @@ module RailsErrorDashboard
         if local_variable_max_string_length && local_variable_max_string_length < 1
           errors << "local_variable_max_string_length must be at least 1 (got: #{local_variable_max_string_length})"
         end
+      end
+
+      # Validate instance variable capture settings
+      if enable_instance_variables && instance_variable_max_count && instance_variable_max_count < 1
+        errors << "instance_variable_max_count must be at least 1 (got: #{instance_variable_max_count})"
       end
 
       # Validate notification dependencies

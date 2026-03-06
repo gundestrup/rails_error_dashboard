@@ -569,6 +569,38 @@ RSpec.describe RailsErrorDashboard::Commands::LogError do
         }.to change(RailsErrorDashboard::ErrorLog, :count).by(1)
       end
 
+      it "still creates error log when VariableSerializer raises" do
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("local_variables")
+
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_locals, { data: "test" })
+
+        allow(RailsErrorDashboard::Services::VariableSerializer).to receive(:call)
+          .and_raise(RuntimeError, "serializer boom")
+
+        # Serialization failure is isolated — error log is still created
+        expect {
+          described_class.call(exc, context)
+        }.to change(RailsErrorDashboard::ErrorLog, :count).by(1)
+
+        error_log = RailsErrorDashboard::ErrorLog.last
+        expect(error_log.read_attribute(:local_variables)).to be_nil
+      end
+
+      it "still creates error log when LocalVariableCapturer.extract raises" do
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("local_variables")
+
+        allow(RailsErrorDashboard::Services::LocalVariableCapturer).to receive(:extract)
+          .and_raise(RuntimeError, "extractor boom")
+
+        expect {
+          described_class.call(exception, context)
+        }.to change(RailsErrorDashboard::ErrorLog, :count).by(1)
+
+        error_log = RailsErrorDashboard::ErrorLog.last
+        expect(error_log.read_attribute(:local_variables)).to be_nil
+      end
+
       it "uses pre-serialized locals from async context" do
         skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("local_variables")
 
@@ -582,6 +614,428 @@ RSpec.describe RailsErrorDashboard::Commands::LogError do
         expect(error_log.local_variables).to be_present
         parsed = JSON.parse(error_log.local_variables)
         expect(parsed["name"]["value"]).to eq("Gandalf")
+      end
+    end
+
+    context "instance variable capture" do
+      before do
+        RailsErrorDashboard.configuration.enable_instance_variables = true
+        RailsErrorDashboard.configuration.filter_sensitive_data = true
+        RailsErrorDashboard::Services::SensitiveDataFilter.reset!
+      end
+
+      after do
+        RailsErrorDashboard.configuration.enable_instance_variables = false
+        RailsErrorDashboard::Services::SensitiveDataFilter.reset!
+      end
+
+      it "stores filtered instance variables when enabled and column exists" do
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("instance_variables")
+
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_instance_vars, {
+          _self_class: "UsersController",
+          :@current_user => "Gandalf",
+          :@password => "secret123",
+          :@retry_count => 3
+        })
+
+        described_class.call(exc, context)
+        error_log = RailsErrorDashboard::ErrorLog.last
+
+        expect(error_log.read_attribute(:instance_variables)).to be_present
+        parsed = JSON.parse(error_log.read_attribute(:instance_variables))
+        expect(parsed["_self_class"]["value"]).to eq("UsersController")
+        expect(parsed["@current_user"]["value"]).to eq("Gandalf")
+        expect(parsed["@password"]["value"]).to eq("[FILTERED]")
+        expect(parsed["@password"]["filtered"]).to be true
+        expect(parsed["@retry_count"]["value"]).to eq(3)
+      end
+
+      it "does not store instance variables when feature is disabled" do
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("instance_variables")
+
+        RailsErrorDashboard.configuration.enable_instance_variables = false
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_instance_vars, { _self_class: "Foo", :@data => "should not be stored" })
+
+        described_class.call(exc, context)
+        error_log = RailsErrorDashboard::ErrorLog.last
+
+        expect(error_log.read_attribute(:instance_variables)).to be_nil
+      end
+
+      it "handles missing instance_variables column gracefully" do
+        allow(RailsErrorDashboard::ErrorLog).to receive(:column_names)
+          .and_return(RailsErrorDashboard::ErrorLog.column_names - [ "instance_variables" ])
+
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_instance_vars, { _self_class: "Foo", :@data => "test" })
+
+        expect {
+          described_class.call(exc, context)
+        }.to change(RailsErrorDashboard::ErrorLog, :count).by(1)
+      end
+
+      it "handles exception without @_red_instance_vars" do
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("instance_variables")
+
+        described_class.call(exception, context)
+        error_log = RailsErrorDashboard::ErrorLog.last
+
+        expect(error_log.read_attribute(:instance_variables)).to be_nil
+      end
+
+      it "uses pre-serialized instance vars from async context" do
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("instance_variables")
+
+        pre_serialized = {
+          "_self_class" => { type: "Metadata", value: "UsersController", truncated: false },
+          "@name" => { type: "String", value: "Gandalf", truncated: false }
+        }
+        ctx = context.merge(_serialized_instance_variables: pre_serialized)
+
+        # Exception without @_red_instance_vars (async path — already extracted)
+        described_class.call(exception, ctx)
+        error_log = RailsErrorDashboard::ErrorLog.last
+
+        expect(error_log.read_attribute(:instance_variables)).to be_present
+        parsed = JSON.parse(error_log.read_attribute(:instance_variables))
+        expect(parsed["_self_class"]["value"]).to eq("UsersController")
+        expect(parsed["@name"]["value"]).to eq("Gandalf")
+      end
+
+      it "stores complete serialized structure with type, value, and truncated fields" do
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("instance_variables")
+
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_instance_vars, {
+          _self_class: "OrdersController",
+          :@order_id => 42,
+          :@status => "pending"
+        })
+
+        described_class.call(exc, context)
+        parsed = JSON.parse(RailsErrorDashboard::ErrorLog.last.read_attribute(:instance_variables))
+
+        # Verify each ivar has the full structure
+        %w[@order_id @status].each do |key|
+          expect(parsed[key]).to have_key("type")
+          expect(parsed[key]).to have_key("value")
+          expect(parsed[key]).to have_key("truncated")
+        end
+        expect(parsed["@order_id"]["type"]).to eq("Integer")
+        expect(parsed["@order_id"]["value"]).to eq(42)
+        expect(parsed["@status"]["type"]).to eq("String")
+        expect(parsed["@status"]["value"]).to eq("pending")
+      end
+
+      it "applies instance_variable_filter_patterns to serialization" do
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("instance_variables")
+
+        RailsErrorDashboard.configuration.instance_variable_filter_patterns = [ /secret/ ]
+
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_instance_vars, {
+          _self_class: "PaymentService",
+          :@secret_key => "sk-live-abc123",
+          :@amount => 100
+        })
+
+        described_class.call(exc, context)
+        parsed = JSON.parse(RailsErrorDashboard::ErrorLog.last.read_attribute(:instance_variables))
+
+        expect(parsed["@secret_key"]["value"]).to eq("[FILTERED]")
+        expect(parsed["@secret_key"]["filtered"]).to be true
+        expect(parsed["@amount"]["value"]).to eq(100)
+      ensure
+        RailsErrorDashboard.configuration.instance_variable_filter_patterns = []
+      end
+
+      it "passes instance_variable_max_count to VariableSerializer" do
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("instance_variables")
+
+        RailsErrorDashboard.configuration.instance_variable_max_count = 7
+
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_instance_vars, {
+          _self_class: "Foo",
+          :@a => 1
+        })
+
+        expect(RailsErrorDashboard::Services::VariableSerializer).to receive(:call).with(
+          anything,
+          hash_including(max_count: 7)
+        ).and_call_original
+
+        described_class.call(exc, context)
+      ensure
+        RailsErrorDashboard.configuration.instance_variable_max_count = 20
+      end
+
+      it "captures both local and instance variables simultaneously" do
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("instance_variables")
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("local_variables")
+
+        RailsErrorDashboard.configuration.enable_local_variables = true
+
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_locals, { name: "Gandalf", age: 2019 })
+        exc.instance_variable_set(:@_red_instance_vars, {
+          _self_class: "UsersController",
+          :@current_user => "User#1"
+        })
+
+        described_class.call(exc, context)
+        error_log = RailsErrorDashboard::ErrorLog.last
+
+        locals_parsed = JSON.parse(error_log.read_attribute(:local_variables))
+        ivars_parsed = JSON.parse(error_log.read_attribute(:instance_variables))
+
+        expect(locals_parsed["name"]["value"]).to eq("Gandalf")
+        expect(ivars_parsed["@current_user"]["value"]).to eq("User#1")
+      ensure
+        RailsErrorDashboard.configuration.enable_local_variables = false
+      end
+
+      it "still creates error log when VariableSerializer fails" do
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("instance_variables")
+
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_instance_vars, {
+          _self_class: "Foo",
+          :@data => "test"
+        })
+
+        allow(RailsErrorDashboard::Services::VariableSerializer).to receive(:call)
+          .and_raise(RuntimeError, "serializer boom")
+
+        # Serialization failure is isolated — error log is still created
+        expect {
+          described_class.call(exc, context)
+        }.to change(RailsErrorDashboard::ErrorLog, :count).by(1)
+
+        error_log = RailsErrorDashboard::ErrorLog.last
+        expect(error_log.read_attribute(:instance_variables)).to be_nil
+      end
+
+      it "still captures instance variables when local variable serialization fails" do
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("instance_variables")
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("local_variables")
+
+        RailsErrorDashboard.configuration.enable_local_variables = true
+
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_locals, { data: "test" })
+        exc.instance_variable_set(:@_red_instance_vars, {
+          _self_class: "Foo",
+          :@name => "Gandalf"
+        })
+
+        # Only fail on the first call (local vars) — let instance vars succeed
+        call_count = 0
+        allow(RailsErrorDashboard::Services::VariableSerializer).to receive(:call).and_wrap_original do |method, *args, **kwargs|
+          call_count += 1
+          raise RuntimeError, "local var boom" if call_count == 1
+          method.call(*args, **kwargs)
+        end
+
+        expect {
+          described_class.call(exc, context)
+        }.to change(RailsErrorDashboard::ErrorLog, :count).by(1)
+
+        error_log = RailsErrorDashboard::ErrorLog.last
+        expect(error_log.read_attribute(:local_variables)).to be_nil
+        expect(error_log.read_attribute(:instance_variables)).to be_present
+        parsed = JSON.parse(error_log.read_attribute(:instance_variables))
+        expect(parsed["@name"]["value"]).to eq("Gandalf")
+      ensure
+        RailsErrorDashboard.configuration.enable_local_variables = false
+      end
+
+      it "creates error log when both variable serializers fail" do
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("instance_variables")
+        skip "column not present" unless RailsErrorDashboard::ErrorLog.column_names.include?("local_variables")
+
+        RailsErrorDashboard.configuration.enable_local_variables = true
+
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_locals, { data: "test" })
+        exc.instance_variable_set(:@_red_instance_vars, {
+          _self_class: "Foo",
+          :@data => "test"
+        })
+
+        allow(RailsErrorDashboard::Services::VariableSerializer).to receive(:call)
+          .and_raise(RuntimeError, "serializer boom")
+
+        expect {
+          described_class.call(exc, context)
+        }.to change(RailsErrorDashboard::ErrorLog, :count).by(1)
+
+        error_log = RailsErrorDashboard::ErrorLog.last
+        expect(error_log.read_attribute(:local_variables)).to be_nil
+        expect(error_log.read_attribute(:instance_variables)).to be_nil
+      ensure
+        RailsErrorDashboard.configuration.enable_local_variables = false
+      end
+    end
+
+    context "async path rescue isolation" do
+      before do
+        RailsErrorDashboard.configuration.async_logging = true
+        RailsErrorDashboard.configuration.enable_instance_variables = true
+        RailsErrorDashboard.configuration.filter_sensitive_data = true
+        RailsErrorDashboard::Services::SensitiveDataFilter.reset!
+      end
+
+      after do
+        RailsErrorDashboard.configuration.async_logging = false
+        RailsErrorDashboard.configuration.enable_instance_variables = false
+        RailsErrorDashboard.configuration.enable_local_variables = false
+        RailsErrorDashboard::Services::SensitiveDataFilter.reset!
+      end
+
+      it "still enqueues job when instance variable serialization raises" do
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_instance_vars, {
+          _self_class: "Foo",
+          :@data => "test"
+        })
+
+        allow(RailsErrorDashboard::Services::VariableSerializer).to receive(:call)
+          .and_raise(RuntimeError, "serializer boom")
+
+        expect(RailsErrorDashboard::AsyncErrorLoggingJob).to receive(:perform_later) do |exception_data, ctx|
+          expect(exception_data[:class_name]).to eq("StandardError")
+          expect(ctx).not_to have_key(:_serialized_instance_variables)
+        end
+
+        described_class.call(exc, {})
+      end
+
+      it "still enqueues job when local variable serialization raises" do
+        RailsErrorDashboard.configuration.enable_local_variables = true
+
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_locals, { data: "test" })
+
+        allow(RailsErrorDashboard::Services::VariableSerializer).to receive(:call)
+          .and_raise(RuntimeError, "serializer boom")
+
+        expect(RailsErrorDashboard::AsyncErrorLoggingJob).to receive(:perform_later) do |exception_data, ctx|
+          expect(exception_data[:class_name]).to eq("StandardError")
+          expect(ctx).not_to have_key(:_serialized_local_variables)
+        end
+
+        described_class.call(exc, {})
+      end
+
+      it "still enqueues job when both variable serializers raise" do
+        RailsErrorDashboard.configuration.enable_local_variables = true
+
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_locals, { data: "test" })
+        exc.instance_variable_set(:@_red_instance_vars, {
+          _self_class: "Foo",
+          :@data => "test"
+        })
+
+        allow(RailsErrorDashboard::Services::VariableSerializer).to receive(:call)
+          .and_raise(RuntimeError, "serializer boom")
+
+        expect(RailsErrorDashboard::AsyncErrorLoggingJob).to receive(:perform_later) do |exception_data, ctx|
+          expect(ctx).not_to have_key(:_serialized_local_variables)
+          expect(ctx).not_to have_key(:_serialized_instance_variables)
+        end
+
+        described_class.call(exc, {})
+      end
+
+      it "includes serialized instance vars in async context on success" do
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_instance_vars, {
+          _self_class: "UsersController",
+          :@name => "Gandalf"
+        })
+
+        expect(RailsErrorDashboard::AsyncErrorLoggingJob).to receive(:perform_later) do |exception_data, ctx|
+          expect(ctx).to have_key(:_serialized_instance_variables)
+          ivars = ctx[:_serialized_instance_variables]
+          expect(ivars["_self_class"][:value]).to eq("UsersController")
+          expect(ivars["@name"][:value]).to eq("Gandalf")
+        end
+
+        described_class.call(exc, {})
+      end
+
+      it "includes serialized local vars in async context on success" do
+        RailsErrorDashboard.configuration.enable_local_variables = true
+
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_locals, { wizard: "Gandalf", level: 99 })
+
+        expect(RailsErrorDashboard::AsyncErrorLoggingJob).to receive(:perform_later) do |_exception_data, ctx|
+          expect(ctx).to have_key(:_serialized_local_variables)
+          locals = ctx[:_serialized_local_variables]
+          expect(locals["wizard"][:value]).to eq("Gandalf")
+          expect(locals["level"][:value]).to eq(99)
+        end
+
+        described_class.call(exc, {})
+      end
+
+      it "still enqueues job when LocalVariableCapturer.extract raises" do
+        RailsErrorDashboard.configuration.enable_local_variables = true
+
+        allow(RailsErrorDashboard::Services::LocalVariableCapturer).to receive(:extract)
+          .and_raise(RuntimeError, "extractor boom")
+
+        expect(RailsErrorDashboard::AsyncErrorLoggingJob).to receive(:perform_later) do |exception_data, ctx|
+          expect(exception_data[:class_name]).to eq("StandardError")
+          expect(ctx).not_to have_key(:_serialized_local_variables)
+        end
+
+        described_class.call(exception, {})
+      end
+
+      it "still enqueues job when LocalVariableCapturer.extract_instance_vars raises" do
+        allow(RailsErrorDashboard::Services::LocalVariableCapturer).to receive(:extract_instance_vars)
+          .and_raise(RuntimeError, "extractor boom")
+
+        expect(RailsErrorDashboard::AsyncErrorLoggingJob).to receive(:perform_later) do |exception_data, ctx|
+          expect(exception_data[:class_name]).to eq("StandardError")
+          expect(ctx).not_to have_key(:_serialized_instance_variables)
+        end
+
+        described_class.call(exception, {})
+      end
+
+      it "captures instance vars when local var serialization fails in async path" do
+        RailsErrorDashboard.configuration.enable_local_variables = true
+
+        exc = StandardError.new("test")
+        exc.instance_variable_set(:@_red_locals, { data: "test" })
+        exc.instance_variable_set(:@_red_instance_vars, {
+          _self_class: "Foo",
+          :@name => "Gandalf"
+        })
+
+        # Only fail on the first call (local vars) — let instance vars succeed
+        call_count = 0
+        allow(RailsErrorDashboard::Services::VariableSerializer).to receive(:call).and_wrap_original do |method, *args, **kwargs|
+          call_count += 1
+          raise RuntimeError, "local var boom" if call_count == 1
+          method.call(*args, **kwargs)
+        end
+
+        expect(RailsErrorDashboard::AsyncErrorLoggingJob).to receive(:perform_later) do |_exception_data, ctx|
+          expect(ctx).not_to have_key(:_serialized_local_variables)
+          expect(ctx).to have_key(:_serialized_instance_variables)
+          expect(ctx[:_serialized_instance_variables]["@name"][:value]).to eq("Gandalf")
+        end
+
+        described_class.call(exc, {})
       end
     end
   end

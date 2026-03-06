@@ -22,14 +22,16 @@ module RailsErrorDashboard
     class VariableSerializer
       THREAD_KEY = :_red_variable_serializer_seen
 
-      # Serialize a hash of local variables to safe output
+      # Serialize a hash of variables to safe output
       # @param locals [Hash] { variable_name => raw_value }
+      # @param max_count [Integer, nil] Override max variable count (defaults to local_variable_max_count)
+      # @param additional_filter_patterns [Array] Extra sensitive name patterns (e.g. instance_variable_filter_patterns)
       # @return [Hash] { "variable_name" => { type:, value:, truncated:, filtered: } }
-      def self.call(locals)
+      def self.call(locals, max_count: nil, additional_filter_patterns: [])
         return {} unless locals.is_a?(Hash) && locals.any?
 
         config = RailsErrorDashboard.configuration
-        max_count = config.local_variable_max_count || 15
+        max_count ||= config.local_variable_max_count || 15
 
         # Thread-local circular reference tracking
         Thread.current[THREAD_KEY] = Set.new
@@ -40,7 +42,7 @@ module RailsErrorDashboard
           result[name_str] = serialize_variable(name_str, value, config)
         end
 
-        filter_serialized(result)
+        filter_serialized(result, additional_filter_patterns: additional_filter_patterns)
       rescue => e
         RailsErrorDashboard::Logger.debug("[RailsErrorDashboard] VariableSerializer.call failed: #{e.message}")
         {}
@@ -192,11 +194,12 @@ module RailsErrorDashboard
 
       # Filter all serialized variables for sensitive data
       # @param result [Hash] Serialized output from call()
+      # @param additional_filter_patterns [Array] Extra sensitive name patterns
       # @return [Hash] Filtered output
-      def self.filter_serialized(result)
+      def self.filter_serialized(result, additional_filter_patterns: [])
         return result unless RailsErrorDashboard.configuration.filter_sensitive_data
 
-        filter = effective_filter
+        filter = effective_filter(additional_filter_patterns: additional_filter_patterns)
         return result unless filter
 
         result.each do |var_name, info|
@@ -230,14 +233,16 @@ module RailsErrorDashboard
       end
       private_class_method :filter_serialized
 
-      # Build effective filter: SensitiveDataFilter base + local_variable_filter_patterns
+      # Build effective filter: SensitiveDataFilter base + variable-specific filter patterns
+      # @param additional_filter_patterns [Array] Extra patterns (e.g. instance_variable_filter_patterns)
       # @return [ActiveSupport::ParameterFilter, nil]
-      def self.effective_filter
+      def self.effective_filter(additional_filter_patterns: [])
         base_filter = SensitiveDataFilter.parameter_filter
         return nil unless base_filter
 
         custom_patterns = Array(RailsErrorDashboard.configuration.local_variable_filter_patterns)
-        return base_filter if custom_patterns.empty?
+        extra_patterns = Array(additional_filter_patterns)
+        return base_filter if custom_patterns.empty? && extra_patterns.empty?
 
         # Gather the same patterns SensitiveDataFilter uses, plus custom ones
         patterns = SensitiveDataFilter::DEFAULT_SENSITIVE_PATTERNS.dup
@@ -247,6 +252,7 @@ module RailsErrorDashboard
         custom_sdf = RailsErrorDashboard.configuration.sensitive_data_patterns
         patterns.concat(Array(custom_sdf)) if custom_sdf
         patterns.concat(custom_patterns)
+        patterns.concat(extra_patterns)
         patterns.uniq!
 
         ActiveSupport::ParameterFilter.new(patterns)

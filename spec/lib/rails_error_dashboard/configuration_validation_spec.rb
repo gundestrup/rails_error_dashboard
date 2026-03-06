@@ -607,6 +607,38 @@ RSpec.describe RailsErrorDashboard::Configuration, "#validate!" do
     end
   end
 
+  describe "instance_variable_max_count validation" do
+    it "accepts valid max_count when enabled" do
+      config.enable_instance_variables = true
+      config.instance_variable_max_count = 10
+      expect { config.validate! }.not_to raise_error
+    end
+
+    it "rejects zero max_count when enabled" do
+      config.enable_instance_variables = true
+      config.instance_variable_max_count = 0
+      expect { config.validate! }.to raise_error(
+        RailsErrorDashboard::ConfigurationError,
+        /instance_variable_max_count must be at least 1/
+      )
+    end
+
+    it "rejects negative max_count when enabled" do
+      config.enable_instance_variables = true
+      config.instance_variable_max_count = -1
+      expect { config.validate! }.to raise_error(
+        RailsErrorDashboard::ConfigurationError,
+        /instance_variable_max_count must be at least 1/
+      )
+    end
+
+    it "does not validate max_count when feature is disabled" do
+      config.enable_instance_variables = false
+      config.instance_variable_max_count = 0
+      expect { config.validate! }.not_to raise_error
+    end
+  end
+
   describe "ConfigurationError" do
     it "stores errors array" do
       error = RailsErrorDashboard::ConfigurationError.new([ "error1", "error2" ])

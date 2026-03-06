@@ -406,6 +406,12 @@ RSpec.describe RailsErrorDashboard::Configuration do
     end
   end
 
+  describe "instance variable capture defaults" do
+    it { expect(config.enable_instance_variables).to be false }
+    it { expect(config.instance_variable_max_count).to eq(20) }
+    it { expect(config.instance_variable_filter_patterns).to eq([]) }
+  end
+
   describe "#clear_total_users_cache!" do
     before do
       config.total_users_for_impact = nil

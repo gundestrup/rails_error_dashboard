@@ -92,6 +92,9 @@ class CreateRailsErrorDashboardCompleteSchema < ActiveRecord::Migration[7.0]
       # Local variable capture (from 20260306000001)
       t.text :local_variables
 
+      # Instance variable capture (from 20260306000002)
+      t.text :instance_variables
+
       t.timestamps
     end
 

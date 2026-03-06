@@ -411,10 +411,63 @@ RSpec.describe RailsErrorDashboard::Services::VariableSerializer do
       end
     end
 
-    it "respects max_count limit" do
+    it "respects max_count limit (defaults to local_variable_max_count)" do
       locals = (1..20).each_with_object({}) { |i, h| h[:"var_#{i}"] = i }
       result = described_class.call(locals)
       expect(result.size).to eq(15)
+    end
+
+    it "respects caller-specified max_count over default" do
+      vars = (1..25).each_with_object({}) { |i, h| h[:"var_#{i}"] = i }
+      result = described_class.call(vars, max_count: 20)
+      expect(result.size).to eq(20)
+    end
+
+    it "uses local_variable_max_count when no max_count specified" do
+      config.local_variable_max_count = 5
+      vars = (1..10).each_with_object({}) { |i, h| h[:"var_#{i}"] = i }
+      result = described_class.call(vars)
+      expect(result.size).to eq(5)
+    end
+
+    context "instance variable serialization" do
+      it "serializes @-prefixed keys as strings" do
+        ivars = { :@user => "Gandalf", :@count => 42 }
+        result = described_class.call(ivars)
+        expect(result).to have_key("@user")
+        expect(result).to have_key("@count")
+        expect(result["@user"][:value]).to eq("Gandalf")
+        expect(result["@count"][:value]).to eq(42)
+      end
+
+      it "serializes _self_class metadata correctly" do
+        ivars = { _self_class: "UsersController", :@name => "Gandalf" }
+        result = described_class.call(ivars)
+        expect(result["_self_class"][:type]).to eq("String")
+        expect(result["_self_class"][:value]).to eq("UsersController")
+        expect(result["_self_class"][:truncated]).to be false
+      end
+
+      it "applies additional_filter_patterns to instance variable names" do
+        ivars = { :@secret_key => "abc123", :@name => "Gandalf" }
+        result = described_class.call(ivars, additional_filter_patterns: [ /secret/ ])
+        expect(result["@secret_key"][:value]).to eq("[FILTERED]")
+        expect(result["@secret_key"][:filtered]).to be true
+        expect(result["@name"][:value]).to eq("Gandalf")
+      end
+
+      it "works with empty additional_filter_patterns" do
+        ivars = { :@name => "Gandalf" }
+        result = described_class.call(ivars, additional_filter_patterns: [])
+        expect(result["@name"][:value]).to eq("Gandalf")
+      end
+
+      it "applies max_count before filtering" do
+        ivars = {}
+        25.times { |i| ivars[:"@var_#{i}"] = "val_#{i}" }
+        result = described_class.call(ivars, max_count: 10)
+        expect(result.size).to eq(10)
+      end
     end
 
     it "handles per-variable errors gracefully" do

@@ -39,9 +39,29 @@ module RailsErrorDashboard
 
         # Capture local variables NOW (TracePoint attaches to exception, must extract before job dispatch)
         if RailsErrorDashboard.configuration.enable_local_variables
-          raw_locals = Services::LocalVariableCapturer.extract(exception)
-          if raw_locals.is_a?(Hash) && raw_locals.any?
-            context = context.merge(_serialized_local_variables: Services::VariableSerializer.call(raw_locals))
+          begin
+            raw_locals = Services::LocalVariableCapturer.extract(exception)
+            if raw_locals.is_a?(Hash) && raw_locals.any?
+              context = context.merge(_serialized_local_variables: Services::VariableSerializer.call(raw_locals))
+            end
+          rescue => e
+            RailsErrorDashboard::Logger.debug("[RailsErrorDashboard] Async local variable serialization failed: #{e.message}")
+          end
+        end
+
+        # Capture instance variables NOW (same reason — attached to exception object)
+        if RailsErrorDashboard.configuration.enable_instance_variables
+          begin
+            raw_ivars = Services::LocalVariableCapturer.extract_instance_vars(exception)
+            if raw_ivars.is_a?(Hash) && raw_ivars.any?
+              context = context.merge(_serialized_instance_variables: Services::VariableSerializer.call(
+                raw_ivars,
+                max_count: RailsErrorDashboard.configuration.instance_variable_max_count,
+                additional_filter_patterns: RailsErrorDashboard.configuration.instance_variable_filter_patterns
+              ))
+            end
+          rescue => e
+            RailsErrorDashboard::Logger.debug("[RailsErrorDashboard] Async instance variable serialization failed: #{e.message}")
           end
         end
 
@@ -189,13 +209,41 @@ module RailsErrorDashboard
 
         # Capture local variables (if enabled and column exists)
         if ErrorLog.column_names.include?("local_variables") && RailsErrorDashboard.configuration.enable_local_variables
-          # Sync path: extract from exception ivar
-          raw_locals = Services::LocalVariableCapturer.extract(@exception)
-          # Async path fallback: use pre-serialized locals from call_async context
-          raw_locals ||= @context[:_serialized_local_variables]
-          if raw_locals.is_a?(Hash) && raw_locals.any?
-            serialized = raw_locals == @context[:_serialized_local_variables] ? raw_locals : Services::VariableSerializer.call(raw_locals)
-            attributes[:local_variables] = serialized.to_json
+          begin
+            # Sync path: extract from exception ivar
+            raw_locals = Services::LocalVariableCapturer.extract(@exception)
+            # Async path fallback: use pre-serialized locals from call_async context
+            raw_locals ||= @context[:_serialized_local_variables]
+            if raw_locals.is_a?(Hash) && raw_locals.any?
+              serialized = raw_locals == @context[:_serialized_local_variables] ? raw_locals : Services::VariableSerializer.call(raw_locals)
+              attributes[:local_variables] = serialized.to_json
+            end
+          rescue => e
+            RailsErrorDashboard::Logger.debug("[RailsErrorDashboard] Local variable serialization failed: #{e.message}")
+          end
+        end
+
+        # Capture instance variables (if enabled and column exists)
+        if ErrorLog.column_names.include?("instance_variables") && RailsErrorDashboard.configuration.enable_instance_variables
+          begin
+            # Sync path: extract from exception ivar
+            raw_ivars = Services::LocalVariableCapturer.extract_instance_vars(@exception)
+            # Async path fallback: use pre-serialized ivars from call_async context
+            raw_ivars ||= @context[:_serialized_instance_variables]
+            if raw_ivars.is_a?(Hash) && raw_ivars.any?
+              serialized = if raw_ivars == @context[:_serialized_instance_variables]
+                raw_ivars
+              else
+                Services::VariableSerializer.call(
+                  raw_ivars,
+                  max_count: RailsErrorDashboard.configuration.instance_variable_max_count,
+                  additional_filter_patterns: RailsErrorDashboard.configuration.instance_variable_filter_patterns
+                )
+              end
+              attributes[:instance_variables] = serialized.to_json
+            end
+          rescue => e
+            RailsErrorDashboard::Logger.debug("[RailsErrorDashboard] Instance variable serialization failed: #{e.message}")
           end
         end
 
