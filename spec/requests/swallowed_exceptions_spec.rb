@@ -18,6 +18,7 @@ RSpec.describe "Swallowed Exceptions page", type: :request do
     context "when swallowed exception detection is disabled" do
       before do
         RailsErrorDashboard.configuration.detect_swallowed_exceptions = false
+        stub_const("RUBY_VERSION", "3.3.0")
       end
 
       it "redirects to errors index with alert" do

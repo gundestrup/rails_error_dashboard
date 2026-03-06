@@ -666,6 +666,7 @@ RSpec.describe RailsErrorDashboard::Configuration, "#validate!" do
     end
 
     it "rejects max_cache_size of 0 when enabled" do
+      stub_const("RUBY_VERSION", "3.3.0")
       config.detect_swallowed_exceptions = true
       config.swallowed_exception_max_cache_size = 0
       expect { config.validate! }.to raise_error(
@@ -675,6 +676,7 @@ RSpec.describe RailsErrorDashboard::Configuration, "#validate!" do
     end
 
     it "rejects flush_interval of 0 when enabled" do
+      stub_const("RUBY_VERSION", "3.3.0")
       config.detect_swallowed_exceptions = true
       config.swallowed_exception_flush_interval = 0
       expect { config.validate! }.to raise_error(
@@ -684,6 +686,7 @@ RSpec.describe RailsErrorDashboard::Configuration, "#validate!" do
     end
 
     it "rejects threshold above 1.0 when enabled" do
+      stub_const("RUBY_VERSION", "3.3.0")
       config.detect_swallowed_exceptions = true
       config.swallowed_exception_threshold = 1.5
       expect { config.validate! }.to raise_error(
@@ -693,6 +696,7 @@ RSpec.describe RailsErrorDashboard::Configuration, "#validate!" do
     end
 
     it "rejects negative threshold when enabled" do
+      stub_const("RUBY_VERSION", "3.3.0")
       config.detect_swallowed_exceptions = true
       config.swallowed_exception_threshold = -0.1
       expect { config.validate! }.to raise_error(

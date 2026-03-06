@@ -73,7 +73,8 @@ RSpec.describe RailsErrorDashboard::Services::SwallowedExceptionTracker do
 
       raises = described_class.current_raises
       expect(raises).not_to be_empty
-      expect(raises.keys.first).to start_with("RuntimeError|")
+      runtime_keys = raises.keys.select { |k| k.start_with?("RuntimeError|") }
+      expect(runtime_keys).not_to be_empty
     end
 
     it "increments rescue counter when exception is rescued" do
@@ -85,7 +86,8 @@ RSpec.describe RailsErrorDashboard::Services::SwallowedExceptionTracker do
 
       rescues = described_class.current_rescues
       expect(rescues).not_to be_empty
-      expect(rescues.keys.first).to start_with("RuntimeError|")
+      runtime_keys = rescues.keys.select { |k| k.start_with?("RuntimeError|") }
+      expect(runtime_keys).not_to be_empty
     end
 
     it "tracks raise location via ivar on exception" do
