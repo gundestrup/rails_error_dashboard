@@ -639,6 +639,57 @@ RSpec.describe RailsErrorDashboard::Configuration, "#validate!" do
     end
   end
 
+  describe "swallowed exception detection validation" do
+    it "accepts valid defaults when enabled" do
+      config.detect_swallowed_exceptions = true
+      expect { config.validate! }.not_to raise_error
+    end
+
+    it "rejects max_cache_size of 0 when enabled" do
+      config.detect_swallowed_exceptions = true
+      config.swallowed_exception_max_cache_size = 0
+      expect { config.validate! }.to raise_error(
+        RailsErrorDashboard::ConfigurationError,
+        /swallowed_exception_max_cache_size must be at least 1/
+      )
+    end
+
+    it "rejects flush_interval of 0 when enabled" do
+      config.detect_swallowed_exceptions = true
+      config.swallowed_exception_flush_interval = 0
+      expect { config.validate! }.to raise_error(
+        RailsErrorDashboard::ConfigurationError,
+        /swallowed_exception_flush_interval must be at least 1/
+      )
+    end
+
+    it "rejects threshold above 1.0 when enabled" do
+      config.detect_swallowed_exceptions = true
+      config.swallowed_exception_threshold = 1.5
+      expect { config.validate! }.to raise_error(
+        RailsErrorDashboard::ConfigurationError,
+        /swallowed_exception_threshold must be between 0.0 and 1.0/
+      )
+    end
+
+    it "rejects negative threshold when enabled" do
+      config.detect_swallowed_exceptions = true
+      config.swallowed_exception_threshold = -0.1
+      expect { config.validate! }.to raise_error(
+        RailsErrorDashboard::ConfigurationError,
+        /swallowed_exception_threshold must be between 0.0 and 1.0/
+      )
+    end
+
+    it "does not validate settings when feature is disabled" do
+      config.detect_swallowed_exceptions = false
+      config.swallowed_exception_max_cache_size = 0
+      config.swallowed_exception_flush_interval = 0
+      config.swallowed_exception_threshold = 99.0
+      expect { config.validate! }.not_to raise_error
+    end
+  end
+
   describe "ConfigurationError" do
     it "stores errors array" do
       error = RailsErrorDashboard::ConfigurationError.new([ "error1", "error2" ])

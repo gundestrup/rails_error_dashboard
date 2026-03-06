@@ -1669,6 +1669,13 @@ body.dark-mode .sidebar-section-body { background: var(--ctp-mantle); }
                   <% end %>
                 </li>
               <% end %>
+              <% if RailsErrorDashboard.configuration.detect_swallowed_exceptions %>
+                <li class="nav-item">
+                  <%= link_to swallowed_exceptions_errors_path(nav_params), class: "nav-link #{request.path == swallowed_exceptions_errors_path ? 'active' : ''}" do %>
+                    <i class="bi bi-eye-slash"></i> Swallowed
+                  <% end %>
+                </li>
+              <% end %>
             </ul>
 
             <h6 class="mt-4">QUICK FILTERS</h6>

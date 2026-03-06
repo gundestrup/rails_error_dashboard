@@ -27,6 +27,7 @@ RailsErrorDashboard::Engine.routes.draw do
       get :cache_health_summary
       get :job_health_summary
       get :database_health_summary
+      get :swallowed_exceptions
       post :batch_action
     end
   end

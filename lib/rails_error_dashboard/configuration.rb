@@ -141,6 +141,13 @@ module RailsErrorDashboard
     attr_accessor :instance_variable_max_count          # Max ivars to capture (default: 20)
     attr_accessor :instance_variable_filter_patterns    # Additional sensitive ivar patterns (default: [])
 
+    # Swallowed exception detection via TracePoint(:raise) + TracePoint(:rescue) (Ruby 3.3+ only)
+    attr_accessor :detect_swallowed_exceptions          # Master switch (default: false)
+    attr_accessor :swallowed_exception_max_cache_size   # Max entries per thread (default: 1000)
+    attr_accessor :swallowed_exception_flush_interval   # Seconds between flushes (default: 60)
+    attr_accessor :swallowed_exception_threshold        # Rescue ratio to flag (default: 0.95)
+    attr_accessor :swallowed_exception_ignore_classes   # Additional exception classes to skip (default: [])
+
     # Notification callbacks (managed via helper methods, not set directly)
     attr_reader :notification_callbacks
 
@@ -266,6 +273,13 @@ module RailsErrorDashboard
       @instance_variable_max_count = 20          # Max ivars per exception
       @instance_variable_filter_patterns = []    # Additional sensitive ivar name patterns
 
+      # Swallowed exception detection defaults - OFF by default (Ruby 3.3+ opt-in)
+      @detect_swallowed_exceptions = false       # TracePoint(:raise) + TracePoint(:rescue)
+      @swallowed_exception_max_cache_size = 1000 # Max entries per thread-local hash
+      @swallowed_exception_flush_interval = 60   # Seconds between DB flushes
+      @swallowed_exception_threshold = 0.95      # Rescue ratio to flag as swallowed
+      @swallowed_exception_ignore_classes = []   # Additional exception classes to skip
+
       # Internal logging defaults - SILENT by default
       @enable_internal_logging = false  # Opt-in for debugging
       @log_level = :silent  # Silent by default, use :debug, :info, :warn, :error, or :silent
@@ -374,6 +388,19 @@ module RailsErrorDashboard
       # Validate instance variable capture settings
       if enable_instance_variables && instance_variable_max_count && instance_variable_max_count < 1
         errors << "instance_variable_max_count must be at least 1 (got: #{instance_variable_max_count})"
+      end
+
+      # Validate swallowed exception detection settings
+      if detect_swallowed_exceptions
+        if swallowed_exception_max_cache_size && swallowed_exception_max_cache_size < 1
+          errors << "swallowed_exception_max_cache_size must be at least 1 (got: #{swallowed_exception_max_cache_size})"
+        end
+        if swallowed_exception_flush_interval && swallowed_exception_flush_interval < 1
+          errors << "swallowed_exception_flush_interval must be at least 1 (got: #{swallowed_exception_flush_interval})"
+        end
+        if swallowed_exception_threshold && (swallowed_exception_threshold < 0.0 || swallowed_exception_threshold > 1.0)
+          errors << "swallowed_exception_threshold must be between 0.0 and 1.0 (got: #{swallowed_exception_threshold})"
+        end
       end
 
       # Validate notification dependencies

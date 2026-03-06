@@ -75,6 +75,11 @@ module RailsErrorDashboard
          RailsErrorDashboard.configuration.enable_instance_variables
         RailsErrorDashboard::Services::LocalVariableCapturer.enable!
       end
+
+      # Enable TracePoint(:raise) + TracePoint(:rescue) for swallowed exception detection
+      if RailsErrorDashboard.configuration.detect_swallowed_exceptions
+        RailsErrorDashboard::Services::SwallowedExceptionTracker.enable!
+      end
     end
   end
 end

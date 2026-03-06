@@ -348,6 +348,26 @@ module RailsErrorDashboard
       @pagy, @entries = pagy(:offset, all_entries, limit: params[:per_page] || 25)
     end
 
+    def swallowed_exceptions
+      unless RailsErrorDashboard.configuration.detect_swallowed_exceptions
+        flash[:alert] = "Swallowed exception detection is not enabled. Enable it in config/initializers/rails_error_dashboard.rb"
+        redirect_to errors_path
+        return
+      end
+
+      days = (params[:days] || 30).to_i
+      @days = days
+      result = Queries::SwallowedExceptionSummary.call(days, application_id: @current_application_id)
+      all_entries = result[:entries]
+
+      # Summary stats (computed before pagination)
+      @unique_count = all_entries.size
+      @total_rescue_count = all_entries.sum { |e| e[:rescue_count] }
+      @total_raise_count = all_entries.sum { |e| e[:raise_count] }
+
+      @pagy, @entries = pagy(:offset, all_entries, limit: params[:per_page] || 25)
+    end
+
     def settings
       @config = RailsErrorDashboard.configuration
     end

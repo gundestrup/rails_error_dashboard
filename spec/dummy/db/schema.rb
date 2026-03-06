@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2026_03_06_000002) do
+ActiveRecord::Schema[7.0].define(version: 2026_03_06_000003) do
   create_table "rails_error_dashboard_applications", force: :cascade do |t|
     t.string "name", limit: 255, null: false
     t.text "description"
@@ -131,6 +131,23 @@ ActiveRecord::Schema[7.0].define(version: 2026_03_06_000002) do
     t.index [ "resolved" ], name: "index_rails_error_dashboard_error_logs_on_resolved"
     t.index [ "similarity_score" ], name: "index_rails_error_dashboard_error_logs_on_similarity_score"
     t.index [ "user_id" ], name: "index_rails_error_dashboard_error_logs_on_user_id"
+  end
+
+  create_table "rails_error_dashboard_swallowed_exceptions", force: :cascade do |t|
+    t.string "exception_class", null: false
+    t.string "raise_location", limit: 500, null: false
+    t.string "rescue_location", limit: 500
+    t.datetime "period_hour", null: false
+    t.integer "raise_count", default: 0, null: false
+    t.integer "rescue_count", default: 0, null: false
+    t.datetime "last_seen_at"
+    t.integer "application_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index [ "application_id", "period_hour" ], name: "index_swallowed_exceptions_on_app_and_hour"
+    t.index [ "exception_class", "period_hour" ], name: "index_swallowed_exceptions_on_class_and_hour"
+    t.index [ "exception_class", "raise_location", "rescue_location", "period_hour", "application_id" ], name: "index_swallowed_exceptions_upsert_key", unique: true
+    t.index [ "period_hour" ], name: "index_swallowed_exceptions_on_period_hour"
   end
 
   create_table "rails_error_dashboard_error_occurrences", force: :cascade do |t|
