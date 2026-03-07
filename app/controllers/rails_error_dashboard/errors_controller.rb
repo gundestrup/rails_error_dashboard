@@ -373,6 +373,49 @@ module RailsErrorDashboard
       @pagy, @entries = pagy(:offset, all_entries, limit: params[:per_page] || 25)
     end
 
+    def diagnostic_dumps
+      unless RailsErrorDashboard.configuration.enable_diagnostic_dump
+        flash[:alert] = "Diagnostic dumps are not enabled. Enable them in config/initializers/rails_error_dashboard.rb"
+        redirect_to errors_path
+        return
+      end
+
+      scope = DiagnosticDump.recent
+      scope = scope.where(application_id: @current_application_id) if @current_application_id.present?
+      @total_dumps = scope.count
+
+      @pagy, @dumps = pagy(:offset, scope, limit: params[:per_page] || 25)
+    end
+
+    def create_diagnostic_dump
+      unless RailsErrorDashboard.configuration.enable_diagnostic_dump
+        flash[:alert] = "Diagnostic dumps are not enabled."
+        redirect_to errors_path
+        return
+      end
+
+      dump = Services::DiagnosticDumpGenerator.call
+
+      app_name = RailsErrorDashboard.configuration.application_name ||
+                 ENV["APPLICATION_NAME"] ||
+                 (defined?(Rails) && Rails.application.class.module_parent_name) ||
+                 "Unknown"
+      app = Commands::FindOrCreateApplication.call(app_name)
+
+      DiagnosticDump.create!(
+        application_id: app.id,
+        dump_data: dump.to_json,
+        captured_at: Time.current,
+        note: params[:note].presence
+      )
+
+      flash[:notice] = "Diagnostic dump captured successfully."
+      redirect_to diagnostic_dumps_errors_path
+    rescue => e
+      flash[:alert] = "Failed to capture diagnostic dump: #{e.message}"
+      redirect_to diagnostic_dumps_errors_path
+    end
+
     def settings
       @config = RailsErrorDashboard.configuration
     end

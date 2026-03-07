@@ -375,6 +375,19 @@ RailsErrorDashboard.configure do |config|
   # config.swallowed_exception_threshold = 0.95
 
 <% end -%>
+<% if @enable_diagnostic_dump -%>
+  # Diagnostic Dump - ENABLED
+  # On-demand system state snapshot via rake task or dashboard button
+  config.enable_diagnostic_dump = true
+  # To disable: Set config.enable_diagnostic_dump = false
+
+<% else -%>
+  # Diagnostic Dump - DISABLED
+  # On-demand system state snapshot (rake task + dashboard page)
+  # To enable: Set config.enable_diagnostic_dump = true
+  config.enable_diagnostic_dump = false
+
+<% end -%>
 <% if @enable_crash_capture -%>
   # Process Crash Capture - ENABLED
   # Captures fatal crashes via at_exit hook. Crash data is written to disk as JSON

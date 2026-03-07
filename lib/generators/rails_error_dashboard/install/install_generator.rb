@@ -34,6 +34,7 @@ module RailsErrorDashboard
       class_option :system_health, type: :boolean, default: false, desc: "Enable system health snapshot at error time"
       class_option :swallowed_exceptions, type: :boolean, default: false, desc: "Enable swallowed exception detection (Ruby 3.3+)"
       class_option :crash_capture, type: :boolean, default: false, desc: "Enable process crash capture via at_exit hook"
+      class_option :diagnostic_dump, type: :boolean, default: false, desc: "Enable on-demand diagnostic dump"
 
       def welcome_message
         say "\n"
@@ -188,6 +189,12 @@ module RailsErrorDashboard
             name: "Process Crash Capture",
             description: "Capture fatal crashes via at_exit hook (written to disk, imported on next boot)",
             category: "Developer Tools"
+          },
+          {
+            key: :diagnostic_dump,
+            name: "Diagnostic Dump",
+            description: "On-demand system state snapshot (rake task + dashboard page)",
+            category: "Developer Tools"
           }
         ]
 
@@ -324,6 +331,7 @@ module RailsErrorDashboard
         @enable_system_health = @selected_features&.dig(:system_health) || options[:system_health]
         @enable_swallowed_exceptions = @selected_features&.dig(:swallowed_exceptions) || options[:swallowed_exceptions]
         @enable_crash_capture = @selected_features&.dig(:crash_capture) || options[:crash_capture]
+        @enable_diagnostic_dump = @selected_features&.dig(:diagnostic_dump) || options[:diagnostic_dump]
 
         template "initializer.rb", "config/initializers/rails_error_dashboard.rb"
       end
@@ -428,6 +436,7 @@ module RailsErrorDashboard
         developer_tools_features << "System Health" if @enable_system_health
         developer_tools_features << "Swallowed Exception Detection" if @enable_swallowed_exceptions
         developer_tools_features << "Process Crash Capture" if @enable_crash_capture
+        developer_tools_features << "Diagnostic Dump" if @enable_diagnostic_dump
 
         if developer_tools_features.any?
           say "\nDeveloper Tools:", :cyan

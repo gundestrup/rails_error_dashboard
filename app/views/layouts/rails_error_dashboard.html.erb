@@ -1676,6 +1676,13 @@ body.dark-mode .sidebar-section-body { background: var(--ctp-mantle); }
                   <% end %>
                 </li>
               <% end %>
+              <% if RailsErrorDashboard.configuration.enable_diagnostic_dump %>
+                <li class="nav-item">
+                  <%= link_to diagnostic_dumps_errors_path(nav_params), class: "nav-link #{request.path == diagnostic_dumps_errors_path ? 'active' : ''}" do %>
+                    <i class="bi bi-clipboard-pulse"></i> Diagnostics
+                  <% end %>
+                </li>
+              <% end %>
             </ul>
 
             <h6 class="mt-4">QUICK FILTERS</h6>

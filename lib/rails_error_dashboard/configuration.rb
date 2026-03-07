@@ -152,6 +152,9 @@ module RailsErrorDashboard
     attr_accessor :enable_crash_capture                 # Master switch (default: false)
     attr_accessor :crash_capture_path                   # Directory for crash files (default: Dir.tmpdir)
 
+    # On-demand diagnostic dump (rake task + dashboard endpoint)
+    attr_accessor :enable_diagnostic_dump               # Master switch (default: false)
+
     # Notification callbacks (managed via helper methods, not set directly)
     attr_reader :notification_callbacks
 
@@ -287,6 +290,9 @@ module RailsErrorDashboard
       # Process crash capture defaults - OFF by default (opt-in)
       @enable_crash_capture = false     # at_exit hook for fatal crash capture
       @crash_capture_path = nil         # nil = Dir.tmpdir
+
+      # Diagnostic dump defaults - OFF by default (opt-in)
+      @enable_diagnostic_dump = false   # On-demand system state snapshot
 
       # Internal logging defaults - SILENT by default
       @enable_internal_logging = false  # Opt-in for debugging
