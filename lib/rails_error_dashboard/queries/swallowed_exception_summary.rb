@@ -4,7 +4,10 @@ module RailsErrorDashboard
   module Queries
     # Query: Aggregate swallowed exception data across hourly buckets for dashboard display.
     #
-    # Groups by (exception_class, raise_location, rescue_location) and sums raise/rescue counts.
+    # Groups by (exception_class, raise_location) and sums raise/rescue counts across
+    # all rescue_locations and time buckets. This is important because the tracker stores
+    # raise events (rescue_location=nil) and rescue events (rescue_location set) in separate
+    # rows — grouping by rescue_location too would prevent the ratio from ever being computed.
     # Filters to entries with rescue_ratio >= threshold (i.e., likely swallowed).
     # Returns array of hashes sorted by total rescue count descending.
     class SwallowedExceptionSummary
@@ -45,13 +48,18 @@ module RailsErrorDashboard
       end
 
       def aggregated_entries
+        # Group by (exception_class, raise_location) only — NOT rescue_location.
+        # The tracker stores raise events (rescue_location=nil) and rescue events
+        # (rescue_location set) as separate DB rows. Grouping by rescue_location
+        # would keep them separate, making the ratio always 0 or infinity.
         rows = base_query
-          .group(:exception_class, :raise_location, :rescue_location)
+          .group(:exception_class, :raise_location)
           .select(
-            :exception_class, :raise_location, :rescue_location,
+            :exception_class, :raise_location,
             "SUM(raise_count) AS total_raise_count",
             "SUM(rescue_count) AS total_rescue_count",
-            "MAX(last_seen_at) AS last_seen"
+            "MAX(last_seen_at) AS last_seen",
+            "MAX(rescue_location) AS top_rescue_location"
           )
 
         rows.filter_map do |row|
@@ -67,7 +75,7 @@ module RailsErrorDashboard
           {
             exception_class: row.exception_class,
             raise_location: row.raise_location,
-            rescue_location: row.rescue_location,
+            rescue_location: row.top_rescue_location,
             raise_count: raise_count,
             rescue_count: rescue_count,
             rescue_ratio: ratio,

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class CreateRailsErrorDashboardSwallowedException < ActiveRecord::Migration[7.0]
+class CreateRailsErrorDashboardSwallowedExceptions < ActiveRecord::Migration[7.0]
   def change
     create_table :rails_error_dashboard_swallowed_exceptions do |t|
       t.string   :exception_class,  null: false
