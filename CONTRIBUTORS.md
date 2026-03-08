@@ -42,6 +42,12 @@ Thank you to everyone who has contributed to Rails Error Dashboard! 🙏
 
 ---
 
+### Rafael ([@RafaelTurtle](https://github.com/RafaelTurtle))
+
+- 📚 [#90](https://github.com/AnjanJ/rails_error_dashboard/pull/90) - Added Jekyll front matter to all 32 documentation files, fixing GitHub Pages 404s (#87). Also improved site navigation with Features and Troubleshooting entries (v0.4.0)
+
+---
+
 ## How to Become a Contributor
 
 We welcome all contributions! Here's how you can help:
@@ -112,12 +118,12 @@ When you contribute to Rails Error Dashboard, you get:
 
 ## Contributor Stats
 
-**Total Contributors:** 4 (including maintainer)
-**External Contributors:** 3
-**Total PRs Merged:** 55+
-**Total Issues Resolved:** 40+
+**Total Contributors:** 5 (including maintainer)
+**External Contributors:** 4
+**Total PRs Merged:** 60+
+**Total Issues Resolved:** 45+
 **Lines of Code:** 15,000+
-**Tests Written:** 1,900+
+**Tests Written:** 2,600+
 
 ---
 
@@ -141,7 +147,7 @@ When you contribute to Rails Error Dashboard, you get:
 - [@gundestrup](https://github.com/gundestrup) - Multiple dependency and CI/CD updates
 
 ### 📚 Documentation Heroes
-- *Your name could be here!*
+- [@RafaelTurtle](https://github.com/RafaelTurtle) - Jekyll front matter for all 32 doc pages, fixed GitHub Pages 404s
 
 ### ✨ Feature Creators
 - [@midwire](https://github.com/midwire) - Backtrace line numbers, loading states & skeleton screens
@@ -160,4 +166,4 @@ If you've contributed and don't see your name here, please open a PR to add your
 
 ---
 
-*This page is updated with each release. Last updated: February 24, 2026*
+*This page is updated with each release. Last updated: March 8, 2026*
