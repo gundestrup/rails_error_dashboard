@@ -22,7 +22,7 @@ gem 'rails_error_dashboard'
 
 **[rails-error-dashboard.anjan.dev](https://rails-error-dashboard.anjan.dev)** — Username: `gandalf` · Password: `youshallnotpass`
 
-> **Beta Software** — Functional and tested (2,100+ tests passing), but the API may change before v1.0. Supports Rails 7.0-8.1 and Ruby 3.2-4.0.
+> **Beta Software** — Functional and tested (2,600+ tests passing), but the API may change before v1.0. Supports Rails 7.0-8.1 and Ruby 3.2-4.0.
 
 ### Screenshots
 
@@ -53,6 +53,8 @@ gem 'rails_error_dashboard'
 | SaaS pricing tiers and usage limits | Unlimited errors, unlimited projects |
 | Vendor lock-in with proprietary APIs | 100% open source, fully portable |
 | Complex SDK setup and external services | 5-minute Rails Engine installation |
+| Pay extra for local variable capture (Sentry) | Local + instance variables included free |
+| No tool detects silently rescued exceptions | Swallowed exception detection built in |
 
 ---
 
@@ -85,10 +87,12 @@ config.enable_breadcrumbs = true
 <details>
 <summary><strong>System Health Snapshot</strong></summary>
 
-Know your app's runtime state at the moment of failure — GC stats, process memory, thread count, connection pool utilization, and Puma thread stats captured automatically.
+Know your app's runtime state at the moment of failure — GC stats, process memory, thread count, connection pool utilization, Puma thread stats, RubyVM cache health, and YJIT compilation stats captured automatically.
 
 - Sub-millisecond total snapshot, every metric individually rescue-wrapped
 - No ObjectSpace scanning, no Thread backtraces, no subprocess calls
+- RubyVM.stat: constant cache invalidations, shape cache stats
+- YJIT runtime stats: compiled iseqs, invalidation count, code region sizes
 
 ```ruby
 config.enable_system_health = true
@@ -179,6 +183,92 @@ Seven analysis engines built in:
 7. **Occurrence Pattern Detection** — Cyclical patterns (business hours, weekends) and burst detection
 
 [Complete documentation →](docs/FEATURES.md#advanced-analytics-features)
+</details>
+
+<details>
+<summary><strong>Local Variable + Instance Variable Capture</strong></summary>
+
+See the exact values of local variables and instance variables at the moment an exception was raised — the most valuable debugging context possible.
+
+- TracePoint(`:raise`) captures locals and ivars before the stack unwinds
+- Configurable limits: max variable count, nesting depth, string truncation length
+- Sensitive data auto-filtered via Rails `filter_parameters` — passwords, tokens, and PII never stored
+- Never stores Binding objects — values extracted immediately, Binding is GC'd
+- Independent config flags: enable one or both
+
+```ruby
+config.enable_local_variables = true
+config.enable_instance_variables = true
+```
+
+[Complete documentation →](docs/FEATURES.md)
+</details>
+
+<details>
+<summary><strong>Swallowed Exception Detection</strong></summary>
+
+Detect exceptions that are raised but silently rescued — the hardest bugs to find. No other error tracker does this.
+
+- Uses TracePoint(`:raise`) + TracePoint(`:rescue`) to track exception lifecycle
+- Identifies code paths where exceptions are caught but never logged or re-raised
+- Dashboard page at `/errors/swallowed_exceptions` shows detection counts, locations, and patterns
+- Memory-bounded aggregation with background flush
+- Requires Ruby 3.3+
+
+```ruby
+config.detect_swallowed_exceptions = true
+```
+
+[Complete documentation →](docs/FEATURES.md)
+</details>
+
+<details>
+<summary><strong>On-Demand Diagnostic Dump</strong></summary>
+
+Snapshot your app's entire system state on demand — environment, GC stats, threads, connection pool, memory, job queue health, and more.
+
+- Trigger via dashboard button or `rake rails_error_dashboard:diagnostic_dump`
+- Dashboard page at `/errors/diagnostic_dumps` with full history
+- Useful for debugging intermittent production issues without reproducing them
+
+```ruby
+config.enable_diagnostic_dump = true
+```
+
+[Complete documentation →](docs/FEATURES.md)
+</details>
+
+<details>
+<summary><strong>Rack Attack Event Tracking</strong></summary>
+
+Track Rack Attack security events (throttles, blocklists, tracks) as breadcrumbs attached to errors, with a dedicated summary page.
+
+- Captures throttle, blocklist, and track events automatically
+- Dashboard page at `/errors/rack_attack_summary` with event breakdown
+- Requires breadcrumbs to be enabled
+
+```ruby
+config.enable_rack_attack_tracking = true
+```
+
+[Complete documentation →](docs/FEATURES.md)
+</details>
+
+<details>
+<summary><strong>Process Crash Capture</strong></summary>
+
+Capture unhandled exceptions that crash the Ruby process via an `at_exit` hook — the last line of defense.
+
+- Disk-based fallback: writes crash data to disk because the database may be unavailable during shutdown
+- Imported automatically on next boot
+- Captures exception details, backtrace, uptime, GC stats, thread count, and cause chain
+- A self-hosted only feature — impossible for SaaS tools
+
+```ruby
+config.enable_crash_capture = true
+```
+
+[Complete documentation →](docs/FEATURES.md)
 </details>
 
 <details>
@@ -304,7 +394,7 @@ Built with **CQRS (Command/Query Responsibility Segregation)**:
 
 ## Testing
 
-2,100+ tests covering unit, integration, and browser-based system tests.
+2,600+ tests covering unit, integration, and browser-based system tests.
 
 ```bash
 bundle exec rspec                              # Full suite
