@@ -253,8 +253,6 @@ Track Rack Attack security events (throttles, blocklists, tracks) as breadcrumbs
 - Dashboard page at `/errors/rack_attack_summary` with event breakdown
 - Requires breadcrumbs to be enabled
 
-![Rack Attack Summary](docs/images/rack-attack-summary.png)
-
 ```ruby
 config.enable_rack_attack_tracking = true
 ```
