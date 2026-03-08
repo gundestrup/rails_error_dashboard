@@ -196,6 +196,8 @@ See the exact values of local variables and instance variables at the moment an 
 - Never stores Binding objects — values extracted immediately, Binding is GC'd
 - Independent config flags: enable one or both
 
+![Local Variables](docs/images/local-variables.png)
+
 ```ruby
 config.enable_local_variables = true
 config.enable_instance_variables = true
@@ -215,6 +217,8 @@ Detect exceptions that are raised but silently rescued — the hardest bugs to f
 - Memory-bounded aggregation with background flush
 - Requires Ruby 3.3+
 
+![Swallowed Exceptions](docs/images/swallowed-exceptions.png)
+
 ```ruby
 config.detect_swallowed_exceptions = true
 ```
@@ -231,6 +235,8 @@ Snapshot your app's entire system state on demand — environment, GC stats, thr
 - Dashboard page at `/errors/diagnostic_dumps` with full history
 - Useful for debugging intermittent production issues without reproducing them
 
+![Diagnostic Dumps](docs/images/diagnostic-dumps.png)
+
 ```ruby
 config.enable_diagnostic_dump = true
 ```
@@ -246,6 +252,8 @@ Track Rack Attack security events (throttles, blocklists, tracks) as breadcrumbs
 - Captures throttle, blocklist, and track events automatically
 - Dashboard page at `/errors/rack_attack_summary` with event breakdown
 - Requires breadcrumbs to be enabled
+
+![Rack Attack Summary](docs/images/rack-attack-summary.png)
 
 ```ruby
 config.enable_rack_attack_tracking = true
