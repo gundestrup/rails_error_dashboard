@@ -80,6 +80,33 @@ RSpec.describe RailsErrorDashboard::Services::SystemHealthSnapshot do
       expect(parsed[:captured_at]).to be_a(String)
     end
 
+    it "JSON round-trips preserve ruby_vm and yjit keys" do
+      # Stub YJIT so we have data to round-trip
+      yjit_mod = Module.new do
+        def self.enabled? = true
+
+        def self.runtime_stats
+          { inline_code_size: 1024, code_region_size: 2048, compiled_iseq_count: 100,
+            compiled_block_count: 200, compile_time_ns: 5_000_000, invalidation_count: 3,
+            invalidate_method_lookup: 1, invalidate_constant_state_bump: 2, object_shape_count: 50 }
+        end
+      end
+      stub_const("RubyVM::YJIT", yjit_mod)
+
+      result = described_class.capture
+      json = result.to_json
+      parsed = JSON.parse(json, symbolize_names: true)
+
+      expect(parsed[:ruby_vm]).to be_a(Hash)
+      expect(parsed[:ruby_vm][:constant_cache_invalidations]).to be_a(Integer)
+      expect(parsed[:ruby_vm][:constant_cache_misses]).to be_a(Integer)
+
+      expect(parsed[:yjit]).to be_a(Hash)
+      expect(parsed[:yjit][:compiled_iseq_count]).to eq(100)
+      expect(parsed[:yjit][:invalidation_count]).to eq(3)
+      expect(parsed[:yjit][:code_region_size]).to eq(2048)
+    end
+
     it "completes within 5ms" do
       # Warm up
       described_class.capture
@@ -189,6 +216,121 @@ RSpec.describe RailsErrorDashboard::Services::SystemHealthSnapshot do
         it "returns nil" do
           result = described_class.capture
           expect(result[:job_queue]).to be_nil
+        end
+      end
+    end
+
+    describe ":ruby_vm" do
+      it "returns a Hash with RubyVM.stat keys" do
+        vm = snapshot[:ruby_vm]
+        expect(vm).to be_a(Hash)
+        expect(vm).to have_key(:constant_cache_invalidations)
+        expect(vm).to have_key(:constant_cache_misses)
+        expect(vm[:constant_cache_invalidations]).to be_a(Integer)
+        expect(vm[:constant_cache_misses]).to be_a(Integer)
+      end
+
+      context "when RubyVM.stat raises" do
+        before do
+          allow(RubyVM).to receive(:stat).and_raise(RuntimeError, "VM broken")
+        end
+
+        it "returns nil" do
+          expect(snapshot[:ruby_vm]).to be_nil
+        end
+
+        it "still includes other metrics" do
+          expect(snapshot[:thread_count]).to be_a(Integer)
+          expect(snapshot[:captured_at]).to be_present
+        end
+      end
+    end
+
+    describe ":yjit" do
+      it "returns nil when YJIT is not enabled" do
+        # YJIT is typically not enabled in test (no --yjit flag)
+        # If it IS enabled, this test still passes (returns hash or nil)
+        unless defined?(RubyVM::YJIT) && RubyVM::YJIT.respond_to?(:enabled?) && RubyVM::YJIT.enabled?
+          expect(snapshot[:yjit]).to be_nil
+        end
+      end
+
+      context "when YJIT is enabled" do
+        before do
+          yjit_mod = Module.new do
+            def self.enabled? = true
+
+            def self.runtime_stats
+              {
+                inline_code_size: 1024,
+                code_region_size: 2048,
+                compiled_iseq_count: 100,
+                compiled_block_count: 200,
+                compile_time_ns: 5_000_000,
+                invalidation_count: 3,
+                invalidate_method_lookup: 1,
+                invalidate_constant_state_bump: 2,
+                object_shape_count: 50
+              }
+            end
+          end
+
+          stub_const("RubyVM::YJIT", yjit_mod)
+        end
+
+        it "returns cherry-picked YJIT stats" do
+          result = described_class.capture
+          yj = result[:yjit]
+          expect(yj).to be_a(Hash)
+          expect(yj[:compiled_iseq_count]).to eq(100)
+          expect(yj[:compiled_block_count]).to eq(200)
+          expect(yj[:invalidation_count]).to eq(3)
+          expect(yj[:code_region_size]).to eq(2048)
+          expect(yj[:compile_time_ns]).to eq(5_000_000)
+          expect(yj[:object_shape_count]).to eq(50)
+        end
+      end
+
+      context "when YJIT runtime_stats raises" do
+        before do
+          yjit_mod = Module.new do
+            def self.enabled? = true
+            def self.runtime_stats = raise(RuntimeError, "YJIT broken")
+          end
+
+          stub_const("RubyVM::YJIT", yjit_mod)
+        end
+
+        it "returns nil" do
+          result = described_class.capture
+          expect(result[:yjit]).to be_nil
+        end
+      end
+
+      context "when YJIT runtime_stats returns partial keys" do
+        before do
+          yjit_mod = Module.new do
+            def self.enabled? = true
+
+            def self.runtime_stats
+              # Future Ruby version with only some keys
+              { compiled_iseq_count: 42, invalidation_count: 7 }
+            end
+          end
+
+          stub_const("RubyVM::YJIT", yjit_mod)
+        end
+
+        it "returns nil for missing keys without error" do
+          result = described_class.capture
+          yj = result[:yjit]
+          expect(yj).to be_a(Hash)
+          expect(yj[:compiled_iseq_count]).to eq(42)
+          expect(yj[:invalidation_count]).to eq(7)
+          expect(yj[:code_region_size]).to be_nil
+          expect(yj[:compile_time_ns]).to be_nil
+          expect(yj[:compiled_block_count]).to be_nil
+          expect(yj[:object_shape_count]).to be_nil
         end
       end
     end

@@ -334,6 +334,54 @@
                       </code>
                     </div>
                   <% end %>
+
+                  <% if health[:ruby_vm] %>
+                    <% vm = health[:ruby_vm] %>
+                    <div class="mb-1">
+                      <small class="text-muted">VM Cache Invalidations:</small>
+                      <% invals = vm[:constant_cache_invalidations].to_i %>
+                      <code class="ms-1 <%= 'text-danger' if invals > 10_000 %>"><%= begin; number_with_delimiter(invals); rescue; invals; end %></code>
+                    </div>
+                    <div class="mb-1">
+                      <small class="text-muted">VM Cache Misses:</small>
+                      <code class="ms-1"><%= begin; number_with_delimiter(vm[:constant_cache_misses]); rescue; vm[:constant_cache_misses]; end %></code>
+                    </div>
+                    <% if vm[:shape_cache_size] %>
+                      <div class="mb-1">
+                        <small class="text-muted">Shape Cache Size:</small>
+                        <code class="ms-1"><%= begin; number_with_delimiter(vm[:shape_cache_size]); rescue; vm[:shape_cache_size]; end %></code>
+                      </div>
+                    <% end %>
+                  <% end %>
+
+                  <% if health[:yjit] %>
+                    <% yj = health[:yjit] %>
+                    <% if yj[:compiled_iseq_count] || yj[:compiled_block_count] %>
+                      <div class="mb-1">
+                        <small class="text-muted">YJIT Compiled:</small>
+                        <code class="ms-1"><%= yj[:compiled_iseq_count] %> iseqs / <%= yj[:compiled_block_count] %> blocks</code>
+                      </div>
+                    <% end %>
+                    <% if yj[:invalidation_count] %>
+                      <div class="mb-1">
+                        <small class="text-muted">YJIT Invalidations:</small>
+                        <% yj_invals = yj[:invalidation_count].to_i %>
+                        <code class="ms-1 <%= 'text-danger' if yj_invals > 100 %>"><%= yj_invals %></code>
+                      </div>
+                    <% end %>
+                    <% if yj[:code_region_size] %>
+                      <div class="mb-1">
+                        <small class="text-muted">YJIT Code Size:</small>
+                        <code class="ms-1"><%= (yj[:code_region_size].to_f / 1024).round(1) %> KB</code>
+                      </div>
+                    <% end %>
+                    <% if yj[:compile_time_ns] %>
+                      <div class="mb-1">
+                        <small class="text-muted">YJIT Compile Time:</small>
+                        <code class="ms-1"><%= (yj[:compile_time_ns].to_f / 1_000_000).round(2) %> ms</code>
+                      </div>
+                    <% end %>
+                  <% end %>
                 </div>
               </div>
             <% end %>

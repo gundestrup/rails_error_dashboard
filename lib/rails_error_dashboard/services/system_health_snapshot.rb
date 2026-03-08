@@ -34,6 +34,8 @@ module RailsErrorDashboard
           connection_pool: connection_pool_stats,
           puma: puma_stats,
           job_queue: job_queue_stats,
+          ruby_vm: ruby_vm_stats,
+          yjit: yjit_stats,
           captured_at: Time.current.iso8601
         }
       end
@@ -136,6 +138,37 @@ module RailsErrorDashboard
           queued: (::GoodJob::Job.where(finished_at: nil, error: nil).count rescue nil),
           errored: (::GoodJob::Job.where.not(error: nil).where(finished_at: nil).count rescue nil),
           finished: (::GoodJob::Job.where.not(finished_at: nil).count rescue nil)
+        }
+      rescue => e
+        nil
+      end
+
+      # RubyVM.stat — constant/method cache invalidation rates
+      # Keys vary by Ruby version; pass through full hash for forward-compat
+      # Ruby 3.2+: constant_cache_invalidations, constant_cache_misses,
+      #            global_cvar_state, next_shape_id, shape_cache_size
+      def ruby_vm_stats
+        return nil unless defined?(RubyVM) && RubyVM.respond_to?(:stat)
+        RubyVM.stat
+      rescue => e
+        nil
+      end
+
+      # RubyVM::YJIT.runtime_stats — JIT compilation health
+      # Cherry-picks diagnostic keys (full hash has 30+ entries)
+      def yjit_stats
+        return nil unless defined?(RubyVM::YJIT) && RubyVM::YJIT.respond_to?(:enabled?) && RubyVM::YJIT.enabled?
+        raw = RubyVM::YJIT.runtime_stats
+        {
+          inline_code_size: raw[:inline_code_size],
+          code_region_size: raw[:code_region_size],
+          compiled_iseq_count: raw[:compiled_iseq_count],
+          compiled_block_count: raw[:compiled_block_count],
+          compile_time_ns: raw[:compile_time_ns],
+          invalidation_count: raw[:invalidation_count],
+          invalidate_method_lookup: raw[:invalidate_method_lookup],
+          invalidate_constant_state_bump: raw[:invalidate_constant_state_bump],
+          object_shape_count: raw[:object_shape_count]
         }
       rescue => e
         nil
