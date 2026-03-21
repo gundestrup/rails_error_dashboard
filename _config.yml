@@ -45,7 +45,7 @@ jekyll_vitepress:
 
   footer:
     home_only: false
-    message: "Made with heart by <a href='https://github.com/AnjanJ'>Anjan Jagirdar</a> · Docs theme by <a href='https://jekyll-vitepress.dev/'>Jekyll VitePress Theme</a>"
+    message: "Made with ❤️ by <a href='https://github.com/AnjanJ'>Anjan Jagirdar</a> · Docs theme by <a href='https://jekyll-vitepress.dev/'>Jekyll VitePress Theme</a>"
 
   doc_footer:
     enabled: true
