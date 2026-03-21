@@ -1,0 +1,22 @@
+---
+layout: null
+---
+[
+  {%- assign first = true -%}
+  {%- for group in site.data.sidebar -%}
+    {%- assign collection = site.collections | where: "label", group.collection | first -%}
+    {%- if collection -%}
+      {%- assign docs = collection.docs | sort: "order" -%}
+      {%- for doc in docs -%}
+        {%- assign stripped = doc.content | markdownify | strip_html | normalize_whitespace | truncate: 2400 -%}
+        {%- unless first -%},{%- endunless -%}
+        {%- assign first = false -%}
+  {
+    "title": {{ doc.title | jsonify }},
+    "url": {{ doc.url | relative_url | jsonify }},
+    "content": {{ stripped | jsonify }}
+  }
+      {%- endfor -%}
+    {%- endif -%}
+  {%- endfor -%}
+]

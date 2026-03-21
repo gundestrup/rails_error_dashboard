@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
@@ -41,7 +43,7 @@ jobs:
           cat > Gemfile.pages <<EOF
           source 'https://rubygems.org'
           gem 'jekyll', '~> 4.3'
-          gem 'jekyll-theme-hacker'
+          gem 'jekyll-vitepress-theme', '~> 1.1'
           gem 'jekyll-seo-tag'
           gem 'jekyll-sitemap'
           EOF

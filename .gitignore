@@ -62,3 +62,8 @@ blog/
 
 # Task management (local working files)
 tasks/
+
+# Jekyll docs build
+_site/
+Gemfile.pages
+Gemfile.pages.lock

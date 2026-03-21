@@ -1,46 +1,90 @@
-theme: jekyll-theme-hacker
+theme: jekyll-vitepress-theme
+
 title: Rails Error Dashboard
 description: Self-hosted error tracking and exception monitoring for Ruby on Rails. Open source, free forever. A Sentry alternative with cause chains, analytics, workflow management, and multi-channel notifications.
-show_downloads: true
 url: https://anjanj.github.io
 baseurl: /rails_error_dashboard
 lang: en
+
+# Markdown
+markdown: kramdown
+kramdown:
+  input: GFM
+
+# Permalink
+permalink: pretty
 
 # GitHub metadata
 github:
   repository_url: https://github.com/AnjanJ/rails_error_dashboard
   is_project_page: true
 
-# Navigation (for Jekyll themes that support it)
-navigation:
-  - name: Home
-    url: /
-  - name: Documentation
-    url: /docs/
-  - name: Quickstart
-    url: /docs/QUICKSTART
-  - name: Features
-    url: /docs/FEATURES
-  - name: Multi-App Support
-    url: /docs/MULTI_APP_PERFORMANCE
-  - name: API Reference
-    url: /docs/API_REFERENCE
-  - name: Customization
-    url: /docs/CUSTOMIZATION
-  - name: Plugins
-    url: /docs/PLUGIN_SYSTEM
-  - name: Troubleshooting
-    url: /docs/TROUBLESHOOTING
+# Collections
+collections:
+  getting_started:
+    output: true
+    permalink: /docs/:slug/
+  guides:
+    output: true
+    permalink: /docs/guides/:slug/
+  features:
+    output: true
+    permalink: /docs/features/:slug/
+  reference:
+    output: true
+    permalink: /docs/reference/:slug/
+
+# Theme configuration
+jekyll_vitepress:
+  branding:
+    site_title: Rails Error Dashboard
+
+  syntax:
+    light_theme: github
+    dark_theme: github.dark
+
+  footer:
+    home_only: false
+    message: "Made with heart by <a href='https://github.com/AnjanJ'>Anjan Jagirdar</a>"
+
+  doc_footer:
+    enabled: true
+
+  last_updated:
+    enabled: true
+    format: "%-d %b %Y"
+
+  edit_link:
+    enabled: true
+    pattern: "https://github.com/AnjanJ/rails_error_dashboard/edit/main/:path"
+
+  github_star:
+    enabled: true
+    repo: AnjanJ/rails_error_dashboard
+
+  labels:
+    outline: "On this page"
+    sidebar_menu: "Menu"
+    appearance: "Appearance"
+    prev: "Previous"
+    next: "Next"
+    last_updated: "Last updated"
+    edit_link: "Edit this page on GitHub"
+    return_to_top: "Return to top"
+
+  scroll_offset: 134
 
 # Plugins
 plugins:
+  - jekyll-vitepress-theme
   - jekyll-seo-tag
   - jekyll-sitemap
 
-# Exclude from processing (only docs/ and root .md files are part of the site)
+# Exclude from processing (only collections and root .md files are part of the site)
 exclude:
   - Gemfile
   - Gemfile.lock
+  - Gemfile.pages
   - Rakefile
   - "*.gemspec"
   - "*.gem"
@@ -65,3 +109,16 @@ exclude:
   - .git
   - .github
   - .claude
+  - docs
+  - CLAUDE.md
+  - CHANGELOG.md
+  - CODE_OF_CONDUCT.md
+  - CONTRIBUTING.md
+  - MIT-LICENSE
+  - README.md
+  - SECURITY.md
+  - ROADMAP.md
+  - HOST_APP_SAFETY.md
+  - DEEP_INTROSPECTION_ANALYSIS.md
+  - FAULTLINE_COMPARISON.md
+  - TIMESERIES_ANALYSIS.md

@@ -1,21 +1,47 @@
 ---
-layout: default
-title: "Self-Hosted Error Tracking for Rails"
+layout: home
+hero:
+  name: Rails Error Dashboard
+  text: Self-Hosted Error Tracking for Rails
+  tagline: "Free, forever. Zero SaaS fees, zero lock-in. Professional error tracking for solo founders, indie hackers, and small teams."
+  actions:
+    - theme: brand
+      text: Get Started
+      link: /docs/quickstart/
+    - theme: alt
+      text: Live Demo
+      link: https://rails-error-dashboard.anjan.dev
+    - theme: alt
+      text: GitHub
+      link: https://github.com/AnjanJ/rails_error_dashboard
+features:
+  - icon: "\U0001F3A8"
+    title: Beautiful UI
+    details: Modern Bootstrap 5 design with dark/light mode, real-time updates, and responsive layout.
+  - icon: "\U0001F4CA"
+    title: Real-time Analytics
+    details: Error trends, platform health, correlation insights, baseline monitoring, and occurrence patterns.
+  - icon: "\U0001F514"
+    title: Multi-Channel Notifications
+    details: Slack, Email, Discord, PagerDuty, and custom webhooks with per-error throttling.
+  - icon: "\U0001F4F1"
+    title: Platform Detection
+    details: iOS, Android, Web, and API with automatic categorization and platform-specific analytics.
+  - icon: "\U0001F50D"
+    title: Smart Grouping
+    details: Advanced error correlation, cascade detection, fuzzy matching, and custom fingerprinting.
+  - icon: "\U000026A1"
+    title: High Performance
+    details: Async logging, rate limiting, sampling, BRIN indexes, and database optimization built in.
+  - icon: "\U0001F3AF"
+    title: Zero Configuration
+    details: Works out-of-the-box with sensible defaults. Full installer guides you through setup in 5 minutes.
+  - icon: "\U0001F512"
+    title: Self-Hosted
+    details: Complete data ownership. Runs inside your Rails process — no external services, no data leaving your servers.
 ---
 
-# Rails Error Dashboard
-
-**Self-hosted Rails error monitoring — free, forever. Zero SaaS fees, zero lock-in.**
-
-Own your errors. Own your stack. A fully open-source, self-hosted error dashboard for solo founders, indie hackers, and small teams. Professional error tracking with beautiful UI, multi-channel notifications (Slack, Email, Discord, PagerDuty), platform detection (iOS/Android/Web/API), and analytics. 5-minute setup, works out-of-the-box. Rails 7.0-8.1 compatible.
-
-## 🎮 Live Demo
-
-Try the dashboard: [https://rails-error-dashboard.anjan.dev](https://rails-error-dashboard.anjan.dev)
-
-**Credentials:** `gandalf` / `youshallnotpass`
-
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # Add to Gemfile
@@ -32,60 +58,7 @@ mount RailsErrorDashboard::Engine => '/error_dashboard'
 # Start your app and visit /error_dashboard
 ```
 
-## ✨ Key Features
-
-- **🎨 Beautiful UI** - Modern Bootstrap 5 design with dark/light mode
-- **📊 Real-time Analytics** - Error trends, platform health, correlation insights
-- **🔔 Multi-Channel Notifications** - Slack, Email, Discord, PagerDuty, Webhooks
-- **📱 Platform Detection** - iOS, Android, Web, API with automatic categorization
-- **🔍 Smart Grouping** - Advanced error correlation and pattern detection
-- **⚡ High Performance** - Async logging, rate limiting, database optimization
-- **🎯 Zero Configuration** - Works out-of-the-box with sensible defaults
-- **🔒 Self-Hosted** - Complete data ownership, no external dependencies
-
-## 📚 Documentation
-
-- [**Quickstart Guide**](docs/QUICKSTART) - Get started in 5 minutes
-- [**Features Overview**](docs/FEATURES) - Comprehensive feature list
-- [**Multi-App Support**](docs/MULTI_APP_PERFORMANCE) - Centralized monitoring
-- [**API Reference**](docs/API_REFERENCE) - Full API documentation
-- [**Customization**](docs/CUSTOMIZATION) - Tailor to your needs
-- [**Plugin System**](docs/PLUGIN_SYSTEM) - Extend functionality
-- [**Troubleshooting**](docs/TROUBLESHOOTING) - Common issues
-
-## 🛠️ Installation
-
-```ruby
-gem 'rails_error_dashboard'
-```
-
-Then run:
-
-```bash
-rails generate rails_error_dashboard:install
-```
-
-The installer will guide you through:
-- Multi-channel notifications setup (Slack, Email, Discord, PagerDuty)
-- Database configuration (shared or separate database)
-- Advanced features (error correlation, platform comparison, etc.)
-
-## 📦 What's New in v0.2.0
-
-- 🔗 Exception cause chain tracking with root cause analysis
-- 📋 Enriched error context — HTTP method, hostname, request duration
-- 🔒 Sensitive data filtering (24 built-in patterns)
-- 🔄 Auto-reopen resolved errors on recurrence
-- 🔔 Notification throttling with per-error cooldown
-- 🧬 Custom fingerprint lambda for error grouping
-- 🌍 Environment info — Ruby, Rails, gem versions captured automatically
-- 📍 Backtrace line numbers in error detail view
-- ⏳ Loading states & skeleton screens with Stimulus controller
-- 📉 Reduced dependencies from 9 to 2 required
-
-[View Full Changelog](https://github.com/AnjanJ/rails_error_dashboard/blob/main/CHANGELOG.md)
-
-## 💎 Why Rails Error Dashboard?
+## Why Rails Error Dashboard?
 
 ### Free Forever
 - **$0/month** - No subscription fees, ever
@@ -104,25 +77,10 @@ The installer will guide you through:
 - **Performance optimized** - Async logging, smart caching
 - **Fully customizable** - Extend with plugins and custom handlers
 
-## 🤝 Contributing
+## Contributing
 
-We welcome contributions! See our [GitHub repository](https://github.com/AnjanJ/rails_error_dashboard) for:
-- Feature requests and bug reports
-- Pull requests and code contributions
-- Documentation improvements
+We welcome contributions! See our [GitHub repository](https://github.com/AnjanJ/rails_error_dashboard) for feature requests, bug reports, and pull requests.
 
-## 📄 License
+## License
 
 MIT License - see [LICENSE](https://github.com/AnjanJ/rails_error_dashboard/blob/main/MIT-LICENSE) for details.
-
-## 🔗 Links
-
-- [GitHub Repository](https://github.com/AnjanJ/rails_error_dashboard)
-- [RubyGems Page](https://rubygems.org/gems/rails_error_dashboard)
-- [Live Demo](https://rails-error-dashboard.anjan.dev)
-- [Issue Tracker](https://github.com/AnjanJ/rails_error_dashboard/issues)
-- [Changelog](https://github.com/AnjanJ/rails_error_dashboard/blob/main/CHANGELOG.md)
-
----
-
-**Made with ❤️ for the Rails community**

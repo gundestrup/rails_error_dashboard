@@ -1,0 +1,11 @@
+- title: Guide
+  url: /docs/quickstart/
+  collections:
+    - getting_started
+    - guides
+    - features
+
+- title: Reference
+  url: /docs/reference/api-reference/
+  collections:
+    - reference

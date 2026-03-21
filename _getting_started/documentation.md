@@ -1,0 +1,164 @@
+---
+layout: default
+title: "Rails Error Dashboard Documentation"
+order: 1
+---
+
+# Rails Error Dashboard Documentation
+
+Welcome to the Rails Error Dashboard documentation! This guide will help you get started, customize your setup, and make the most of the advanced features.
+
+## Documentation Structure
+
+### Getting Started
+- **[Quickstart Guide](QUICKSTART.md)** - Get up and running in 5 minutes
+- **[Installation](https://github.com/AnjanJ/rails_error_dashboard/blob/main/README.md#installation)** - Detailed installation instructions
+- **[Configuration](guides/CONFIGURATION.md)** - Complete configuration reference
+- **[Migration & Upgrade Strategy](MIGRATION_STRATEGY.md)** - Squashed migrations and v0.2.0 upgrade guide
+- **[Uninstall Guide](UNINSTALL.md)** - Complete removal instructions (manual + automated)
+- **[FAQ](FAQ.md)** - Common questions answered
+
+### Core Features
+- **[Error Tracking & Capture](FEATURES.md#error-tracking--capture)** - Understanding the main dashboard
+- **[Workflow Management](FEATURES.md#workflow-management)** - Managing and resolving errors
+- **[Notifications](guides/NOTIFICATIONS.md)** - Setting up alerts (Slack, Email, Discord, PagerDuty)
+
+### Monitoring & Health (v0.3)
+- **[System Health Snapshots](FEATURES.md#system-health-snapshot)** - GC stats, threads, connection pool, memory, RubyVM cache, YJIT stats
+- **[N+1 Query Detection](FEATURES.md#n1-query-detection)** - Detect N+1 queries from breadcrumbs
+- **[Job Health](FEATURES.md#job-health)** - Background job queue stats (Sidekiq, SolidQueue, GoodJob)
+- **[Database Health](FEATURES.md#database-health)** - PgHero-style connection pool and table stats
+- **[Cache Health](FEATURES.md#cache-health)** - Cache hit rates and miss patterns
+- **[Deprecation Tracking](FEATURES.md#deprecation-tracking)** - Track Rails deprecation warnings
+
+### Deep Debugging (v0.4)
+- **[Local Variable Capture](FEATURES.md#local-variable-capture)** - Capture local variables at the point of exception via TracePoint
+- **[Instance Variable Capture](FEATURES.md#instance-variable-capture)** - Capture instance variables from the raising object
+- **[Swallowed Exception Detection](FEATURES.md#swallowed-exception-detection)** - Detect silently rescued exceptions (Ruby 3.3+)
+- **[On-Demand Diagnostic Dump](FEATURES.md#on-demand-diagnostic-dump)** - Snapshot system state on demand
+- **[Rack Attack Event Tracking](FEATURES.md#rack-attack-event-tracking)** - Track throttle/blocklist events as breadcrumbs
+- **[Process Crash Capture](FEATURES.md#process-crash-capture)** - Capture crashes via at_exit hook
+
+### Advanced Analytics
+- **[Source Code Integration](SOURCE_CODE_INTEGRATION.md)** - View source code, git blame, and repository links in errors
+- **[Advanced Error Grouping](features/ADVANCED_ERROR_GROUPING.md)** - Fuzzy matching, co-occurring errors, cascades
+- **[Baseline Monitoring](features/BASELINE_MONITORING.md)** - Statistical anomaly detection and alerts
+- **[Platform Comparison](features/PLATFORM_COMPARISON.md)** - iOS vs Android vs API health analysis
+- **[Occurrence Patterns](features/OCCURRENCE_PATTERNS.md)** - Cyclical patterns and burst detection
+- **[Error Correlation](features/ERROR_CORRELATION.md)** - Release and user correlation analysis
+
+### Customization
+- **[Multi-App Support](MULTI_APP_PERFORMANCE.md)** - Track multiple applications from one dashboard
+- **[Customization Guide](CUSTOMIZATION.md)** - Customize views, severity rules, and behavior
+- **[Settings Dashboard](guides/SETTINGS.md)** - View current configuration and verify feature status
+- **[Plugin System](PLUGIN_SYSTEM.md)** - Build custom plugins and integrations
+- **[Database Options](guides/DATABASE_OPTIONS.md)** - Using a separate database
+
+### Integration
+- **[Mobile App Integration](guides/MOBILE_APP_INTEGRATION.md)** - Integrate with React Native, Flutter, etc.
+- **[Batch Operations](guides/BATCH_OPERATIONS.md)** - Bulk error management
+- **[API Reference](API_REFERENCE.md)** - Complete API documentation
+- **[Real-Time Updates](guides/REAL_TIME_UPDATES.md)** - Turbo Streams and live updates
+- **[Solid Queue Setup](guides/SOLID_QUEUE_SETUP.md)** - Configure Solid Queue for async logging
+
+### Performance & Optimization
+- **[Database Optimization](guides/DATABASE_OPTIMIZATION.md)** - Query performance and indexing
+- **[Backtrace Limiting](guides/BACKTRACE_LIMITING.md)** - Reduce storage size
+- **[Error Sampling & Filtering](guides/ERROR_SAMPLING_AND_FILTERING.md)** - High-volume error handling
+- **[Error Trend Visualizations](guides/ERROR_TREND_VISUALIZATIONS.md)** - Analytics and charting
+
+### Development
+- **[Changelog](https://github.com/AnjanJ/rails_error_dashboard/blob/main/CHANGELOG.md)** - Version history and updates
+- **[Testing](development/TESTING.md)** - Running and writing tests
+- **[Troubleshooting](TROUBLESHOOTING.md)** - Common problems and solutions
+- **[Security Policy](https://github.com/AnjanJ/rails_error_dashboard/blob/main/SECURITY.md)** - Report vulnerabilities and security best practices
+
+## Quick Links
+
+### For New Users
+1. [Quickstart Guide](QUICKSTART.md) - 5-minute setup
+2. [Configuration](guides/CONFIGURATION.md) - Basic configuration
+3. [Notifications](guides/NOTIFICATIONS.md) - Set up Slack alerts
+
+### For Advanced Users
+1. [Local Variable Capture](FEATURES.md#local-variable-capture) - Debug with exact variable values
+2. [Swallowed Exception Detection](FEATURES.md#swallowed-exception-detection) - Find silently rescued exceptions
+3. [Diagnostic Dumps](FEATURES.md#on-demand-diagnostic-dump) - Snapshot system state on demand
+4. [Plugin System](PLUGIN_SYSTEM.md) - Custom integrations
+
+### For Developers
+1. [API Reference](API_REFERENCE.md) - Complete API docs
+2. [Plugin Development](PLUGIN_SYSTEM.md#creating-plugins) - Build plugins
+3. [Testing Guide](development/TESTING.md) - Test your setup
+
+## Documentation by Use Case
+
+### "I want to get started quickly"
+→ [Quickstart Guide](QUICKSTART.md)
+
+### "I need to customize error severity levels"
+→ [Customization Guide](CUSTOMIZATION.md#custom-severity-rules)
+
+### "I want Slack notifications for critical errors"
+→ [Notifications Guide](guides/NOTIFICATIONS.md#slack-setup)
+
+### "I need to track errors by app version"
+→ [Error Correlation](features/ERROR_CORRELATION.md#release-correlation)
+
+### "I want to build a custom integration"
+→ [Plugin System Guide](PLUGIN_SYSTEM.md)
+
+### "I need to understand platform stability"
+→ [Platform Comparison](features/PLATFORM_COMPARISON.md)
+
+### "I want proactive alerting for anomalies"
+→ [Baseline Monitoring](features/BASELINE_MONITORING.md)
+
+### "I want to see exact variable values when an exception occurs"
+→ [Local Variable Capture](FEATURES.md#local-variable-capture) (enable `enable_local_variables` and/or `enable_instance_variables`)
+
+### "I want to find exceptions that are silently rescued"
+→ [Swallowed Exception Detection](FEATURES.md#swallowed-exception-detection) (requires Ruby 3.3+)
+
+### "I want to snapshot my app's system state on demand"
+→ [On-Demand Diagnostic Dump](FEATURES.md#on-demand-diagnostic-dump) (dashboard button or rake task)
+
+### "I want to capture errors from process crashes"
+→ [Process Crash Capture](FEATURES.md#process-crash-capture) (at_exit hook writes to disk, imported on next boot)
+
+### "I want to see source code directly in error details"
+→ [Source Code Integration](SOURCE_CODE_INTEGRATION.md)
+
+### "I want to find N+1 queries or cache issues across all errors"
+→ [Breadcrumbs](FEATURES.md#breadcrumbs--request-activity-trail-new) (enable breadcrumbs, then visit N+1 Queries or Cache Health pages)
+
+### "I need to track multiple Rails applications"
+→ [Multi-App Support](MULTI_APP_PERFORMANCE.md)
+
+### "I need to uninstall Rails Error Dashboard"
+→ [Uninstall Guide](UNINSTALL.md)
+
+## Searching the Documentation
+
+- **Configuration options**: See [Configuration Guide](guides/CONFIGURATION.md)
+- **API methods**: See [API Reference](API_REFERENCE.md)
+- **Term definitions**: See [Glossary](GLOSSARY.md)
+- **Code examples**: Most guides include code examples
+- **Troubleshooting**: Each guide has a troubleshooting section
+
+## Getting Help
+
+- **Issues**: [GitHub Issues](https://github.com/AnjanJ/rails_error_dashboard/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/AnjanJ/rails_error_dashboard/discussions)
+- **Security**: [Security Policy](https://github.com/AnjanJ/rails_error_dashboard/blob/main/SECURITY.md) - Report security vulnerabilities
+- **Stack Overflow**: Tag your questions with `rails-error-dashboard`
+
+## Documentation Versions
+
+This documentation is for **Rails Error Dashboard v0.4.0** (Latest).
+
+For version history, see the [Changelog](https://github.com/AnjanJ/rails_error_dashboard/blob/main/CHANGELOG.md).
+
+---
+
+**Need help?** Check the guides above or [open an issue](https://github.com/AnjanJ/rails_error_dashboard/issues).
