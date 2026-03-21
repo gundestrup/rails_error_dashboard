@@ -434,7 +434,7 @@ Available as open source under the [MIT License](https://opensource.org/licenses
 
 ## Acknowledgments
 
-Built with [Rails](https://rubyonrails.org/) · UI by [Bootstrap 5](https://getbootstrap.com/) · Charts by [Chart.js](https://www.chartjs.org/) · Pagination by [Pagy](https://github.com/ddnexus/pagy)
+Built with [Rails](https://rubyonrails.org/) · UI by [Bootstrap 5](https://getbootstrap.com/) · Charts by [Chart.js](https://www.chartjs.org/) · Pagination by [Pagy](https://github.com/ddnexus/pagy) · Docs theme by [Jekyll VitePress Theme](https://jekyll-vitepress.dev/) by [@crmne](https://github.com/crmne)
 
 ## Contributors
 

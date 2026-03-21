@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Migrated docs site to Jekyll VitePress Theme** — Replaced jekyll-theme-hacker with [jekyll-vitepress-theme](https://jekyll-vitepress.dev/) by [@crmne](https://github.com/crmne). New docs feature sidebar navigation, dark/light mode, full-text search (`/` or `Ctrl+K`), code copy buttons, edit-on-GitHub links, and previous/next page navigation. Docs reorganized into collections (Getting Started, Guides, Features, Reference)
+
 ---
 
 ## [0.4.1] - 2026-03-08
