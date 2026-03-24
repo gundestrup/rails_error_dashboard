@@ -476,6 +476,37 @@ RailsErrorDashboard::Commands::LogError.call(error, {})
 
 ---
 
+## Muting Notifications for Specific Errors
+
+You can mute individual errors to suppress all notifications while still tracking them in the dashboard. This is useful for known issues, expected errors from scanners, or errors waiting on third-party fixes.
+
+**Muted errors:**
+- Still appear in the dashboard (with a bell-slash icon)
+- Still get ingested, deduplicated, and counted
+- Still fire plugin events (`:on_error_logged`, `:on_error_recurred`)
+- Do **not** trigger any notifications (Slack, email, Discord, PagerDuty, webhooks)
+- Do **not** trigger baseline anomaly alerts
+
+**How to mute:**
+- Click the "Mute" button on the error detail page sidebar
+- Optionally provide your name and a reason (reason is saved as a comment)
+- Use batch mute from the error list toolbar for multiple errors
+
+**How to unmute:**
+- Click the "Unmute" button on the error detail page sidebar
+- Use batch unmute from the error list toolbar
+
+**Mute vs Snooze:**
+
+| | Mute | Snooze |
+|---|---|---|
+| **Purpose** | Suppress notifications | Hide from dashboard list |
+| **Duration** | Permanent (until unmuted) | Time-limited (auto-expires) |
+| **Notifications** | Silenced | Still fire |
+| **Dashboard** | Visible (bell-slash icon) | Hidden when "Hide snoozed" filter is on |
+
+---
+
 ## Next Steps
 
 - Configure your preferred notification backends
@@ -483,5 +514,6 @@ RailsErrorDashboard::Commands::LogError.call(error, {})
 - Set up appropriate channels/webhooks
 - Configure environment variables
 - Monitor error notifications
+- Use mute to silence known/expected errors
 
 For more help, see the [main README](../README.md).

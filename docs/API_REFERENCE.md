@@ -173,6 +173,7 @@ Get a paginated list of errors with optional filtering.
 | `priority_level` | integer | Filter by priority (0-4) | `?priority_level=4` |
 | `unresolved` | boolean | Show only unresolved | `?unresolved=true` |
 | `hide_snoozed` | boolean | Hide snoozed errors | `?hide_snoozed=true` |
+| `hide_muted` | boolean | Hide muted errors | `?hide_muted=true` |
 | `search` | string | Search message/backtrace | `?search=payment` |
 | `timeframe` | string | Time filter | `?timeframe=today` |
 | `sort_by` | string | Sort field | `?sort_by=occurred_at` |
@@ -312,6 +313,41 @@ Resume showing a snoozed error (unsnooze before the snooze duration expires).
 ```bash
 curl -X POST -u admin:password \
   https://your-app.com/error_dashboard/errors/123/unsnooze
+```
+
+### Mute Error
+
+Mute notifications for an error. Muted errors still appear in the dashboard and continue to be tracked, but all notifications (Slack, email, Discord, PagerDuty, webhooks) are suppressed.
+
+**Endpoint:** `POST /error_dashboard/errors/:id/mute`
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `muted_by` | string | No | Name of the person muting |
+| `reason` | string | No | Reason for muting (added as comment) |
+
+**Example:**
+```bash
+curl -X POST -u admin:password \
+  -d "muted_by=Jane Doe" \
+  -d "reason=Known scanner noise, safe to ignore" \
+  https://your-app.com/error_dashboard/errors/123/mute
+```
+
+### Unmute Error
+
+Restore notifications for a muted error.
+
+**Endpoint:** `POST /error_dashboard/errors/:id/unmute`
+
+**Parameters:** None required.
+
+**Example:**
+```bash
+curl -X POST -u admin:password \
+  https://your-app.com/error_dashboard/errors/123/unmute
 ```
 
 ---

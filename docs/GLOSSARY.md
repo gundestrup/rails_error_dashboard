@@ -119,6 +119,9 @@ Error is intentionally not being fixed. Removed from main list. Can be reopened 
 ### Snoozed (Not a Status)
 Snoozed is not a status field but a separate `snoozed_until` datetime column. Errors can be snoozed while in any status. Automatically becomes visible again when `snoozed_until` time expires.
 
+### Muted (Not a Status)
+Muted is not a status field but a separate `muted` boolean column. Muted errors still appear in the dashboard and continue to be tracked, but all notifications (Slack, email, Discord, PagerDuty, webhooks) are suppressed. Unlike snooze (which is time-limited), muting is permanent until manually unmuted. Errors can be muted while in any status. Additional metadata: `muted_at`, `muted_by`, `muted_reason`.
+
 ---
 
 ## Features
