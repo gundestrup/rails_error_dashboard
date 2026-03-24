@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.1] - 2026-03-24
+
+### Fixed
+- **Missing ActionCable nav link in dashboard sidebar** — Users had no way to navigate to `/errors/actioncable_health_summary` from the UI. Added nav link with broadcast icon, guarded by `enable_actioncable_tracking && enable_breadcrumbs`, matching the existing pattern for Rate Limits, Job Health, and DB Health links
+
+---
+
 ## [0.5.0] - 2026-03-24
 
 ### Added
