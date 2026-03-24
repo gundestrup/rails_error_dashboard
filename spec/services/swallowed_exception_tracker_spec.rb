@@ -187,6 +187,10 @@ RSpec.describe RailsErrorDashboard::Services::SwallowedExceptionTracker do
 
       expect(described_class.current_raises).not_to be_empty
 
+      # Disable TracePoint before flush+assert to prevent RSpec internals
+      # (e.g., Errno::ENOENT from tempfile.rb) from re-populating counters
+      # between flush! and the expectation.
+      described_class.disable!
       described_class.flush!
 
       expect(described_class.current_raises).to be_empty
@@ -209,8 +213,9 @@ RSpec.describe RailsErrorDashboard::Services::SwallowedExceptionTracker do
     end
 
     it "does nothing when counters are empty" do
-      # Clear immediately before the assertion — the enabled TracePoint may have
-      # accumulated raise/rescue counts from RSpec internals between tests.
+      # Disable TracePoint and clear before the assertion — the enabled TracePoint
+      # accumulates raise/rescue counts from RSpec internals between tests.
+      described_class.disable!
       described_class.clear!
       expect {
         described_class.flush!
@@ -322,8 +327,9 @@ RSpec.describe RailsErrorDashboard::Services::SwallowedExceptionTracker do
     end
 
     it "does not enqueue job when both snapshots are empty" do
-      # Clear immediately before the assertion — the enabled TracePoint may have
-      # accumulated raise/rescue counts from RSpec internals between tests.
+      # Disable TracePoint and clear before the assertion — the enabled TracePoint
+      # accumulates raise/rescue counts from RSpec internals between tests.
+      described_class.disable!
       described_class.clear!
       expect {
         described_class.flush!
