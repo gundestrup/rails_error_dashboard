@@ -1664,6 +1664,13 @@ body.dark-mode .sidebar-section-body { background: var(--ctp-mantle); }
                   <% end %>
                 </li>
               <% end %>
+              <% if RailsErrorDashboard.configuration.enable_actioncable_tracking && RailsErrorDashboard.configuration.enable_breadcrumbs %>
+                <li class="nav-item">
+                  <%= link_to actioncable_health_summary_errors_path(nav_params), class: "nav-link #{request.path == actioncable_health_summary_errors_path ? 'active' : ''}" do %>
+                    <i class="bi bi-broadcast"></i> ActionCable
+                  <% end %>
+                </li>
+              <% end %>
               <% if RailsErrorDashboard.configuration.enable_system_health %>
                 <li class="nav-item">
                   <%= link_to job_health_summary_errors_path(nav_params), class: "nav-link #{request.path == job_health_summary_errors_path ? 'active' : ''}" do %>
