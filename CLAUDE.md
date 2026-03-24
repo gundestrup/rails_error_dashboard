@@ -4,6 +4,8 @@
 
 rails_error_dashboard is a self-hosted error tracking gem for Rails. It's a Rails Engine using CQRS architecture (Commands/Queries/Services). It runs inside the host app's process — no external services.
 
+> **See memory files for detailed notes:** architecture, testing, roadmap, safety, demo-deployment, codebase-history, release-process, common-pitfalls, solidqueue-integration, deep-introspection, pickme.
+
 ## Architecture Rules
 
 1. **HOST APP SAFETY FIRST** — Never raise in capture path, never block requests, budget every operation, clean up Thread.current, always re-raise original exceptions
@@ -17,7 +19,7 @@ rails_error_dashboard is a self-hosted error tracking gem for Rails. It's a Rail
 
 ### RSpec (unit/integration)
 ```bash
-bundle exec rspec                          # full suite (~1895 specs, ~37s)
+bundle exec rspec                          # full suite (~2636 specs, ~49s)
 bundle exec rspec spec/system/             # system tests (Capybara + Cuprite)
 HEADLESS=false bundle exec rspec spec/system/  # visible browser
 ```

@@ -226,7 +226,27 @@ module RailsErrorDashboard
         say "\n"
       end
 
+      def detect_existing_config
+        initializer_path = File.join(destination_root, "config/initializers/rails_error_dashboard.rb")
+        return unless File.exist?(initializer_path)
+
+        content = File.read(initializer_path)
+        @existing_install_detected = true
+
+        # Detect separate database from existing config
+        if content.match?(/config\.use_separate_database\s*=\s*true/)
+          @database_mode = :separate
+          @database_name = content[/config\.database\s*=\s*:(\w+)/, 1] || "error_dashboard"
+          @enable_separate_database = true
+          @application_name = detect_application_name
+          say_status "detected", "existing separate database configuration", :green
+        end
+      end
+
       def select_database_mode
+        # Skip if existing config already detected database mode
+        return if @existing_install_detected && @database_mode
+
         # Skip if not interactive or if --separate_database was passed via CLI
         if options[:separate_database]
           @database_mode = :separate
@@ -333,6 +353,12 @@ module RailsErrorDashboard
         @enable_crash_capture = @selected_features&.dig(:crash_capture) || options[:crash_capture]
         @enable_diagnostic_dump = @selected_features&.dig(:diagnostic_dump) || options[:diagnostic_dump]
 
+        # Don't overwrite existing initializer on upgrade — user's config is precious
+        if @existing_install_detected
+          say_status "skip", "config/initializers/rails_error_dashboard.rb (preserving existing config)", :yellow
+          return
+        end
+
         template "initializer.rb", "config/initializers/rails_error_dashboard.rb"
       end
 
@@ -343,10 +369,17 @@ module RailsErrorDashboard
 
         FileUtils.mkdir_p(target_dir)
 
-        # Check which migrations are already installed (by descriptive name, ignoring timestamp)
-        existing = Dir.glob(File.join(target_dir, "*rails_error_dashboard*.rb")).map { |f|
-          File.basename(f).sub(/^\d+_/, "")
-        }.to_set
+        # Check BOTH migration directories to prevent cross-directory duplication (#93)
+        # A user who installed with separate DB and re-runs without the flag should not
+        # get duplicate migrations in db/migrate/
+        existing = Set.new
+        [ "db/migrate", "db/error_dashboard_migrate" ].each do |dir|
+          full_path = File.join(destination_root, dir)
+          next unless Dir.exist?(full_path)
+          Dir.glob(File.join(full_path, "*rails_error_dashboard*.rb")).each do |f|
+            existing.add(File.basename(f).sub(/^\d+_/, ""))
+          end
+        end
 
         timestamp = Time.now.utc.strftime("%Y%m%d%H%M%S").to_i
 

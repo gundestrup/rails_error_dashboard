@@ -43,7 +43,10 @@ RSpec.describe RailsErrorDashboard::Generators::InstallGenerator, type: :generat
       end
     end
 
-    generator = described_class.new([], options, { destination_root: destination_root })
+    behavior_options = { destination_root: destination_root }
+    generator = described_class.new([], options, behavior_options)
+    # Force overwrite to prevent interactive conflict prompts in tests
+    generator.options = generator.options.merge(force: true)
     generator.invoke_all
   end
 
@@ -379,6 +382,43 @@ RSpec.describe RailsErrorDashboard::Generators::InstallGenerator, type: :generat
       it "does not copy migrations to db/migrate" do
         migration_files = Dir.glob("#{destination_root}/db/migrate/*rails_error_dashboard*.rb")
         expect(migration_files).to be_empty
+      end
+    end
+
+    context "upgrade: re-running with existing separate database config" do
+      before do
+        # First install with separate database
+        run_generator [ "--no-interactive", "--separate_database" ]
+        # Verify initial state
+        expect(Dir.glob("#{destination_root}/db/error_dashboard_migrate/*rails_error_dashboard*.rb")).not_to be_empty
+        # Re-run WITHOUT --separate_database (simulating upgrade)
+        run_generator [ "--no-interactive" ]
+      end
+
+      it "does not duplicate migrations into db/migrate" do
+        wrong_dir = Dir.glob("#{destination_root}/db/migrate/*rails_error_dashboard*.rb")
+        expect(wrong_dir).to be_empty
+      end
+
+      it "preserves use_separate_database = true in initializer" do
+        content = File.read("#{destination_root}/config/initializers/rails_error_dashboard.rb")
+        expect(content).to include("config.use_separate_database = true")
+      end
+
+      it "is idempotent on re-run (no duplicate migrations)" do
+        count_before = Dir.glob("#{destination_root}/db/error_dashboard_migrate/*rails_error_dashboard*.rb").size
+        run_generator [ "--no-interactive" ]
+        count_after = Dir.glob("#{destination_root}/db/error_dashboard_migrate/*rails_error_dashboard*.rb").size
+        expect(count_after).to eq(count_before)
+      end
+    end
+
+    context "cross-directory migration detection" do
+      it "does not copy to db/migrate if migrations already exist in db/error_dashboard_migrate" do
+        run_generator [ "--no-interactive", "--separate_database" ]
+        run_generator [ "--no-interactive" ]
+        wrong_dir = Dir.glob("#{destination_root}/db/migrate/*rails_error_dashboard*.rb")
+        expect(wrong_dir).to be_empty
       end
     end
   end
