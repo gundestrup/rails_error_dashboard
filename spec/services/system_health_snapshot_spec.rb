@@ -335,6 +335,131 @@ RSpec.describe RailsErrorDashboard::Services::SystemHealthSnapshot do
       end
     end
 
+    describe ":gc_latest" do
+      it "returns a Hash with GC context" do
+        gcl = snapshot[:gc_latest]
+        expect(gcl).to be_a(Hash)
+        expect(gcl).to have_key(:gc_by)
+        expect(gcl).to have_key(:state)
+        expect(gcl).to have_key(:major_by)
+        expect(gcl).to have_key(:immediate_sweep)
+      end
+
+      it "gc_by is a String" do
+        expect(snapshot[:gc_latest][:gc_by]).to be_a(String)
+      end
+
+      it "state is a String" do
+        expect(snapshot[:gc_latest][:state]).to be_a(String)
+      end
+    end
+
+    describe ":process_memory" do
+      if File.exist?("/proc/self/status")
+        it "returns a Hash with rss_mb, swap_mb, rss_peak_mb, os_threads on Linux" do
+          pm = snapshot[:process_memory]
+          expect(pm).to be_a(Hash)
+          expect(pm[:rss_mb]).to be_a(Float)
+          expect(pm[:rss_mb]).to be > 0
+          expect(pm[:swap_mb]).to be_a(Float)
+          expect(pm[:swap_mb]).to be >= 0
+          expect(pm[:rss_peak_mb]).to be_a(Float)
+          expect(pm[:rss_peak_mb]).to be >= pm[:rss_mb]
+          expect(pm[:os_threads]).to be_a(Integer)
+          expect(pm[:os_threads]).to be >= 1
+        end
+
+        it "preserves process_memory_mb backward compat" do
+          expect(snapshot[:process_memory_mb]).to eq(snapshot[:process_memory][:rss_mb])
+        end
+      else
+        it "returns nil on non-Linux" do
+          expect(snapshot[:process_memory]).to be_nil
+        end
+
+        it "process_memory_mb is also nil on non-Linux" do
+          expect(snapshot[:process_memory_mb]).to be_nil
+        end
+      end
+    end
+
+    describe ":file_descriptors" do
+      if File.exist?("/proc/self/fd")
+        it "returns a Hash with open, limit, utilization_pct on Linux" do
+          fd = snapshot[:file_descriptors]
+          expect(fd).to be_a(Hash)
+          expect(fd[:open]).to be_a(Integer)
+          expect(fd[:open]).to be > 0
+          expect(fd[:limit]).to be_a(Integer)
+          expect(fd[:limit]).to be > 0
+          expect(fd[:utilization_pct]).to be_a(Float)
+          expect(fd[:utilization_pct]).to be > 0
+          expect(fd[:utilization_pct]).to be <= 100
+        end
+      else
+        it "returns nil on non-Linux" do
+          expect(snapshot[:file_descriptors]).to be_nil
+        end
+      end
+    end
+
+    describe ":system_load" do
+      if File.exist?("/proc/loadavg")
+        it "returns a Hash with load averages and cpu_count on Linux" do
+          sl = snapshot[:system_load]
+          expect(sl).to be_a(Hash)
+          expect(sl[:load_1m]).to be_a(Float)
+          expect(sl[:load_5m]).to be_a(Float)
+          expect(sl[:load_15m]).to be_a(Float)
+          expect(sl[:cpu_count]).to be_a(Integer)
+          expect(sl[:cpu_count]).to be >= 1
+          expect(sl[:load_ratio]).to be_a(Float)
+        end
+      else
+        it "returns nil on non-Linux" do
+          expect(snapshot[:system_load]).to be_nil
+        end
+      end
+    end
+
+    describe ":system_memory" do
+      if File.exist?("/proc/meminfo")
+        it "returns a Hash with total, available, used_pct, swap on Linux" do
+          sm = snapshot[:system_memory]
+          expect(sm).to be_a(Hash)
+          expect(sm[:total_mb]).to be_a(Numeric)
+          expect(sm[:total_mb]).to be > 0
+          expect(sm[:available_mb]).to be_a(Numeric)
+          expect(sm[:used_pct]).to be_a(Float)
+          expect(sm[:used_pct]).to be >= 0
+          expect(sm[:used_pct]).to be <= 100
+          expect(sm[:swap_used_mb]).to be_a(Numeric)
+        end
+      else
+        it "returns nil on non-Linux" do
+          expect(snapshot[:system_memory]).to be_nil
+        end
+      end
+    end
+
+    describe ":tcp_connections" do
+      if File.exist?("/proc/self/net/tcp")
+        it "returns a Hash with connection state counts on Linux" do
+          tcp = snapshot[:tcp_connections]
+          expect(tcp).to be_a(Hash)
+          expect(tcp[:established]).to be_a(Integer)
+          expect(tcp[:established]).to be >= 0
+          expect(tcp[:close_wait]).to be_a(Integer)
+          expect(tcp[:time_wait]).to be_a(Integer)
+          expect(tcp[:listen]).to be_a(Integer)
+        end
+      else
+        it "returns nil on non-Linux" do
+          expect(snapshot[:tcp_connections]).to be_nil
+        end
+      end
+    end
+
     describe ":actioncable" do
       it "returns nil when ActionCable is not defined" do
         # ActionCable may or may not be defined in test env

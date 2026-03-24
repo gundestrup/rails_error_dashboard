@@ -299,7 +299,37 @@
                 <div class="sidebar-section-title"><i class="bi bi-heart-pulse"></i> System Health</div>
                 <small class="sidebar-section-hint">Runtime state when error fired</small>
                 <div class="sidebar-section-body">
-                  <% if health[:process_memory_mb] %>
+                  <% if health[:process_memory] %>
+                    <% pm = health[:process_memory] %>
+                    <div class="mb-1">
+                      <small class="text-muted">Memory (RSS):</small>
+                      <% mem = pm[:rss_mb].to_f %>
+                      <code class="ms-1 text-<%= mem > 1024 ? 'danger' : mem > 512 ? 'warning' : 'success' %>">
+                        <%= mem %> MB
+                      </code>
+                    </div>
+                    <% if pm[:swap_mb].to_f > 0 %>
+                      <div class="mb-1">
+                        <small class="text-muted">Process Swap:</small>
+                        <code class="ms-1 text-danger"><%= pm[:swap_mb] %> MB</code>
+                      </div>
+                    <% end %>
+                    <% if pm[:rss_peak_mb] %>
+                      <div class="mb-1">
+                        <small class="text-muted">Peak RSS:</small>
+                        <code class="ms-1"><%= pm[:rss_peak_mb] %> MB</code>
+                      </div>
+                    <% end %>
+                    <% if pm[:os_threads] %>
+                      <div class="mb-1">
+                        <small class="text-muted">OS Threads:</small>
+                        <code class="ms-1"><%= pm[:os_threads] %></code>
+                        <% if health[:thread_count] %>
+                          <small class="text-muted ms-1">(Ruby: <%= health[:thread_count] %>)</small>
+                        <% end %>
+                      </div>
+                    <% end %>
+                  <% elsif health[:process_memory_mb] %>
                     <div class="mb-1">
                       <small class="text-muted">Memory (RSS):</small>
                       <% mem = health[:process_memory_mb].to_f %>
@@ -307,12 +337,61 @@
                         <%= mem %> MB
                       </code>
                     </div>
+                    <% if health[:thread_count] %>
+                      <div class="mb-1">
+                        <small class="text-muted">Threads:</small>
+                        <code class="ms-1"><%= health[:thread_count] %></code>
+                      </div>
+                    <% end %>
                   <% end %>
 
-                  <% if health[:thread_count] %>
+                  <% if health[:file_descriptors] %>
+                    <% fd = health[:file_descriptors] %>
                     <div class="mb-1">
-                      <small class="text-muted">Threads:</small>
-                      <code class="ms-1"><%= health[:thread_count] %></code>
+                      <small class="text-muted">File Descriptors:</small>
+                      <% fd_pct = fd[:utilization_pct].to_f %>
+                      <code class="ms-1 text-<%= fd_pct > 80 ? 'danger' : fd_pct > 60 ? 'warning' : 'success' %>">
+                        <%= fd[:open] %> / <%= fd[:limit] %> (<%= fd_pct %>%)
+                      </code>
+                    </div>
+                  <% end %>
+
+                  <% if health[:system_load] %>
+                    <% sl = health[:system_load] %>
+                    <div class="mb-1">
+                      <small class="text-muted">Load Average:</small>
+                      <% lr = sl[:load_ratio].to_f %>
+                      <code class="ms-1 text-<%= lr > 2.0 ? 'danger' : lr > 1.0 ? 'warning' : 'success' %>">
+                        <%= sl[:load_1m] %><% if sl[:cpu_count] %> / <%= sl[:cpu_count] %> CPUs<% end %>
+                      </code>
+                      <small class="text-muted ms-1">(5m: <%= sl[:load_5m] %>, 15m: <%= sl[:load_15m] %>)</small>
+                    </div>
+                  <% end %>
+
+                  <% if health[:system_memory] %>
+                    <% sm = health[:system_memory] %>
+                    <div class="mb-1">
+                      <small class="text-muted">System Memory:</small>
+                      <% used_pct = sm[:used_pct].to_f %>
+                      <code class="ms-1 text-<%= used_pct > 90 ? 'danger' : used_pct > 80 ? 'warning' : 'success' %>">
+                        <%= sm[:available_mb] %> MB free / <%= sm[:total_mb] %> MB (<%= used_pct %>% used)
+                      </code>
+                    </div>
+                    <% if sm[:swap_used_mb].to_i > 0 %>
+                      <div class="mb-1">
+                        <small class="text-muted">System Swap:</small>
+                        <code class="ms-1 text-danger"><%= sm[:swap_used_mb] %> MB used</code>
+                      </div>
+                    <% end %>
+                  <% end %>
+
+                  <% if health[:tcp_connections] %>
+                    <% tcp = health[:tcp_connections] %>
+                    <div class="mb-1">
+                      <small class="text-muted">TCP Connections:</small>
+                      <code class="ms-1">
+                        <%= tcp[:established] %> established<% if tcp[:close_wait].to_i > 0 %>, <span class="text-danger"><%= tcp[:close_wait] %> close_wait</span><% end %><% if tcp[:time_wait].to_i > 0 %>, <span class="text-warning"><%= tcp[:time_wait] %> time_wait</span><% end %>
+                      </code>
                     </div>
                   <% end %>
 
@@ -324,6 +403,16 @@
                     <div class="mb-1">
                       <small class="text-muted">Major GC Runs:</small>
                       <code class="ms-1"><%= health[:gc][:major_gc_count] %></code>
+                    </div>
+                  <% end %>
+
+                  <% if health[:gc_latest] %>
+                    <% gcl = health[:gc_latest] %>
+                    <div class="mb-1">
+                      <small class="text-muted">Last GC:</small>
+                      <code class="ms-1">
+                        <%= gcl[:major_by] ? "major (#{gcl[:major_by]})" : "minor" %> by <%= gcl[:gc_by] %><% if gcl[:state].to_s != "none" %>, <span class="text-warning">state: <%= gcl[:state] %></span><% end %>
+                      </code>
                     </div>
                   <% end %>
 
