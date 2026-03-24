@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] - 2026-03-24
+
+### Added
+- **ActionCable connection monitoring** — Track WebSocket channel actions, transmissions, subscription confirmations, and rejections as breadcrumbs. No error tracker (Sentry, Honeybadger, Faultline) surfaces ActionCable health alongside HTTP errors. Includes dedicated dashboard page at `/errors/actioncable_health_summary` with channel breakdown, rejection counts, and time range filtering. System health snapshot now captures live connection count and adapter name. Configuration: `enable_actioncable_tracking = true` (requires `enable_breadcrumbs = true`)
+
+### Fixed
+- **Flaky swallowed exception tracker specs** — Eliminated TracePoint state leakage where RSpec internals (e.g., `Errno::ENOENT` from tempfile.rb) accumulated in counters between tests. Fixed by disabling TracePoint before asserting empty state in all three vulnerable specs
+
+---
+
 ## [0.4.2] - 2026-03-24
 
 ### Added

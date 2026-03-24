@@ -35,7 +35,7 @@ Core features that are always enabled - no configuration needed:
 - Source Code Integration, Git Blame, Breadcrumbs, System Health Snapshot, Job Health Page, Database Health Page
 
 **🔬 Deep Debugging (6 features)** — v0.4.0
-- Local Variable Capture, Instance Variable Capture, Swallowed Exception Detection, On-Demand Diagnostic Dump, Rack Attack Event Tracking, Process Crash Capture
+- Local Variable Capture, Instance Variable Capture, Swallowed Exception Detection, On-Demand Diagnostic Dump, Rack Attack Event Tracking, Process Crash Capture, ActionCable Connection Monitoring
 
 **🆕 v0.2 Smart Defaults (Always ON)**
 - Exception Cause Chains, Enriched Context, Environment Info, Structured Backtrace, Sensitive Data Filtering, Auto-Reopen, CurrentAttributes Integration, BRIN Indexes
@@ -840,6 +840,48 @@ The page at `/errors/rack_attack_summary` shows event breakdown with time range 
 
 - **Auto-disabled** — If breadcrumbs are not enabled, Rack Attack tracking is automatically disabled with a warning (no crash)
 - **Zero integration cost** — Rack::Attack already emits AS::Notifications events; this just subscribes to them
+
+---
+
+## ActionCable Connection Monitoring (v0.5.0)
+
+**⚙️ Optional Feature** - ActionCable tracking is disabled by default. **Requires breadcrumbs to be enabled.** Enable it to monitor WebSocket channel health:
+
+```ruby
+config.enable_breadcrumbs = true
+config.enable_actioncable_tracking = true
+```
+
+### How It Works
+
+Subscribes to ActionCable's ActiveSupport::Notifications events and records them as breadcrumbs. When an error occurs during or after WebSocket activity, the breadcrumbs show the ActionCable context — channel actions, transmissions, and subscription lifecycle events.
+
+The system health snapshot also captures the live ActionCable connection count and adapter name at error time.
+
+### Tracked Events
+
+- **perform_action** — Channel action executed (e.g., `ChatChannel#speak`)
+- **transmit** — Data transmitted to a subscriber
+- **transmit_subscription_confirmation** — Subscription confirmed
+- **transmit_subscription_rejection** — Subscription rejected (auth/authz failure)
+
+### Dashboard Page
+
+The page at `/errors/actioncable_health_summary` shows channel breakdown with:
+- Summary cards: Active Channels, Total Events, Subscription Rejections
+- Per-channel table: Actions, Transmissions, Subscriptions, Rejections, Error Count, Last Seen
+- Time range filtering (7, 30, or 90 days)
+- Sorted by rejection count descending (most problematic channels first)
+
+### Competitive Advantage
+
+No error tracker (Sentry, Honeybadger, Faultline) surfaces ActionCable health alongside HTTP errors. This is unique to Rails Error Dashboard.
+
+### Safety
+
+- **Auto-disabled** — If breadcrumbs are not enabled, ActionCable tracking is automatically disabled with a warning
+- **Zero integration cost** — ActionCable already emits AS::Notifications events; this just subscribes to them
+- **Read-only** — System health snapshot reads `ActionCable.server.connections.count` (<0.1ms, no side effects)
 
 ---
 

@@ -220,6 +220,12 @@ Complete reference of all 60+ configuration options with defaults, types, and de
 |--------|------|---------|-------------|
 | `enable_rack_attack_tracking` | Boolean | `false` | Track Rack::Attack throttle/blocklist events as breadcrumbs. Requires `enable_breadcrumbs = true` |
 
+### ActionCable Connection Monitoring (v0.5.0)
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enable_actioncable_tracking` | Boolean | `false` | Track ActionCable channel actions, transmissions, and subscription events as breadcrumbs. Requires `enable_breadcrumbs = true` |
+
 ### Process Crash Capture (v0.4.0)
 
 | Option | Type | Default | Description |
@@ -1562,6 +1568,9 @@ RailsErrorDashboard.configure do |config|
 
   # Rack Attack event tracking (requires breadcrumbs)
   config.enable_rack_attack_tracking = true
+
+  # ActionCable connection monitoring (requires breadcrumbs)
+  config.enable_actioncable_tracking = true
 
   # Process crash capture via at_exit hook
   config.enable_crash_capture = true

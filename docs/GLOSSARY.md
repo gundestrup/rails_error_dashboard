@@ -116,6 +116,9 @@ Error is intentionally not being fixed. Removed from main list. Can be reopened 
 
 **Valid transitions**: Can reopen to `new`.
 
+### ActionCable Tracking
+Monitors WebSocket channel activity via ActiveSupport::Notifications events. Captures channel actions (`perform_action`), data transmissions (`transmit`), subscription confirmations, and subscription rejections as breadcrumbs. Requires `enable_breadcrumbs = true` and `enable_actioncable_tracking = true`. Dashboard page at `/errors/actioncable_health_summary`.
+
 ### Snoozed (Not a Status)
 Snoozed is not a status field but a separate `snoozed_until` datetime column. Errors can be snoozed while in any status. Automatically becomes visible again when `snoozed_until` time expires.
 

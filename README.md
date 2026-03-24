@@ -116,7 +116,7 @@ Requires breadcrumbs to be enabled.
 </details>
 
 <details>
-<summary><strong>Operational Health Panels — Jobs, Database, Cache</strong></summary>
+<summary><strong>Operational Health Panels — Jobs, Database, Cache, ActionCable</strong></summary>
 
 **Job Health** — Auto-detects Sidekiq, SolidQueue, or GoodJob. Per-error table with adapter badge, failed count (color-coded), sorted worst-first.
 
@@ -129,6 +129,12 @@ Requires breadcrumbs to be enabled.
 **Cache Health** — Per-error cache performance sorted worst-first.
 
 ![Cache Health](docs/images/cache-health.png)
+
+**ActionCable Health** — Track WebSocket channel actions, transmissions, subscription confirmations, and rejections. Dashboard page at `/errors/actioncable_health_summary` with channel breakdown sorted by rejections. System health snapshot captures live connection count and adapter. No error tracker surfaces this alongside HTTP errors.
+
+```ruby
+config.enable_actioncable_tracking = true  # requires enable_breadcrumbs = true
+```
 
 [Complete documentation →](docs/FEATURES.md#job-health-page)
 </details>

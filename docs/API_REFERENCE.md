@@ -547,6 +547,28 @@ curl -u admin:password \
 
 **Requires:** `config.detect_swallowed_exceptions = true` and Ruby 3.3+
 
+### ActionCable Health Summary (v0.5.0)
+
+View ActionCable channel health aggregated from breadcrumbs.
+
+**Endpoint:** `GET /error_dashboard/errors/actioncable_health_summary`
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `days` | integer | 30 | Time range (7, 30, or 90) |
+
+**Example:**
+```bash
+curl -u admin:password \
+  "https://your-app.com/error_dashboard/errors/actioncable_health_summary?days=30"
+```
+
+**Returns:** Dashboard page with channel breakdown — actions, transmissions, subscriptions, rejections, error count, sorted by rejections descending.
+
+**Requires:** `config.enable_actioncable_tracking = true` and `config.enable_breadcrumbs = true`
+
 ### Diagnostic Dumps (v0.4.0)
 
 View diagnostic dump history or capture a new dump.
