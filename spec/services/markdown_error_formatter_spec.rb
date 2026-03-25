@@ -266,7 +266,7 @@ RSpec.describe RailsErrorDashboard::Services::MarkdownErrorFormatter do
     end
 
     context "related errors" do
-      it "lists related errors with similarity percentage" do
+      it "lists wrapped related errors with similarity percentage" do
         related = [
           double("Related1",
             error: double("E1", error_type: "TypeError", message: "no implicit conversion", occurrence_count: 15),
@@ -282,6 +282,19 @@ RSpec.describe RailsErrorDashboard::Services::MarkdownErrorFormatter do
         expect(result).to include("no implicit conversion")
         expect(result).to include("85.7%")
         expect(result).to include("NameError")
+      end
+
+      it "lists plain ErrorLog related errors without similarity" do
+        related = [
+          double("E1", error_type: "TypeError", message: "no implicit conversion", occurrence_count: 15),
+          double("E2", error_type: "NameError", message: "undefined local variable", occurrence_count: 8)
+        ]
+
+        result = described_class.call(make_error, related_errors: related)
+        expect(result).to include("## Related Errors")
+        expect(result).to include("TypeError")
+        expect(result).to include("15 occurrences")
+        expect(result).not_to include("similar")
       end
     end
 

@@ -218,8 +218,14 @@ module RailsErrorDashboard
         return nil if @related_errors.nil? || @related_errors.empty?
 
         items = @related_errors.map { |r|
-          pct = (r.similarity * 100).round(1)
-          "- `#{r.error.error_type}` — #{r.error.message} (#{pct}% similar, #{r.error.occurrence_count} occurrences)"
+          # related_errors can be plain ErrorLog objects or wrapped objects with .error/.similarity
+          error = r.respond_to?(:error) ? r.error : r
+          if r.respond_to?(:similarity)
+            pct = (r.similarity * 100).round(1)
+            "- `#{error.error_type}` — #{error.message} (#{pct}% similar, #{error.occurrence_count} occurrences)"
+          else
+            "- `#{error.error_type}` — #{error.message} (#{error.occurrence_count} occurrences)"
+          end
         }
 
         "## Related Errors\n\n#{items.join("\n")}"
