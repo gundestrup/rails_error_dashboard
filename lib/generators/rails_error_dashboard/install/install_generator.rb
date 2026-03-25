@@ -233,8 +233,8 @@ module RailsErrorDashboard
         content = File.read(initializer_path)
         @existing_install_detected = true
 
-        # Detect separate database from existing config
-        if content.match?(/config\.use_separate_database\s*=\s*true/)
+        # Detect separate database from existing config (skip comments)
+        if content.match?(/^\s*config\.use_separate_database\s*=\s*true/)
           @database_mode = :separate
           @database_name = content[/config\.database\s*=\s*:(\w+)/, 1] || "error_dashboard"
           @enable_separate_database = true
