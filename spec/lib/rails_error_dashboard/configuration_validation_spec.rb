@@ -815,6 +815,18 @@ RSpec.describe RailsErrorDashboard::Configuration, "#validate!" do
       config.authenticate_with = -> { true }
       expect(config.default_credentials?).to be false
     end
+
+    it "returns false when ERROR_DASHBOARD_USER ENV var is set (even to default value)" do
+      allow(ENV).to receive(:key?).and_call_original
+      allow(ENV).to receive(:key?).with("ERROR_DASHBOARD_USER").and_return(true)
+      expect(config.default_credentials?).to be false
+    end
+
+    it "returns false when ERROR_DASHBOARD_PASSWORD ENV var is set (even to default value)" do
+      allow(ENV).to receive(:key?).and_call_original
+      allow(ENV).to receive(:key?).with("ERROR_DASHBOARD_PASSWORD").and_return(true)
+      expect(config.default_credentials?).to be false
+    end
   end
 
   describe "default credentials in production" do

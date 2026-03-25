@@ -539,9 +539,16 @@ module RailsErrorDashboard
 
     # Check if using default or blank demo credentials with basic auth
     #
-    # @return [Boolean] true if basic auth is active with default gandalf/youshallnotpass or blank credentials
+    # Returns false if the user explicitly set ENV vars (even to the same default values),
+    # because that's a deliberate choice. Only blocks when credentials are untouched defaults
+    # or blank.
+    #
+    # @return [Boolean] true if basic auth is active with untouched default or blank credentials
     def default_credentials?
       return false unless authenticate_with.nil?
+
+      # If user explicitly set ENV vars, respect their choice
+      return false if ENV.key?("ERROR_DASHBOARD_USER") || ENV.key?("ERROR_DASHBOARD_PASSWORD")
 
       default = dashboard_username == "gandalf" && dashboard_password == "youshallnotpass"
       blank = dashboard_username.to_s.strip.empty? || dashboard_password.to_s.strip.empty?
