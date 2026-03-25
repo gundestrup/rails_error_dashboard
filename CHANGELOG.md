@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.7] - 2026-03-25
+
+### Added
+- **Source code snippets in Copy for LLM** — Reads actual source code (±3 lines) for the top 3 app backtrace frames. The crash line is marked with `>`. Requires `enable_source_code_integration`. This is the most valuable context for LLM debugging — it can see the code that crashed, not just file:line references
+- **Request params and user agent in Copy for LLM** — Request parameters are pretty-printed as JSON. Malformed JSON is silently skipped
+- **Full system health snapshot in Copy for LLM** — Expanded from 4 basic metrics to include: process memory (RSS/peak/swap/OS threads), GC stats + last GC context, DB connection pool (with dead/waiting), file descriptors, system load, system memory, TCP connections
+
+### Changed
+- **Copy for LLM optimized for signal-to-noise** — Removed process-wide metrics that don't help debug specific errors: RubyVM cache stats, YJIT compilation stats, ActionCable connections, Puma thread stats, job queue stats. Removed human workflow fields: severity, status, priority, assigned_to, IP address. Added error-specific context: controller#action, user ID
+
+### Fixed
+- **Copy for LLM rendered literal `\n` instead of newlines** — Markdown now copies with real newlines, rendering correctly in editors and LLMs
+- **Copy for LLM crashed on related errors** — Now handles both plain `ErrorLog` objects and wrapped objects with `.similarity`/`.error` accessors
+- **Instance variable `_self_class` rendered as raw hash** — Extracts the class name correctly when stored as a serialized hash
+
+---
+
 ## [0.5.6] - 2026-03-25
 
 ### Fixed
