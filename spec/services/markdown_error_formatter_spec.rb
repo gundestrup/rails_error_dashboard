@@ -22,6 +22,8 @@ RSpec.describe RailsErrorDashboard::Services::MarkdownErrorFormatter do
       ip_address: nil,
       user_agent: nil,
       request_params: nil,
+      controller_name: nil,
+      action_name: nil,
       severity: "high",
       priority_level: nil,
       status: "new",
@@ -197,6 +199,15 @@ RSpec.describe RailsErrorDashboard::Services::MarkdownErrorFormatter do
         expect(result).to include("api.example.com")
       end
 
+      it "includes controller and action when present" do
+        result = described_class.call(make_error(
+          request_url: "/users",
+          controller_name: "users",
+          action_name: "create"
+        ))
+        expect(result).to include("users#create")
+      end
+
       it "includes duration when present" do
         result = described_class.call(make_error(
           request_url: "/users",
@@ -319,17 +330,28 @@ RSpec.describe RailsErrorDashboard::Services::MarkdownErrorFormatter do
         expect(result).to include("close_wait: 2")
       end
 
-      it "includes GC latest, Puma, and YJIT stats" do
+      it "includes GC latest and Puma stats" do
         health = {
           "gc_latest" => { "gc_by" => "newobj", "state" => "none" },
-          "puma" => { "running" => 3, "max_threads" => 5, "backlog" => 0 },
-          "yjit" => { "compiled_iseq_count" => 1500, "invalidation_count" => 3 }
+          "puma" => { "running" => 3, "max_threads" => 5, "backlog" => 0 }
         }.to_json
 
         result = described_class.call(make_error(system_health: health))
         expect(result).to include("triggered by newobj")
         expect(result).to include("3/5 threads")
-        expect(result).to include("compiled_iseq_count: 1500")
+      end
+
+      it "omits RubyVM, YJIT, and ActionCable stats (process-wide, not error-specific)" do
+        health = {
+          "ruby_vm" => { "constant_cache_invalidations" => 1000 },
+          "yjit" => { "compiled_iseq_count" => 1500 },
+          "actioncable" => { "connections" => 5, "adapter" => "redis" }
+        }.to_json
+
+        result = described_class.call(make_error(system_health: health))
+        expect(result).not_to include("RubyVM")
+        expect(result).not_to include("YJIT")
+        expect(result).not_to include("ActionCable")
       end
 
       it "falls back to process_memory_mb when process_memory hash is absent" do
@@ -393,6 +415,12 @@ RSpec.describe RailsErrorDashboard::Services::MarkdownErrorFormatter do
       it "omits assigned_to when nil" do
         result = described_class.call(make_error(assigned_to: nil))
         expect(result).not_to include("Assigned")
+      end
+
+      it "includes user_id when present" do
+        result = described_class.call(make_error(user_id: 42))
+        expect(result).to include("User ID")
+        expect(result).to include("42")
       end
     end
 

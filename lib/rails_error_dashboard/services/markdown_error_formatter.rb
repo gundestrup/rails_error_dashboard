@@ -135,6 +135,7 @@ module RailsErrorDashboard
         return nil if @error.request_url.blank?
 
         items = []
+        items << "- **Controller:** #{@error.controller_name}##{@error.action_name}" if @error.controller_name.present?
         items << "- **Method:** #{@error.http_method}" if @error.http_method.present?
         items << "- **URL:** #{@error.request_url}"
         items << "- **Hostname:** #{@error.hostname}" if @error.hostname.present?
@@ -283,23 +284,8 @@ module RailsErrorDashboard
           items << "- **TCP:** #{tcp_parts.join(", ")}"
         end
 
-        # RubyVM
-        vm = health["ruby_vm"]
-        if vm.is_a?(Hash) && vm.any?
-          items << "- **RubyVM:** #{vm.map { |k, v| "#{k}: #{v}" }.join(", ")}"
-        end
-
-        # YJIT
-        yjit = health["yjit"]
-        if yjit.is_a?(Hash) && yjit.any?
-          items << "- **YJIT:** #{yjit.map { |k, v| "#{k}: #{v}" }.join(", ")}"
-        end
-
-        # ActionCable
-        ac = health["actioncable"]
-        if ac.is_a?(Hash) && ac["connections"]
-          items << "- **ActionCable:** #{ac["connections"]} connections (#{ac["adapter"]})"
-        end
+        # Note: RubyVM, YJIT, and ActionCable stats are omitted — they are process-wide
+        # counters, not error-specific context. They add noise for LLM debugging.
 
         return nil if items.empty?
 
@@ -331,6 +317,7 @@ module RailsErrorDashboard
         items << "- **Platform:** #{@error.platform}" if @error.platform.present?
         items << "- **First seen:** #{@error.first_seen_at&.utc&.strftime("%Y-%m-%d %H:%M:%S UTC")}" if @error.first_seen_at
         items << "- **Occurrences:** #{@error.occurrence_count}" if @error.occurrence_count
+        items << "- **User ID:** #{@error.user_id}" if @error.user_id.present?
         items << "- **Assigned to:** #{@error.assigned_to}" if @error.assigned_to.present?
 
         "## Metadata\n\n#{items.join("\n")}"
