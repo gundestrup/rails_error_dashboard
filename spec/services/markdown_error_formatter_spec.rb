@@ -64,6 +64,42 @@ RSpec.describe RailsErrorDashboard::Services::MarkdownErrorFormatter do
       end
     end
 
+    context "source code" do
+      it "includes source snippets when source code integration is enabled and files exist" do
+        allow(RailsErrorDashboard.configuration).to receive(:enable_source_code_integration).and_return(true)
+
+        # Mock the SourceCodeReader to return source lines
+        reader = instance_double(RailsErrorDashboard::Services::SourceCodeReader)
+        allow(RailsErrorDashboard::Services::SourceCodeReader).to receive(:new).and_return(reader)
+        allow(reader).to receive(:read_lines).and_return([
+          { number: 41, content: "  def save", highlight: false },
+          { number: 42, content: "    validate!", highlight: true },
+          { number: 43, content: "  end", highlight: false }
+        ])
+
+        result = described_class.call(make_error)
+        expect(result).to include("## Source Code")
+        expect(result).to include("validate!")
+        expect(result).to include(">   42")
+      end
+
+      it "omits source code when integration is disabled" do
+        allow(RailsErrorDashboard.configuration).to receive(:enable_source_code_integration).and_return(false)
+        result = described_class.call(make_error)
+        expect(result).not_to include("## Source Code")
+      end
+
+      it "omits source code when files are not readable" do
+        allow(RailsErrorDashboard.configuration).to receive(:enable_source_code_integration).and_return(true)
+        reader = instance_double(RailsErrorDashboard::Services::SourceCodeReader)
+        allow(RailsErrorDashboard::Services::SourceCodeReader).to receive(:new).and_return(reader)
+        allow(reader).to receive(:read_lines).and_return(nil)
+
+        result = described_class.call(make_error)
+        expect(result).not_to include("## Source Code")
+      end
+    end
+
     context "conditional sections" do
       it "omits cause chain section when exception_cause is nil" do
         result = described_class.call(make_error(exception_cause: nil))

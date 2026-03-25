@@ -36,6 +36,7 @@ module RailsErrorDashboard
 
         sections << heading_section
         sections << backtrace_section
+        sections << source_code_section
         sections << cause_chain_section
         sections << local_variables_section
         sections << instance_variables_section
@@ -67,6 +68,45 @@ module RailsErrorDashboard
         app_lines = app_lines.first(MAX_BACKTRACE_LINES)
 
         "## Backtrace\n\n```\n#{app_lines.join("\n")}\n```"
+      end
+
+      def source_code_section
+        return nil unless defined?(RailsErrorDashboard) &&
+          RailsErrorDashboard.configuration.enable_source_code_integration
+
+        raw = @error.backtrace
+        return nil if raw.blank?
+
+        lines = raw.split("\n")
+        app_lines = lines.reject { |l| l.include?("/gems/") || l.include?("/ruby/") || l.include?("/vendor/") }
+        return nil if app_lines.empty?
+
+        snippets = []
+        app_lines.first(3).each do |frame|
+          # Parse "file:line:in 'method'" format
+          match = frame.match(/^(.+?):(\d+)/)
+          next unless match
+
+          file_path = match[1]
+          line_number = match[2].to_i
+
+          reader = Services::SourceCodeReader.new(file_path, line_number)
+          source_lines = reader.read_lines(context: 3)
+          next unless source_lines&.any?
+
+          snippet = source_lines.map { |sl|
+            marker = sl[:highlight] ? ">" : " "
+            "#{marker} #{sl[:number].to_s.rjust(4)} | #{sl[:content]}"
+          }.join("\n")
+
+          snippets << "**#{file_path}:#{line_number}**\n```ruby\n#{snippet}\n```"
+        end
+
+        return nil if snippets.empty?
+
+        "## Source Code\n\n#{snippets.join("\n\n")}"
+      rescue => e
+        nil
       end
 
       def cause_chain_section
