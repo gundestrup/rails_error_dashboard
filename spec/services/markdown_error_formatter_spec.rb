@@ -166,10 +166,20 @@ RSpec.describe RailsErrorDashboard::Services::MarkdownErrorFormatter do
         expect(result).to include("show")
       end
 
-      it "includes _self_class as context" do
+      it "includes _self_class as context when it is a plain string" do
         ivars = { "_self_class" => "UsersController" }.to_json
         result = described_class.call(make_error(instance_variables: ivars))
-        expect(result).to include("UsersController")
+        expect(result).to include("**Class:** UsersController")
+      end
+
+      it "extracts _self_class value when it is a serialized hash" do
+        ivars = {
+          "_self_class" => { "type" => "String", "value" => "QuestService", "truncated" => false },
+          "@name" => { "type" => "String", "value" => "test" }
+        }.to_json
+        result = described_class.call(make_error(instance_variables: ivars))
+        expect(result).to include("**Class:** QuestService")
+        expect(result).not_to include("truncated")
       end
     end
 

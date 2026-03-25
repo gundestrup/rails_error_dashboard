@@ -112,7 +112,10 @@ module RailsErrorDashboard
         return nil if vars.empty? && self_class.nil?
 
         lines = []
-        lines << "**Class:** #{self_class}" if self_class
+        if self_class
+          class_name = self_class.is_a?(Hash) ? self_class["value"] : self_class
+          lines << "**Class:** #{class_name}"
+        end
 
         if vars.any?
           rows = vars.first(MAX_VARIABLES).map { |name, info|
