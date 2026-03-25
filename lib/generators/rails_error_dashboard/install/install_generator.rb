@@ -236,7 +236,7 @@ module RailsErrorDashboard
         # Detect separate database from existing config (skip comments)
         if content.match?(/^\s*config\.use_separate_database\s*=\s*true/)
           @database_mode = :separate
-          @database_name = content[/config\.database\s*=\s*:(\w+)/, 1] || "error_dashboard"
+          @database_name = content[/^\s*config\.database\s*=\s*:(\w+)/, 1] || "error_dashboard"
           @enable_separate_database = true
           @application_name = detect_application_name
           say_status "detected", "existing separate database configuration", :green
