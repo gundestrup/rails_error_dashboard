@@ -43,7 +43,7 @@ jobs:
           cat > Gemfile.pages <<EOF
           source 'https://rubygems.org'
           gem 'jekyll', '~> 4.3'
-          gem 'jekyll-vitepress-theme', '~> 1.1'
+          gem 'jekyll-vitepress-theme', '~> 1.2'
           gem 'jekyll-seo-tag'
           gem 'jekyll-sitemap'
           EOF
