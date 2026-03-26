@@ -88,6 +88,9 @@ module RailsErrorDashboard
     attr_accessor :issue_tracker_repo             # "owner/repo" (auto-extracted from git_repository_url)
     attr_accessor :issue_tracker_labels           # Array of label strings (default: ["bug"])
     attr_accessor :issue_tracker_api_url          # Custom API base URL for self-hosted instances
+    attr_accessor :auto_create_issues              # Boolean (default: false) — auto-create issues for new errors
+    attr_accessor :auto_create_issues_on_first_occurrence  # Boolean (default: true) — create on first occurrence
+    attr_accessor :auto_create_issues_for_severities       # Array of symbols (default: [:critical, :high])
 
     # Advanced error analysis features
     attr_accessor :enable_similar_errors          # Fuzzy error matching
@@ -246,6 +249,9 @@ module RailsErrorDashboard
       @issue_tracker_repo = nil        # Auto-extract from git_repository_url
       @issue_tracker_labels = [ "bug" ]
       @issue_tracker_api_url = nil     # For self-hosted instances
+      @auto_create_issues = false
+      @auto_create_issues_on_first_occurrence = true
+      @auto_create_issues_for_severities = [ :critical, :high ]
 
       # Advanced error analysis features (all OFF by default - opt-in)
       @enable_similar_errors = false        # Fuzzy error matching

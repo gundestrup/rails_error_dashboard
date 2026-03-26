@@ -107,6 +107,38 @@ module RailsErrorDashboard
         RailsErrorDashboard::Services::CrashCapture.import!
         RailsErrorDashboard::Services::CrashCapture.enable!
       end
+
+      # Wire issue tracker lifecycle hooks (auto-create, close on resolve, reopen on recur)
+      if RailsErrorDashboard.configuration.enable_issue_tracking
+        config = RailsErrorDashboard.configuration
+        config.notification_callbacks[:error_logged] ||= []
+        config.notification_callbacks[:error_resolved] ||= []
+
+        # Ensure notification_callbacks entries are arrays (may be lambda from user config)
+        unless config.notification_callbacks[:error_logged].is_a?(Array)
+          existing = config.notification_callbacks[:error_logged]
+          config.notification_callbacks[:error_logged] = [ existing ].compact
+        end
+        unless config.notification_callbacks[:error_resolved].is_a?(Array)
+          existing = config.notification_callbacks[:error_resolved]
+          config.notification_callbacks[:error_resolved] = [ existing ].compact
+        end
+
+        config.notification_callbacks[:error_logged] << ->(error_log) {
+          # Dispatch to appropriate handler based on error state
+          if error_log.occurrence_count == 1
+            RailsErrorDashboard::Subscribers::IssueTrackerSubscriber.on_error_logged(error_log)
+          elsif error_log.respond_to?(:just_reopened) && error_log.just_reopened
+            RailsErrorDashboard::Subscribers::IssueTrackerSubscriber.on_error_reopened(error_log)
+          else
+            RailsErrorDashboard::Subscribers::IssueTrackerSubscriber.on_error_recurred(error_log)
+          end
+        }
+
+        config.notification_callbacks[:error_resolved] << ->(error_log) {
+          RailsErrorDashboard::Subscribers::IssueTrackerSubscriber.on_error_resolved(error_log)
+        }
+      end
     end
   end
 end
