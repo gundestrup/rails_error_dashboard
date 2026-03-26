@@ -112,6 +112,9 @@ ActiveRecord::Schema[7.0].define(version: 2026_03_07_000001) do
     t.datetime "muted_at"
     t.string "muted_by"
     t.string "muted_reason"
+    t.string "external_issue_url"
+    t.integer "external_issue_number"
+    t.string "external_issue_provider", limit: 20
     t.integer "application_id", null: false
     t.text "exception_cause"
     t.string "http_method", limit: 10
