@@ -101,6 +101,11 @@ class CreateRailsErrorDashboardCompleteSchema < ActiveRecord::Migration[7.0]
       t.string :muted_by
       t.string :muted_reason
 
+      # Issue tracking (GitHub, GitLab, Codeberg)
+      t.string :external_issue_url
+      t.integer :external_issue_number
+      t.string :external_issue_provider, limit: 20
+
       t.timestamps
     end
 
