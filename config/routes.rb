@@ -18,7 +18,6 @@ RailsErrorDashboard::Engine.routes.draw do
       post :mute
       post :unmute
       post :update_status
-      post :add_comment
       post :create_issue
       post :link_issue
       post :unlink_issue

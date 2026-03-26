@@ -85,10 +85,8 @@ RSpec.describe "Error Workflow", type: :system do
       expect(page).to have_content("Resolved")
       expect(page).to have_content("gandalf")
 
-      # Step 9: Add comment
-      add_comment(author: "gandalf", body: "Verified fix in staging")
-      wait_for_page_load
-      expect(page).to have_content("Verified fix in staging")
+      # Step 9: Manual comments removed — discussion now lives on issue tracker
+      # Audit trail comments from workflow actions (snooze, mute) are still visible
 
       # Step 10: Invalid status transition via fetch()
       # Error is resolved — "in_progress" is not a valid transition from "resolved"

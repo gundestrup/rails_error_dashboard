@@ -95,7 +95,7 @@ require "rails_error_dashboard/commands/unmute_error"
 require "rails_error_dashboard/commands/batch_mute_errors"
 require "rails_error_dashboard/commands/batch_unmute_errors"
 require "rails_error_dashboard/commands/update_error_status"
-require "rails_error_dashboard/commands/add_error_comment"
+require "rails_error_dashboard/commands/add_error_comment"  # Used internally by workflow commands (snooze, mute, status changes)
 require "rails_error_dashboard/commands/increment_cascade_detection"
 require "rails_error_dashboard/commands/calculate_cascade_probability"
 require "rails_error_dashboard/commands/find_or_increment_error"

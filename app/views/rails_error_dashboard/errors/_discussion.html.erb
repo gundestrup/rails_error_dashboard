@@ -1,107 +1,66 @@
-      <!-- Phase 3: Comment Threads -->
-      <% if error.respond_to?(:comments) %>
-        <div class="card mb-4" id="section-discussion">
-          <div class="card-header bg-white">
-            <h5 class="mb-0">
-              <i class="bi bi-chat-dots"></i> Discussion
-              <span class="badge bg-secondary ms-2"><%= error.comments.count %></span>
-            </h5>
-          </div>
-          <div class="card-body">
-            <!-- Existing Comments -->
-            <% if error.comments.recent_first.any? %>
-              <div class="mb-4">
-                <% error.comments.recent_first.each_with_index do |comment, index| %>
-                  <div class="<%= index < error.comments.count - 1 ? 'border-bottom' : '' %> pb-3 mb-3">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                      <div>
-                        <strong class="text-primary">
-                          <i class="bi bi-person-circle"></i> <%= comment.author_name %>
-                        </strong>
-                        <% if comment.recent? %>
-                          <span class="badge bg-success ms-2">New</span>
-                        <% end %>
-                      </div>
-                      <small class="text-muted">
-                        <%= local_time(comment.created_at, format: :datetime) %>
-                        <span class="ms-1 text-muted">(<%= local_time_ago(comment.created_at) %>)</span>
-                      </small>
-                    </div>
-                    <div class="text-break">
-                      <%= auto_link_urls(comment.body, error: error).html_safe %>
-                    </div>
-                  </div>
-                <% end %>
-              </div>
-            <% else %>
-              <p class="text-muted mb-4">
-                <i class="bi bi-info-circle"></i> No comments yet. Start the discussion below.
-              </p>
-            <% end %>
+<% has_linked_issue = error.respond_to?(:external_issue_url) && error.external_issue_url.present? %>
+<% has_comments = error.respond_to?(:comments) && error.comments.any? %>
+<% issue_tracking_enabled = RailsErrorDashboard.configuration.enable_issue_tracking %>
 
-            <!-- Add Comment Form -->
-            <div class="<%= error.comments.any? ? '' : 'border-top' %> pt-3">
-              <h6 class="mb-3">
-                <i class="bi bi-plus-circle"></i> Add Comment
-              </h6>
-              <%= form_with url: add_comment_error_path(error), method: :post do |f| %>
-                <div class="mb-3">
-                  <label for="author_name" class="form-label">Your Name <span class="text-danger">*</span></label>
-                  <%= text_field_tag :author_name, error.assigned_to, class: "form-control", placeholder: "e.g., John Doe", required: true %>
-                </div>
-                <div class="mb-3">
-                  <label for="body" class="form-label">Comment <span class="text-danger">*</span></label>
-
-                  <!-- Quick Templates -->
-                  <div class="mb-2">
-                    <small class="metadata-label d-block mb-1">
-                      <i class="bi bi-lightning-fill"></i> Quick templates:
-                    </small>
-                    <div class="d-flex flex-wrap gap-1">
-                      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="insertTemplate('investigating')">
-                        <i class="bi bi-search"></i> Investigating
-                      </button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="insertTemplate('found_fix')">
-                        <i class="bi bi-wrench"></i> Found Fix
-                      </button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="insertTemplate('need_info')">
-                        <i class="bi bi-question-circle"></i> Need Info
-                      </button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="insertTemplate('duplicate')">
-                        <i class="bi bi-files"></i> Duplicate
-                      </button>
-                      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="insertTemplate('cannot_reproduce')">
-                        <i class="bi bi-x-circle"></i> Cannot Reproduce
-                      </button>
-                    </div>
-                  </div>
-
-                  <%= text_area_tag :body, nil, class: "form-control", rows: 4, placeholder: "Share your thoughts, findings, or updates...", required: true, id: "comment_body" %>
-                </div>
-                <%= submit_tag "Post Comment", class: "btn btn-primary" %>
-              <% end %>
-            </div>
-
-            <script>
-              function insertTemplate(templateType) {
-                const textarea = document.getElementById('comment_body');
-                const templates = {
-                  investigating: "🔍 Investigating this issue now. Will update with findings.",
-                  found_fix: "✅ Found the fix!\n\nRoot cause: \nSolution: \nPR: ",
-                  need_info: "ℹ️ Need more information:\n\n- \n- \n\nPlease provide details to help debug this issue.",
-                  duplicate: "📋 This appears to be a duplicate of error #\n\nClosing as duplicate.",
-                  cannot_reproduce: "❌ Cannot reproduce this issue.\n\nAttempted:\n- \n- \n\nNeed more details or steps to reproduce."
-                };
-
-                const template = templates[templateType];
-                if (template) {
-                  textarea.value = template;
-                  textarea.focus();
-                  // Move cursor to end
-                  textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-                }
-              }
-            </script>
-          </div>
+<% if has_linked_issue || has_comments || issue_tracking_enabled %>
+  <div class="card mb-4" id="section-discussion">
+    <div class="card-header bg-white">
+      <h5 class="mb-0">
+        <i class="bi bi-chat-dots"></i> Discussion
+        <% if has_comments %>
+          <span class="badge bg-secondary ms-2"><%= error.comments.count %></span>
+        <% end %>
+      </h5>
+    </div>
+    <div class="card-body">
+      <% if has_linked_issue %>
+        <!-- Platform discussion link -->
+        <% provider = error.external_issue_provider&.capitalize || "Platform" %>
+        <% icon = case error.external_issue_provider
+                   when "github" then "bi-github"
+                   when "gitlab" then "bi-gitlab"
+                   when "codeberg" then "bi-git"
+                   else "bi-chat-dots"
+                   end %>
+        <div class="text-center py-3 mb-3">
+          <a href="<%= error.external_issue_url %>" target="_blank" rel="noopener" class="btn btn-primary">
+            <i class="bi <%= icon %> me-1"></i>
+            Discuss on <%= provider %> #<%= error.external_issue_number || "?" %>
+            <i class="bi bi-box-arrow-up-right ms-1" style="font-size: 0.8em;"></i>
+          </a>
+        </div>
+      <% elsif issue_tracking_enabled %>
+        <div class="text-center py-3 mb-3">
+          <p class="text-muted small mb-0">
+            <i class="bi bi-link-45deg"></i>
+            Link or create an issue above to start a discussion on your issue tracker.
+          </p>
         </div>
       <% end %>
+
+      <% if has_comments %>
+        <!-- Audit trail — read-only workflow comments (snooze, mute, status changes) -->
+        <% if has_linked_issue || issue_tracking_enabled %>
+          <hr class="my-3">
+          <h6 class="text-muted mb-3"><i class="bi bi-clock-history"></i> Activity Log</h6>
+        <% end %>
+        <% error.comments.recent_first.each_with_index do |comment, index| %>
+          <div class="<%= index < error.comments.count - 1 ? 'border-bottom' : '' %> pb-3 mb-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div>
+                <strong class="text-primary">
+                  <i class="bi bi-person-circle"></i> <%= comment.author_name %>
+                </strong>
+                <small class="text-muted ms-2"><%= comment.formatted_time %></small>
+                <% if comment.recent? %>
+                  <span class="badge bg-info ms-1">New</span>
+                <% end %>
+              </div>
+            </div>
+            <p class="mb-0 text-break"><%= simple_format(h(comment.body), {}, wrapper_tag: "span") %></p>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+<% end %>

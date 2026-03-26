@@ -75,7 +75,7 @@ module RailsErrorDashboard
 
     def show
       # Eagerly load associations to avoid N+1 queries
-      # - comments: Used in the comments section (@error.comments.count, @error.comments.recent_first)
+      # - comments: Audit trail (workflow comments from snooze/mute/status changes)
       # - parent_cascade_patterns/child_cascade_patterns: Used if cascade detection is enabled
       @error = ErrorLog.includes(:comments, :parent_cascade_patterns, :child_cascade_patterns).find(params[:id])
       @related_errors = @error.related_errors(limit: 5, application_id: @current_application_id)
@@ -137,11 +137,6 @@ module RailsErrorDashboard
     def update_status
       result = Commands::UpdateErrorStatus.call(params[:id], status: params[:status], comment: params[:comment])
       redirect_to error_path(result[:error])
-    end
-
-    def add_comment
-      @error = Commands::AddErrorComment.call(params[:id], author_name: params[:author_name], body: params[:body])
-      redirect_to error_path(@error)
     end
 
     def create_issue

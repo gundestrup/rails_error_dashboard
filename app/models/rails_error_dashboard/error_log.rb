@@ -37,7 +37,8 @@ module RailsErrorDashboard
     # Association for tracking individual error occurrences
     has_many :error_occurrences, class_name: "RailsErrorDashboard::ErrorOccurrence", dependent: :destroy
 
-    # Association for comment threads (Phase 3: Workflow Integration)
+    # Comments used as internal audit trail for workflow actions (snooze, mute, status changes).
+    # Manual comment form removed in v0.6 — discussion now lives on issue tracker.
     has_many :comments, class_name: "RailsErrorDashboard::ErrorComment", foreign_key: :error_log_id, dependent: :destroy
 
     # Cascade pattern associations
