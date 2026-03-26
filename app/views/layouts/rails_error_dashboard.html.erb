@@ -1681,6 +1681,13 @@ body.dark-mode .sidebar-section-body { background: var(--ctp-mantle); }
                   <% end %>
                 </li>
               <% end %>
+              <% if RailsErrorDashboard.configuration.enable_activestorage_tracking && RailsErrorDashboard.configuration.enable_breadcrumbs %>
+                <li class="nav-item">
+                  <%= link_to activestorage_health_summary_errors_path(nav_params), class: "nav-link #{request.path == activestorage_health_summary_errors_path ? 'active' : ''}" do %>
+                    <i class="bi bi-cloud-arrow-up"></i> ActiveStorage
+                  <% end %>
+                </li>
+              <% end %>
               <% if RailsErrorDashboard.configuration.enable_system_health %>
                 <li class="nav-item">
                   <%= link_to job_health_summary_errors_path(nav_params), class: "nav-link #{request.path == job_health_summary_errors_path ? 'active' : ''}" do %>

@@ -84,6 +84,13 @@ module RailsErrorDashboard
         RailsErrorDashboard::Subscribers::ActionCableSubscriber.subscribe!
       end
 
+      # Subscribe to ActiveStorage AS::Notifications events (requires breadcrumbs + ActiveStorage)
+      if RailsErrorDashboard.configuration.enable_activestorage_tracking &&
+         RailsErrorDashboard.configuration.enable_breadcrumbs &&
+         defined?(ActiveStorage)
+        RailsErrorDashboard::Subscribers::ActiveStorageSubscriber.subscribe!
+      end
+
       # Enable TracePoint(:raise) for local variable and/or instance variable capture
       if RailsErrorDashboard.configuration.enable_local_variables ||
          RailsErrorDashboard.configuration.enable_instance_variables

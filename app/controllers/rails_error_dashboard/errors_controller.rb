@@ -432,6 +432,27 @@ module RailsErrorDashboard
       @pagy, @channels = pagy(:offset, all_channels, limit: params[:per_page] || 25)
     end
 
+    def activestorage_health_summary
+      unless RailsErrorDashboard.configuration.enable_activestorage_tracking &&
+             RailsErrorDashboard.configuration.enable_breadcrumbs
+        flash[:alert] = "ActiveStorage tracking is not enabled. Enable enable_activestorage_tracking and enable_breadcrumbs in config/initializers/rails_error_dashboard.rb"
+        redirect_to errors_path
+        return
+      end
+
+      days = (params[:days] || 30).to_i
+      @days = days
+      result = Queries::ActiveStorageSummary.call(days, application_id: @current_application_id)
+      all_services = result[:services]
+
+      # Summary stats (computed before pagination)
+      @unique_services = all_services.size
+      @total_operations = all_services.sum { |s| s[:total_operations] }
+      @errors_with_storage = all_services.sum { |s| s[:error_count] }
+
+      @pagy, @services = pagy(:offset, all_services, limit: params[:per_page] || 25)
+    end
+
     def diagnostic_dumps
       unless RailsErrorDashboard.configuration.enable_diagnostic_dump
         flash[:alert] = "Diagnostic dumps are not enabled. Enable them in config/initializers/rails_error_dashboard.rb"

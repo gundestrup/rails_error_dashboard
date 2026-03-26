@@ -160,6 +160,8 @@ module RailsErrorDashboard
 
     # ActionCable event tracking (requires enable_breadcrumbs = true)
     attr_accessor :enable_actioncable_tracking          # Master switch (default: false)
+    # ActiveStorage event tracking (requires enable_breadcrumbs = true)
+    attr_accessor :enable_activestorage_tracking        # Master switch (default: false)
 
     # Notification callbacks (managed via helper methods, not set directly)
     attr_reader :notification_callbacks
@@ -305,6 +307,8 @@ module RailsErrorDashboard
 
       # ActionCable event tracking defaults - OFF by default (opt-in, requires breadcrumbs)
       @enable_actioncable_tracking = false
+      # ActiveStorage event tracking defaults - OFF by default (opt-in, requires breadcrumbs)
+      @enable_activestorage_tracking = false
 
       # Internal logging defaults - SILENT by default
       @enable_internal_logging = false  # Opt-in for debugging
@@ -459,6 +463,13 @@ module RailsErrorDashboard
         warnings << "enable_actioncable_tracking requires enable_breadcrumbs = true. " \
                     "ActionCable tracking has been auto-disabled."
         @enable_actioncable_tracking = false
+      end
+
+      # Validate activestorage tracking requires breadcrumbs
+      if enable_activestorage_tracking && !enable_breadcrumbs
+        warnings << "enable_activestorage_tracking requires enable_breadcrumbs = true. " \
+                    "ActiveStorage tracking has been auto-disabled."
+        @enable_activestorage_tracking = false
       end
 
       # Validate crash capture path (must exist if custom path specified)

@@ -1,0 +1,148 @@
+<% content_for :page_title, "ActiveStorage Health" %>
+
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+      <i class="bi bi-cloud-arrow-up me-2"></i>
+      ActiveStorage Health
+    </h1>
+
+    <div class="btn-group" role="group">
+      <%= link_to activestorage_health_summary_errors_path(days: 7), class: "btn btn-sm #{@days == 7 ? 'btn-primary' : 'btn-outline-primary'}" do %>
+        7 Days
+      <% end %>
+      <%= link_to activestorage_health_summary_errors_path(days: 30), class: "btn btn-sm #{@days == 30 ? 'btn-primary' : 'btn-outline-primary'}" do %>
+        30 Days
+      <% end %>
+      <%= link_to activestorage_health_summary_errors_path(days: 90), class: "btn btn-sm #{@days == 90 ? 'btn-primary' : 'btn-outline-primary'}" do %>
+        90 Days
+      <% end %>
+    </div>
+  </div>
+
+  <% if @unique_services == 0 %>
+    <div class="text-center py-5">
+      <i class="bi bi-cloud-arrow-up display-1 text-success mb-3"></i>
+      <h4 class="text-muted">No ActiveStorage Events Found</h4>
+      <p class="text-muted">
+        No ActiveStorage service operations were detected in error breadcrumbs over the last <%= @days %> days.
+      </p>
+      <div class="card mx-auto" style="max-width: 500px;">
+        <div class="card-body text-start">
+          <h6>How ActiveStorage tracking works:</h6>
+          <ul class="mb-0">
+            <li>Breadcrumbs must be enabled (<code>enable_breadcrumbs = true</code>)</li>
+            <li>ActiveStorage tracking must be enabled (<code>enable_activestorage_tracking = true</code>)</li>
+            <li>ActiveStorage must be configured in your app</li>
+            <li>Uploads, downloads, and deletes are captured as breadcrumbs during requests that produce errors</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  <% else %>
+    <div class="row mb-4">
+      <div class="col-md-4">
+        <div class="card text-center">
+          <div class="card-body">
+            <div class="display-6 text-primary"><%= @unique_services %></div>
+            <small class="text-muted">Storage Services</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card text-center">
+          <div class="card-body">
+            <div class="display-6 text-info"><%= @total_operations %></div>
+            <small class="text-muted">Total Operations</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card text-center">
+          <div class="card-body">
+            <div class="display-6 text-warning"><%= @errors_with_storage %></div>
+            <small class="text-muted">Errors with Storage Ops</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+          <i class="bi bi-cloud-arrow-up text-primary me-2"></i>
+          Storage Operations by Service
+          <span class="badge bg-primary"><%= @unique_services %></span>
+        </h5>
+        <small class="text-muted"><%== @pagy.info_tag %></small>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Service</th>
+                <th width="90">Uploads</th>
+                <th width="100">Downloads</th>
+                <th width="90">Deletes</th>
+                <th width="90">Exists</th>
+                <th width="80">Total</th>
+                <th width="100">Avg Duration</th>
+                <th width="100">Slowest</th>
+                <th width="80">Errors</th>
+                <th width="140">Last Seen</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @services.each do |svc| %>
+                <tr>
+                  <td><code><%= svc[:service] %></code></td>
+                  <td><%= svc[:upload_count] %></td>
+                  <td><%= svc[:download_count] %></td>
+                  <td><%= svc[:delete_count] %></td>
+                  <td><%= svc[:exist_count] %></td>
+                  <td><strong><%= svc[:total_operations] %></strong></td>
+                  <td>
+                    <% if svc[:avg_duration_ms] %>
+                      <span class="<%= svc[:avg_duration_ms] > 100 ? 'text-danger' : svc[:avg_duration_ms] > 50 ? 'text-warning' : 'text-success' %>">
+                        <%= svc[:avg_duration_ms] %>ms
+                      </span>
+                    <% else %>
+                      <span class="text-muted">—</span>
+                    <% end %>
+                  </td>
+                  <td>
+                    <% if svc[:slowest_ms] %>
+                      <span class="<%= svc[:slowest_ms] > 500 ? 'text-danger' : svc[:slowest_ms] > 100 ? 'text-warning' : 'text-muted' %>">
+                        <%= svc[:slowest_ms].round(1) %>ms
+                      </span>
+                    <% else %>
+                      <span class="text-muted">—</span>
+                    <% end %>
+                  </td>
+                  <td><%= svc[:error_count] %></td>
+                  <td><%= local_time_ago(svc[:last_seen]) %></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card-footer bg-white border-top d-flex justify-content-between align-items-center">
+        <div>
+          <small class="text-muted">
+            <i class="bi bi-lightbulb text-warning"></i> Slow storage operations may indicate network issues, large file sizes, or service provider throttling.
+          </small>
+          <small class="ms-3">
+            <a href="https://guides.rubyonrails.org/active_storage_overview.html" target="_blank" rel="noopener" class="text-decoration-none">
+              <i class="bi bi-book"></i> ActiveStorage Guide <i class="bi bi-box-arrow-up-right" style="font-size: 0.7em;"></i>
+            </a>
+          </small>
+        </div>
+        <div>
+          <%== @pagy.series_nav(:bootstrap) if @pagy.pages > 1 %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>
