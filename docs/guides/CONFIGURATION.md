@@ -226,6 +226,12 @@ Complete reference of all 60+ configuration options with defaults, types, and de
 |--------|------|---------|-------------|
 | `enable_actioncable_tracking` | Boolean | `false` | Track ActionCable channel actions, transmissions, and subscription events as breadcrumbs. Requires `enable_breadcrumbs = true` |
 
+### ActiveStorage Service Health (v0.5+)
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enable_activestorage_tracking` | Boolean | `false` | Track ActiveStorage service operations (uploads, downloads, deletes, existence checks) as breadcrumbs. Works with any backend (Disk, S3, GCS, Azure). Requires `enable_breadcrumbs = true` |
+
 ### Process Crash Capture (v0.4.0)
 
 | Option | Type | Default | Description |
@@ -1571,6 +1577,9 @@ RailsErrorDashboard.configure do |config|
 
   # ActionCable connection monitoring (requires breadcrumbs)
   config.enable_actioncable_tracking = true
+
+  # ActiveStorage service health (requires breadcrumbs)
+  config.enable_activestorage_tracking = true
 
   # Process crash capture via at_exit hook
   config.enable_crash_capture = true
