@@ -81,6 +81,14 @@ module RailsErrorDashboard
     # Git repository URL for linking commits (e.g., "https://github.com/user/repo")
     attr_accessor :git_repository_url
 
+    # Issue tracker integration (GitHub, GitLab, Codeberg/Gitea/Forgejo)
+    attr_accessor :enable_issue_tracking         # Master switch (default: false)
+    attr_accessor :issue_tracker_provider         # :github, :gitlab, :codeberg (auto-detected from git_repository_url)
+    attr_accessor :issue_tracker_token            # String or lambda/proc for Rails credentials
+    attr_accessor :issue_tracker_repo             # "owner/repo" (auto-extracted from git_repository_url)
+    attr_accessor :issue_tracker_labels           # Array of label strings (default: ["bug"])
+    attr_accessor :issue_tracker_api_url          # Custom API base URL for self-hosted instances
+
     # Advanced error analysis features
     attr_accessor :enable_similar_errors          # Fuzzy error matching
     attr_accessor :enable_co_occurring_errors     # Detect errors happening together
@@ -230,6 +238,14 @@ module RailsErrorDashboard
       @git_sha = ENV["GIT_SHA"]
       @total_users_for_impact = nil # Auto-detect if not set
       @git_repository_url = ENV["GIT_REPOSITORY_URL"]
+
+      # Issue tracker integration defaults — OFF by default
+      @enable_issue_tracking = false
+      @issue_tracker_provider = nil    # Auto-detect from git_repository_url
+      @issue_tracker_token = ENV["ISSUE_TRACKER_TOKEN"]
+      @issue_tracker_repo = nil        # Auto-extract from git_repository_url
+      @issue_tracker_labels = [ "bug" ]
+      @issue_tracker_api_url = nil     # For self-hosted instances
 
       # Advanced error analysis features (all OFF by default - opt-in)
       @enable_similar_errors = false        # Fuzzy error matching
@@ -565,6 +581,56 @@ module RailsErrorDashboard
       blank = dashboard_username.to_s.strip.empty? || dashboard_password.to_s.strip.empty?
 
       default || blank
+    end
+
+    # Resolve the effective issue tracker provider (auto-detect from git_repository_url)
+    #
+    # @return [Symbol, nil] :github, :gitlab, :codeberg, or nil
+    def effective_issue_tracker_provider
+      return issue_tracker_provider&.to_sym if issue_tracker_provider.present?
+      return nil if git_repository_url.blank?
+
+      case git_repository_url
+      when /github\.com/i then :github
+      when /gitlab\.com/i then :gitlab
+      when /codeberg\.org/i then :codeberg
+      when /gitea\./i, /forgejo\./i then :codeberg # Gitea/Forgejo instances use same API
+      end
+    end
+
+    # Resolve the effective issue tracker repository ("owner/repo")
+    #
+    # @return [String, nil] "owner/repo" or nil
+    def effective_issue_tracker_repo
+      return issue_tracker_repo if issue_tracker_repo.present?
+      return nil if git_repository_url.blank?
+
+      # Extract owner/repo from URL: https://github.com/owner/repo(.git)
+      match = git_repository_url.match(%r{[:/]([^/]+/[^/]+?)(?:\.git)?$})
+      match&.[](1)
+    end
+
+    # Resolve the issue tracker API token (supports string or lambda)
+    #
+    # @return [String, nil] The resolved token value
+    def effective_issue_tracker_token
+      return nil if issue_tracker_token.nil?
+      issue_tracker_token.respond_to?(:call) ? issue_tracker_token.call : issue_tracker_token
+    rescue => e
+      nil
+    end
+
+    # Resolve the effective API base URL for the issue tracker
+    #
+    # @return [String] API base URL
+    def effective_issue_tracker_api_url
+      return issue_tracker_api_url if issue_tracker_api_url.present?
+
+      case effective_issue_tracker_provider
+      when :github then "https://api.github.com"
+      when :gitlab then "https://gitlab.com/api/v4"
+      when :codeberg then "https://codeberg.org/api/v1"
+      end
     end
 
     # Get the effective user model (auto-detected if not configured)
