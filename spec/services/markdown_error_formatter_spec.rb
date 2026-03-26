@@ -172,13 +172,26 @@ RSpec.describe RailsErrorDashboard::Services::MarkdownErrorFormatter do
         expect(result).to include("#<User id: 42>")
       end
 
-      it "preserves [FILTERED] for sensitive data" do
+      it "omits [FILTERED] variables from output" do
         locals = {
-          "password" => { "type" => "String", "value" => "[FILTERED]", "filtered" => true }
+          "password" => { "type" => "String", "value" => "[FILTERED]", "filtered" => true },
+          "user" => { "type" => "User", "value" => "#<User id: 42>" }
         }.to_json
 
         result = described_class.call(make_error(local_variables: locals))
-        expect(result).to include("[FILTERED]")
+        expect(result).to include("| user | User |")
+        expect(result).not_to include("password")
+        expect(result).not_to include("[FILTERED]")
+      end
+
+      it "omits local variables section entirely when all variables are filtered" do
+        locals = {
+          "password" => { "type" => "String", "value" => "[FILTERED]", "filtered" => true },
+          "token" => { "type" => "String", "value" => "[FILTERED]", "filtered" => true }
+        }.to_json
+
+        result = described_class.call(make_error(local_variables: locals))
+        expect(result).not_to include("## Local Variables")
       end
 
       it "truncates to max 10 variables" do

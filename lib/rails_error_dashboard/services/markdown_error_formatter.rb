@@ -130,6 +130,10 @@ module RailsErrorDashboard
         vars = parse_json(raw)
         return nil unless vars.is_a?(Hash) && vars.any?
 
+        # Skip [FILTERED] variables — LLM can't use redacted values for debugging
+        vars = vars.reject { |_, info| filtered_variable?(info) }
+        return nil if vars.empty?
+
         rows = vars.first(MAX_VARIABLES).map { |name, info|
           if info.is_a?(Hash)
             "| #{name} | #{info["type"]} | #{truncate_value(info["value"])} |"
@@ -149,6 +153,9 @@ module RailsErrorDashboard
         return nil unless vars.is_a?(Hash) && vars.any?
 
         self_class = vars.delete("_self_class")
+
+        # Skip [FILTERED] variables — LLM can't use redacted values for debugging
+        vars = vars.reject { |_, info| filtered_variable?(info) }
         return nil if vars.empty? && self_class.nil?
 
         lines = []
@@ -356,6 +363,11 @@ module RailsErrorDashboard
         JSON.parse(raw)
       rescue JSON::ParserError
         nil
+      end
+
+      def filtered_variable?(info)
+        return false unless info.is_a?(Hash)
+        info["filtered"] == true || info["value"] == "[FILTERED]"
       end
 
       def truncate_value(value, max_length = 200)
