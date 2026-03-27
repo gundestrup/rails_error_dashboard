@@ -53,6 +53,8 @@ module RailsErrorDashboard
           generate_gitlab_link(normalized_repo, reference)
         when :bitbucket
           generate_bitbucket_link(normalized_repo, reference)
+        when :codeberg
+          generate_codeberg_link(normalized_repo, reference)
         else
           @error = "Unsupported repository type"
           nil
@@ -77,13 +79,14 @@ module RailsErrorDashboard
 
       # Detect repository type from URL
       #
-      # @return [Symbol] :github, :gitlab, :bitbucket, or :unknown
+      # @return [Symbol] :github, :gitlab, :bitbucket, :codeberg, or :unknown
       def detect_repository_type
         normalized = normalize_repository_url.downcase
 
         return :github if normalized.include?("github.com")
         return :gitlab if normalized.include?("gitlab.com") || normalized.include?("gitlab.")
         return :bitbucket if normalized.include?("bitbucket.org") || normalized.include?("bitbucket.")
+        return :codeberg if normalized.include?("codeberg.org") || normalized.include?("gitea.") || normalized.include?("forgejo.")
 
         :unknown
       end
@@ -153,6 +156,21 @@ module RailsErrorDashboard
       def generate_bitbucket_link(repo_url, ref)
         normalized_path = normalize_file_path
         "#{repo_url}/src/#{ref}/#{normalized_path}#lines-#{line_number}"
+      end
+
+      # Generate Codeberg/Gitea/Forgejo link
+      #
+      # Format: https://codeberg.org/user/repo/src/commit/{ref}/path/to/file.rb#L42
+      # Same as GitHub's /blob/ but Codeberg uses /src/commit/ or /src/branch/
+      #
+      # @param repo_url [String] Normalized repository URL
+      # @param ref [String] Commit SHA or branch name
+      # @return [String]
+      def generate_codeberg_link(repo_url, ref)
+        normalized_path = normalize_file_path
+        # Codeberg uses /src/commit/{sha} for commits and /src/branch/{name} for branches
+        ref_type = ref.match?(/\A[0-9a-f]{7,40}\z/i) ? "commit" : "branch"
+        "#{repo_url}/src/#{ref_type}/#{ref}/#{normalized_path}#L#{line_number}"
       end
     end
   end
