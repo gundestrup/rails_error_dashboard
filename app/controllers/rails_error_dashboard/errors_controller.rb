@@ -144,11 +144,12 @@ module RailsErrorDashboard
       result = Commands::CreateIssue.call(params[:id], dashboard_url: dashboard_url)
 
       if result[:success]
-        flash[:notice] = "Issue created: #{result[:issue_url]}"
+        flash[:notice] = "Issue created successfully"
+        flash[:new_issue_url] = result[:issue_url]
       else
         flash[:alert] = "Failed to create issue: #{result[:error]}"
       end
-      redirect_to error_path(params[:id])
+      redirect_to error_path(params[:id], anchor: "issue-tracking")
     end
 
     def link_issue
@@ -159,21 +160,7 @@ module RailsErrorDashboard
       else
         flash[:alert] = "Failed to link issue: #{result[:error]}"
       end
-      redirect_to error_path(params[:id])
-    end
-
-    def unlink_issue
-      error = ErrorLog.find(params[:id])
-      error.update!(
-        external_issue_url: nil,
-        external_issue_number: nil,
-        external_issue_provider: nil
-      )
-      flash[:notice] = "Issue unlinked"
-      redirect_to error_path(error)
-    rescue => e
-      flash[:alert] = "Failed to unlink issue: #{e.message}"
-      redirect_to error_path(params[:id])
+      redirect_to error_path(params[:id], anchor: "issue-tracking")
     end
 
     def analytics

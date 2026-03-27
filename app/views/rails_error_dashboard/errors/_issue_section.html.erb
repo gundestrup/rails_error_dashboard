@@ -9,16 +9,16 @@
     <div class="card-body">
       <% if @error.external_issue_url.present? %>
         <!-- Linked issue display -->
+        <% provider = @error.external_issue_provider %>
+        <% icon = case provider
+                   when "github" then "bi-github"
+                   when "gitlab" then "bi-gitlab"
+                   when "codeberg" then "bi-git"
+                   else "bi-link-45deg"
+                   end %>
         <div class="d-flex align-items-center justify-content-between">
-          <div>
-            <% provider = @error.external_issue_provider %>
-            <% icon = case provider
-                       when "github" then "bi-github"
-                       when "gitlab" then "bi-gitlab"
-                       when "codeberg" then "bi-git"
-                       else "bi-link-45deg"
-                       end %>
-            <span class="badge bg-success me-2">
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-success">
               <i class="bi <%= icon %> me-1"></i>
               <%= provider&.capitalize || "Linked" %> #<%= @error.external_issue_number || "?" %>
             </span>
@@ -26,12 +26,9 @@
               View Issue <i class="bi bi-box-arrow-up-right" style="font-size: 0.8em;"></i>
             </a>
           </div>
-          <div>
-            <a href="<%= @error.external_issue_url %>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary me-1">
-              <i class="bi bi-chat-dots"></i> Discuss on <%= provider&.capitalize || "Platform" %>
-            </a>
-            <%= button_to "Unlink", unlink_issue_error_path(@error), method: :post, class: "btn btn-sm btn-outline-danger", data: { confirm: "Remove issue link?" } %>
-          </div>
+          <a href="<%= @error.external_issue_url %>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-chat-dots me-1"></i> Discuss on <%= provider&.capitalize || "Platform" %>
+          </a>
         </div>
       <% else %>
         <!-- No linked issue — show create/link options -->
@@ -64,4 +61,13 @@
       <% end %>
     </div>
   </div>
+
+  <% if flash[:new_issue_url].present? %>
+    <script>
+      // Open newly created issue in new tab and scroll to issue section
+      (function() {
+        window.open('<%= j flash[:new_issue_url] %>', '_blank');
+      })();
+    </script>
+  <% end %>
 <% end %>
