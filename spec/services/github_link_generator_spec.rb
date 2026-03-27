@@ -529,4 +529,54 @@ RSpec.describe RailsErrorDashboard::Services::GithubLinkGenerator do
       expect(generator.branch).to eq("main")
     end
   end
+
+  describe "Codeberg/Gitea/Forgejo repositories" do
+    it "generates link with commit SHA using /src/commit/ path" do
+      generator = described_class.new(
+        repository_url: "https://codeberg.org/user/repo",
+        file_path: "app/models/user.rb",
+        line_number: 42,
+        commit_sha: "abc123def456"
+      )
+
+      link = generator.generate_link
+      expect(link).to eq("https://codeberg.org/user/repo/src/commit/abc123def456/app/models/user.rb#L42")
+    end
+
+    it "generates link with branch name using /src/branch/ path" do
+      generator = described_class.new(
+        repository_url: "https://codeberg.org/user/repo",
+        file_path: "app/models/user.rb",
+        line_number: 42,
+        branch: "main"
+      )
+
+      link = generator.generate_link
+      expect(link).to eq("https://codeberg.org/user/repo/src/branch/main/app/models/user.rb#L42")
+    end
+
+    it "detects Gitea instances" do
+      generator = described_class.new(
+        repository_url: "https://gitea.mycompany.com/org/app",
+        file_path: "lib/service.rb",
+        line_number: 10,
+        commit_sha: "deadbeef"
+      )
+
+      link = generator.generate_link
+      expect(link).to include("gitea.mycompany.com/org/app/src/commit/deadbeef")
+    end
+
+    it "detects Forgejo instances" do
+      generator = described_class.new(
+        repository_url: "https://forgejo.example.org/team/project",
+        file_path: "app/controllers/api.rb",
+        line_number: 99,
+        branch: "develop"
+      )
+
+      link = generator.generate_link
+      expect(link).to include("forgejo.example.org/team/project/src/branch/develop")
+    end
+  end
 end
