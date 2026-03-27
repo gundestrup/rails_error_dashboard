@@ -1,6 +1,6 @@
 # Rails Error Dashboard — Roadmap
 
-> Last updated: March 26, 2026 | Current version: v0.5.7
+> Last updated: March 27, 2026 | Current version: v0.5.9
 > Deep introspection analysis: [DEEP_INTROSPECTION_ANALYSIS.md](DEEP_INTROSPECTION_ANALYSIS.md)
 > Faultline comparison: [FAULTLINE_COMPARISON.md](FAULTLINE_COMPARISON.md)
 > Time-series strategy: [TIMESERIES_ANALYSIS.md](TIMESERIES_ANALYSIS.md)
@@ -18,7 +18,7 @@ The gem sits in a **sweet spot**: more capable than Solid Errors (475 stars, min
 |--------|-----------------------|-------------|-----------|---------|----------------------|
 | Total Downloads | 11,000+ | 276,761 | N/A (git-only) | 1,447 | 22,144,698 |
 | GitHub Stars | 70+ | 481 | 72 | 25 | 2,185 |
-| Last Commit | 2026-03-26 (active) | 2025-11-24 (stale) | 2026-03-06 (active) | 2026-02-25 (active) | 2021-12-28 (dead) |
+| Last Commit | 2026-03-27 (active) | 2025-11-24 (stale) | 2026-03-06 (active) | 2026-02-25 (active) | 2021-12-28 (dead) |
 | Dashboard UI | Yes (Bootstrap 5) | Yes (minimal) | Yes (Tailwind) | Yes | No |
 | Notifications | Slack, Email, Discord, PagerDuty, Webhooks | Email | Telegram, Slack, Email, Webhooks | Slack, Email, Discord, Webhooks | Email, Slack, many more |
 | Rails Versions | 7.0 - 8.1 | 7.1+ | 8.0+ | 7.0+ | 7.1+ |
@@ -26,7 +26,7 @@ The gem sits in a **sweet spot**: more capable than Solid Errors (475 stars, min
 | Local Variables | Yes (TracePoint) | No | Yes (TracePoint) | No | No |
 | Auth | HTTP Basic + Custom Lambda | N/A | Devise/Warden/Lambda | ? | N/A |
 | Error Model | Single record + count | Single record | Group + Occurrences | Single record | N/A |
-| GitHub Issues | Not yet | No | Yes | No | No |
+| GitHub Issues | Yes (GitHub, GitLab, Codeberg) | No | Yes | No | No |
 | Auto-Reopen | Yes | No | Yes | No | N/A |
 | Copy for LLM | Yes (v0.5.3+) | No | No | No | No |
 | Telegram | Not yet | No | Yes | No | No |
@@ -387,11 +387,12 @@ All overhead numbers validated against Sentry's production benchmarks and Ruby d
 - **Community impact:** Genuine differentiator vs. Solid Errors and Faultline, neither of which have breadcrumbs. The kind of feature that makes people tweet about a tool
 - **Effort:** 2-3 days
 
-### 3. Deploy/Release Tracking
+### 3. Deploy/Release Tracking — DONE (v0.5.9)
 - **What:** Add `config.current_release` (git SHA, version tag, or custom string). Track which release each error first appeared in. Show a "New in this release" badge. Add a releases timeline view
 - **Why:** Rollbar and Bugsnag built their brands on this. Developers want to answer: *"Did this deploy introduce new errors?"* and *"Is this release stable?"* The gem already captures `git_sha` in error context — this is about surfacing it as a first-class concept
 - **Community impact:** Release tracking is a top-3 feature request across all error tracking discussions. Self-hosted tools rarely have it
 - **Effort:** 2 days
+- **Implemented:** Dedicated `/errors/releases` page with `ReleaseTimeline` query. Per-release stats: total errors, unique types, "new in this release" count (error hashes first seen in that version), stability indicator (green/yellow/red based on error rate vs average), delta from previous release. Current release highlighted. Uses existing `app_version` and `git_sha` columns — no new migration. SQL aggregation (GROUP BY), column guards, rescue-wrapped. 29 query specs + 10 request specs
 
 ### 4. Notification Rules & Throttling — DONE
 - **What:** Replace "all errors trigger all notifications" with configurable rules: alert on first occurrence only, alert when threshold exceeded (5+ in 5 min), alert by severity, per-error-type suppression, notification cooldown periods. Add per-error `last_notified_at` timestamp and configurable cooldown (default 5 min)
@@ -624,9 +625,9 @@ Each phase builds on the previous. Phase 1 features are quick wins (hours each).
 | ~~**v0.5**~~ | ~~Swallowed exception detection — TracePoint :rescue (N)~~ | ~~2-3 days~~ | ~~Novel +++~~ | ~~Phase 4~~ **DONE (v0.4.0)** |
 | ~~**v0.5**~~ | ~~Swallowed exception dashboard UI~~ | ~~2-3 days~~ | ~~UX ++~~ | ~~Phase 4~~ **DONE (v0.4.0)** |
 | | | | | |
-| **v0.5** | Deploy/release tracking | 2 days | Workflow +++ | Phase 5: Workflow |
+| ~~**v0.5**~~ | ~~Deploy/release tracking~~ | ~~2 days~~ | ~~Workflow +++~~ | ~~Phase 5: Workflow~~ **DONE (v0.5.9)** |
 | ~~**v0.5**~~ | ~~Error replay — copy as curl/RSpec (E)~~ | ~~1-2 days~~ | ~~Novel +++~~ | ~~Phase 5~~ **DONE (v0.4.0)** |
-| **v0.6** | GitHub/GitLab/Codeberg issue creation (Tier 1: manual, Tier 2: auto-create + lifecycle sync, Tier 3: webhooks) | 3-5 days | Workflow +++ | Phase 5 — PLANNED, see `.claude/plans/` |
+| ~~**v0.6**~~ | ~~GitHub/GitLab/Codeberg issue creation (Tier 1: manual, Tier 2: auto-create + lifecycle sync, Tier 3: webhooks)~~ | ~~3-5 days~~ | ~~Workflow +++~~ | ~~Phase 5~~ **DONE (v0.5.8)** |
 | **v0.5** | Telegram notifications (7a) | Half day | Adoption ++ | Phase 5 |
 | **v0.5** | Optional PostgreSQL partitioning generator | 1-2 days | Scale ++ | Phase 5 |
 | **v0.5** | User impact scoring | 1 day | Prioritization ++ | Phase 5 |
@@ -698,7 +699,7 @@ Each phase builds on the previous. Phase 1 features are quick wins (hours each).
 - API (3/10) — no JSON endpoints at all (ICEBOX)
 - User management (7/10) — HTTP Basic Auth + custom lambda (Devise/Warden/session), no RBAC yet
 - ~~Local variables (0/10)~~ — **DONE (v0.4.0)** — TracePoint(:raise) locals + instance vars + swallowed detection
-- Integrations (6/10) — limited ecosystem, no GitHub issue creation (Faultline has this), no Telegram (Faultline has this), sketch-level plugins
+- Integrations (8/10) — GitHub/GitLab/Codeberg issue tracking (manual + auto-create + lifecycle sync + webhooks), no Telegram (Faultline has this), sketch-level plugins
 - Performance monitoring (0/10) — no request timing or slow query tracking (findbug has this, planned v0.6)
 - Dashboard performance (7.5/10) — no rollup tables, no partitioning guidance. BRIN indexes added. See [TIMESERIES_ANALYSIS.md](TIMESERIES_ANALYSIS.md)
 - Testing (9.5/10) — 2800+ unit specs, 7 system tests, 1264+ chaos test assertions

@@ -169,6 +169,25 @@ config.issue_tracker_token = ENV["RED_BOT_TOKEN"]
 </details>
 
 <details>
+<summary><strong>Release Tracking</strong></summary>
+
+Dedicated Releases page at `/errors/releases` shows a timeline of all deploys/versions with health stats. Answers: "Did this deploy introduce new errors?" and "Is this release stable?"
+
+- **Release timeline:** Every version seen, sorted newest-first, with error counts, unique types, and time range
+- **"New in this release":** Errors whose fingerprint first appeared in each version — flagged with a red badge
+- **Stability indicators:** Green (at or below average), yellow (1-2x), red (>2x average error rate)
+- **Release comparison:** Delta and percentage change vs the previous release
+- **Current release:** Highlighted card with live health stats
+- **Zero config:** Works automatically when `app_version` or `git_sha` is set (via config, `APP_VERSION`, `GIT_SHA`, `HEROKU_SLUG_COMMIT`, or `RENDER_GIT_COMMIT` env vars)
+
+```ruby
+config.app_version = "1.2.0"           # or set APP_VERSION env var
+config.git_sha = ENV["GIT_SHA"]        # auto-detected on Heroku/Render
+config.git_repository_url = "https://github.com/user/repo"  # enables SHA links
+```
+</details>
+
+<details>
 <summary><strong>Source Code Integration + Git Blame</strong></summary>
 
 View actual source code directly in error backtraces with +/-7 lines of context. Git blame shows who last modified the code, when, and the commit message. Repository links jump to GitHub/GitLab/Bitbucket at the exact line.

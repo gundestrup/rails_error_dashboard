@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.5.9] - 2026-03-27
 
 ### Added
+- **Releases dashboard page** — Dedicated `/errors/releases` page with release timeline, "new in this release" error detection, stability indicators (green/yellow/red based on error rate vs average), and release-over-release delta comparison. Uses existing `app_version` and `git_sha` columns — no new migration needed. Current release highlighted with health stats. Empty state guides users to configure `APP_VERSION` env var or `config.app_version`
 - **Platform state mirror** — Issue status (open/closed), assignees with avatars, and labels with colors fetched from GitHub/GitLab/Codeberg API. Cached 60 seconds. Displayed in the Issue Tracker section as read-only badges. Platform is the single source of truth
 - **Platform comments in Discussion** — Real comments from linked GitHub/GitLab/Codeberg issues displayed with author avatars, timestamps, and body text. Scrollable list (400px max). "Reply on Platform" button in header
 - **Scrollable breadcrumbs** — Breadcrumbs table capped at 400px with overflow scroll. Long activity trails no longer push content off screen
@@ -17,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Workflow controls hidden when issue tracking enabled** — Mark as Resolved, Workflow Status, Assigned To, and Priority are hidden in the sidebar when `enable_issue_tracking = true`. Platform state (shown in Issue Tracker section) replaces them. Snooze and Mute remain visible (no platform equivalent). All controls remain when issue tracking is disabled
 - **Issue Tracker UX** — Create Issue opens new tab with the issue URL. Page scrolls to issue section after actions. "View Issue" button moved to card header. Removed Unlink button and duplicate Discuss button
+
+### Security
+- **Secret masking in settings** — Token and webhook secret fields now display "Set"/"Not set" badges instead of actual values. Prevents accidental information disclosure on the settings page
 
 ### Fixed
 - **ERB nesting** — Fixed Snooze/Mute accidentally hidden by the workflow controls guard
