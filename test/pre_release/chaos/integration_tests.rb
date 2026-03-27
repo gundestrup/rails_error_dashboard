@@ -17,7 +17,7 @@
 require_relative "../lib/integration_test_runner"
 
 PORT = ENV.fetch("PORT", "3100")
-MOUNT = ENV.fetch("MOUNT_PATH", "/error_dashboard")
+MOUNT = ENV.fetch("MOUNT_PATH", "/red")
 BASE_URL = "http://localhost:#{PORT}#{MOUNT}"
 AUTH_USER = ENV.fetch("AUTH_USER", "chaos_test_admin")
 AUTH_PASS = ENV.fetch("AUTH_PASS", "chaos_test_secret_42")

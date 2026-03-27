@@ -68,7 +68,7 @@ RSpec.describe RailsErrorDashboard::Generators::InstallGenerator, type: :generat
 
       it "adds route" do
         routes_content = File.read("#{destination_root}/config/routes.rb")
-        expect(routes_content).to include("mount RailsErrorDashboard::Engine => '/error_dashboard'")
+        expect(routes_content).to include("mount RailsErrorDashboard::Engine => '/red'")
       end
 
       it "disables all optional features by default" do
@@ -428,9 +428,9 @@ RSpec.describe RailsErrorDashboard::Generators::InstallGenerator, type: :generat
       run_generator [ "--no-interactive" ]
     end
 
-    it "mounts the engine at /error_dashboard" do
+    it "mounts the engine at /red" do
       routes_content = File.read("#{destination_root}/config/routes.rb")
-      expect(routes_content).to include("mount RailsErrorDashboard::Engine => '/error_dashboard'")
+      expect(routes_content).to include("mount RailsErrorDashboard::Engine => '/red'")
     end
   end
 

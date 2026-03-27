@@ -44,7 +44,7 @@ module RailsErrorDashboard
         say "\n"
         say "Core features will be enabled automatically:", :green
         say "  ✓ Error capture (controllers, jobs, middleware)"
-        say "  ✓ Dashboard UI at /error_dashboard"
+        say "  ✓ Dashboard UI at /red"
         say "  ✓ Real-time updates"
         say "  ✓ Analytics & spike detection"
         say "  ✓ 90-day error retention"
@@ -398,7 +398,7 @@ module RailsErrorDashboard
       end
 
       def add_route
-        route "mount RailsErrorDashboard::Engine => '/error_dashboard'"
+        route "mount RailsErrorDashboard::Engine => '/red'  # RED (Rails Error Dashboard) — also works at /error_dashboard"
       end
 
       def show_feature_summary
@@ -510,13 +510,13 @@ module RailsErrorDashboard
           end
           say "  4. Update credentials in config/initializers/rails_error_dashboard.rb"
           say "  5. Restart your Rails server"
-          say "  6. Visit http://localhost:3000/error_dashboard"
+          say "  6. Visit http://localhost:3000/red"
           say "  7. Verify: rails error_dashboard:verify"
         else
           say "  1. Run: rails db:migrate"
           say "  2. Update credentials in config/initializers/rails_error_dashboard.rb"
           say "  3. Restart your Rails server"
-          say "  4. Visit http://localhost:3000/error_dashboard"
+          say "  4. Visit http://localhost:3000/red"
         end
         say "Authentication:", :cyan
         say "  Default: HTTP Basic Auth (gandalf/youshallnotpass)", :white
