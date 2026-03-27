@@ -113,6 +113,38 @@
         dashboard_base_url: { label: "Dashboard Base URL", description: "Base URL for dashboard links", type: :url }
       }
     },
+    "Issue Tracking" => {
+      icon: "bi-link-45deg",
+      color: "primary",
+      settings: {
+        enable_issue_tracking: { label: "Issue Tracking", description: "GitHub/GitLab/Codeberg integration — one switch enables all: issue creation, auto-create, lifecycle sync, platform state mirroring, comment display. Replaces workflow controls with platform state.", type: :boolean },
+        issue_tracker_token: { label: "API Token", description: "RED bot token (set RED_BOT_TOKEN env var)", type: :secret, show_if: :enable_issue_tracking },
+        issue_tracker_provider: { label: "Provider", description: "Auto-detected from git_repository_url", type: :auto_detect, show_if: :enable_issue_tracking, method: :effective_issue_tracker_provider },
+        issue_tracker_repo: { label: "Repository", description: "Auto-detected from git_repository_url", type: :auto_detect, show_if: :enable_issue_tracking, method: :effective_issue_tracker_repo },
+        issue_tracker_labels: { label: "Labels", description: "Labels added to new issues", type: :array, show_if: :enable_issue_tracking },
+        issue_webhook_secret: { label: "Webhook Secret", description: "Set to enable two-way sync (HMAC verification)", type: :secret, show_if: :enable_issue_tracking }
+      }
+    },
+    "Deep Debugging" => {
+      icon: "bi-search",
+      color: "danger",
+      settings: {
+        enable_local_variables: { label: "Local Variable Capture", description: "TracePoint(:raise) — capture locals at exception time", type: :boolean },
+        enable_instance_variables: { label: "Instance Variable Capture", description: "Capture self's ivars at exception time", type: :boolean },
+        detect_swallowed_exceptions: { label: "Swallowed Exception Detection", description: "TracePoint(:raise) + (:rescue) — detect silently rescued exceptions (Ruby 3.3+)", type: :boolean },
+        enable_diagnostic_dump: { label: "Diagnostic Dump", description: "On-demand system state snapshots", type: :boolean },
+        enable_crash_capture: { label: "Process Crash Capture", description: "at_exit hook for unhandled crashes", type: :boolean }
+      }
+    },
+    "Event Tracking" => {
+      icon: "bi-broadcast",
+      color: "info",
+      settings: {
+        enable_rack_attack_tracking: { label: "Rack Attack Tracking", description: "Track throttle/blocklist events as breadcrumbs", type: :boolean },
+        enable_actioncable_tracking: { label: "ActionCable Tracking", description: "Track WebSocket channel events as breadcrumbs", type: :boolean },
+        enable_activestorage_tracking: { label: "ActiveStorage Tracking", description: "Track uploads/downloads/deletes as breadcrumbs", type: :boolean }
+      }
+    },
     "Advanced Configuration" => {
       icon: "bi-sliders",
       color: "secondary",
