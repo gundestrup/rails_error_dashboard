@@ -1,6 +1,6 @@
 # Rails Error Dashboard — Roadmap
 
-> Last updated: March 27, 2026 | Current version: v0.5.9
+> Last updated: March 27, 2026 | Current version: v0.5.10
 > Deep introspection analysis: [DEEP_INTROSPECTION_ANALYSIS.md](DEEP_INTROSPECTION_ANALYSIS.md)
 > Faultline comparison: [FAULTLINE_COMPARISON.md](FAULTLINE_COMPARISON.md)
 > Time-series strategy: [TIMESERIES_ANALYSIS.md](TIMESERIES_ANALYSIS.md)
@@ -387,7 +387,7 @@ All overhead numbers validated against Sentry's production benchmarks and Ruby d
 - **Community impact:** Genuine differentiator vs. Solid Errors and Faultline, neither of which have breadcrumbs. The kind of feature that makes people tweet about a tool
 - **Effort:** 2-3 days
 
-### 3. Deploy/Release Tracking — DONE (v0.5.9)
+### 3. Deploy/Release Tracking — DONE (v0.5.10)
 - **What:** Add `config.current_release` (git SHA, version tag, or custom string). Track which release each error first appeared in. Show a "New in this release" badge. Add a releases timeline view
 - **Why:** Rollbar and Bugsnag built their brands on this. Developers want to answer: *"Did this deploy introduce new errors?"* and *"Is this release stable?"* The gem already captures `git_sha` in error context — this is about surfacing it as a first-class concept
 - **Community impact:** Release tracking is a top-3 feature request across all error tracking discussions. Self-hosted tools rarely have it
@@ -625,7 +625,7 @@ Each phase builds on the previous. Phase 1 features are quick wins (hours each).
 | ~~**v0.5**~~ | ~~Swallowed exception detection — TracePoint :rescue (N)~~ | ~~2-3 days~~ | ~~Novel +++~~ | ~~Phase 4~~ **DONE (v0.4.0)** |
 | ~~**v0.5**~~ | ~~Swallowed exception dashboard UI~~ | ~~2-3 days~~ | ~~UX ++~~ | ~~Phase 4~~ **DONE (v0.4.0)** |
 | | | | | |
-| ~~**v0.5**~~ | ~~Deploy/release tracking~~ | ~~2 days~~ | ~~Workflow +++~~ | ~~Phase 5: Workflow~~ **DONE (v0.5.9)** |
+| ~~**v0.5**~~ | ~~Deploy/release tracking~~ | ~~2 days~~ | ~~Workflow +++~~ | ~~Phase 5: Workflow~~ **DONE (v0.5.10)** |
 | ~~**v0.5**~~ | ~~Error replay — copy as curl/RSpec (E)~~ | ~~1-2 days~~ | ~~Novel +++~~ | ~~Phase 5~~ **DONE (v0.4.0)** |
 | ~~**v0.6**~~ | ~~GitHub/GitLab/Codeberg issue creation (Tier 1: manual, Tier 2: auto-create + lifecycle sync, Tier 3: webhooks)~~ | ~~3-5 days~~ | ~~Workflow +++~~ | ~~Phase 5~~ **DONE (v0.5.8)** |
 | **v0.5** | Telegram notifications (7a) | Half day | Adoption ++ | Phase 5 |
