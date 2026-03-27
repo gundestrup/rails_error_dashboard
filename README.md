@@ -169,6 +169,20 @@ config.issue_tracker_token = ENV["RED_BOT_TOKEN"]
 </details>
 
 <details>
+<summary><strong>Scheduled Digests</strong></summary>
+
+Daily or weekly error summary emails — new errors, resolution rate, top errors by count, critical unresolved, and period-over-period comparison. HTML + text templates. Users schedule the job via SolidQueue, Sidekiq, or cron.
+
+```ruby
+config.enable_scheduled_digests = true
+config.digest_frequency = :daily  # or :weekly
+# config.digest_recipients = ["team@example.com"]  # defaults to notification_email_recipients
+```
+
+Schedule: `rails error_dashboard:send_digest PERIOD=daily`
+</details>
+
+<details>
 <summary><strong>Release Tracking</strong></summary>
 
 Dedicated Releases page at `/errors/releases` shows a timeline of all deploys/versions with health stats. Answers: "Did this deploy introduce new errors?" and "Is this release stable?"

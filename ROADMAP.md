@@ -499,7 +499,7 @@ All overhead numbers validated against Sentry's production benchmarks and Ruby d
 - **Community impact:** Standard expectation for any production tool that modifies state
 - **Effort:** 1 day
 
-### 13. Scheduled Digests
+### 13. Scheduled Digests — DONE (v0.5.11)
 - **What:** Daily/weekly email digest summarizing: new errors, top errors by impact, resolution rate, MTTR trends. Configurable schedule and recipients
 - **Why:** Not everyone lives in the dashboard. A morning email saying "12 new errors yesterday, 3 critical, MTTR improved 20%" keeps the team informed without context-switching
 - **Community impact:** Low-effort, high-visibility feature that makes the gem feel "enterprise-ready"
@@ -652,7 +652,7 @@ Each phase builds on the previous. Phase 1 features are quick wins (hours each).
 | | | | | |
 | **v0.8** | RBAC | 2-3 days | Enterprise ++ | Phase 7: Enterprise |
 | **v0.8** | Audit logging | 1 day | Enterprise ++ | Phase 7 |
-| **v0.8** | Scheduled digests | 1-2 days | Engagement ++ | Phase 7 |
+| ~~**v0.8**~~ | ~~Scheduled digests~~ | ~~1-2 days~~ | ~~Engagement ++~~ | ~~Phase 7~~ **DONE (v0.5.11)** |
 | **v0.8** | Adaptive sampling (auto-reduce on spike) | 2-3 days | Resilience ++ | Phase 7 |
 | **v0.8** | Optional TimescaleDB generator (hypertables, compression, continuous aggregates) | 2-3 days | Scale +++ | Phase 7 |
 | | | | | |

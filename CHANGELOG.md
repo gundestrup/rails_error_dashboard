@@ -5,12 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.11] - 2026-03-27
+## [0.5.11] - 2026-03-28
 
 ### Added
+- **Scheduled digest emails** — Daily or weekly error summary emails with: new error count, total occurrences, resolved/unresolved counts, critical/high severity count, resolution rate, top 5 errors by count, critical unresolved list, and period-over-period comparison delta. HTML + text templates with inline CSS. Users schedule the job via SolidQueue, Sidekiq, or cron — gem provides the job, not the scheduler. Rake task: `rails error_dashboard:send_digest PERIOD=daily`. Recipients default to `notification_email_recipients` if `digest_recipients` not set. 15 service specs + 13 job specs
 - **Code path coverage (diagnostic mode)** — Enable via dashboard button to see which lines were executed in production. Uses Ruby's `Coverage.setup(oneshot_lines: true)` (Ruby 3.2+). Source code viewer overlays green checkmarks on executed lines and gray dots on unexecuted lines. Zero overhead when off — coverage only runs between explicit enable/disable. SimpleCov-compatible (piggybacks on existing sessions). No migration needed (live in-memory data via `Coverage.peek_result`). 19 service specs + 7 request specs
 
 ```ruby
+# Scheduled digests
+config.enable_scheduled_digests = true
+config.digest_frequency = :daily  # or :weekly
+# config.digest_recipients = ["team@example.com"]  # defaults to notification_email_recipients
+
+# Code path coverage
 config.enable_coverage_tracking = true  # shows Enable/Disable buttons on error detail page
 ```
 
