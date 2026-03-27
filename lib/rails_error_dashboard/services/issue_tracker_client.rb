@@ -96,6 +96,12 @@ module RailsErrorDashboard
         raise NotImplementedError
       end
 
+      # Fetch issue details (status, assignees, labels)
+      # @return [Hash] { state:, assignees: [...], labels: [...], title:, success: true } or { success: false }
+      def fetch_issue(number:)
+        raise NotImplementedError
+      end
+
       private
 
       def http_post(uri, body, headers = {})

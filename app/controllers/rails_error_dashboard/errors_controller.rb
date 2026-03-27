@@ -81,7 +81,8 @@ module RailsErrorDashboard
       @related_errors = @error.related_errors(limit: 5, application_id: @current_application_id)
       @error_markdown = Services::MarkdownErrorFormatter.call(@error, related_errors: @related_errors)
 
-      # Fetch platform issue comments if linked
+      # Fetch platform issue state and comments if linked
+      @platform_issue = fetch_platform_issue(@error)
       @platform_comments = fetch_platform_comments(@error)
 
       # Dispatch plugin event for error viewed
@@ -551,6 +552,22 @@ module RailsErrorDashboard
     def set_application_context
       @current_application_id = params[:application_id].presence
       @applications = Application.ordered_by_name.pluck(:name, :id)
+    end
+
+    def fetch_platform_issue(error)
+      return nil unless error.external_issue_url.present? && error.external_issue_number.present?
+      return nil unless RailsErrorDashboard.configuration.enable_issue_tracking
+
+      cache_key = "red/issue_state/#{error.external_issue_provider}/#{error.external_issue_number}"
+      Rails.cache.fetch(cache_key, expires_in: 60.seconds) do
+        client = Services::IssueTrackerClient.from_config
+        return nil unless client
+
+        result = client.fetch_issue(number: error.external_issue_number)
+        result[:success] ? result : nil
+      end
+    rescue => e
+      nil
     end
 
     def fetch_platform_comments(error)

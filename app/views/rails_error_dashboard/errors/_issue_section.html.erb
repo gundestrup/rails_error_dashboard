@@ -8,7 +8,6 @@
     </div>
     <div class="card-body">
       <% if @error.external_issue_url.present? %>
-        <!-- Linked issue — just show the badge and link -->
         <% provider = @error.external_issue_provider %>
         <% icon = case provider
                    when "github" then "bi-github"
@@ -16,15 +15,70 @@
                    when "codeberg" then "bi-git"
                    else "bi-link-45deg"
                    end %>
-        <div class="d-flex align-items-center gap-2">
-          <span class="badge bg-success">
-            <i class="bi <%= icon %> me-1"></i>
-            <%= provider&.capitalize || "Linked" %> #<%= @error.external_issue_number || "?" %>
-          </span>
-          <a href="<%= @error.external_issue_url %>" target="_blank" rel="noopener" class="text-decoration-none">
-            View Issue <i class="bi bi-box-arrow-up-right" style="font-size: 0.8em;"></i>
-          </a>
+        <% issue = @platform_issue %>
+
+        <!-- Issue link + status -->
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-success">
+              <i class="bi <%= icon %> me-1"></i>
+              <%= provider&.capitalize || "Linked" %> #<%= @error.external_issue_number || "?" %>
+            </span>
+            <% if issue %>
+              <% state_color = issue[:state] == "open" ? "success" : "secondary" %>
+              <% state_icon = issue[:state] == "open" ? "bi-circle-fill" : "bi-check-circle-fill" %>
+              <span class="badge bg-<%= state_color %>">
+                <i class="bi <%= state_icon %> me-1" style="font-size: 0.6em;"></i>
+                <%= issue[:state]&.capitalize %>
+              </span>
+            <% end %>
+            <a href="<%= @error.external_issue_url %>" target="_blank" rel="noopener" class="text-decoration-none">
+              View Issue <i class="bi bi-box-arrow-up-right" style="font-size: 0.8em;"></i>
+            </a>
+          </div>
         </div>
+
+        <% if issue %>
+          <div class="row">
+            <!-- Assignees -->
+            <div class="col-md-6 mb-2">
+              <small class="text-muted d-block mb-1">Assignees</small>
+              <% if issue[:assignees].present? && issue[:assignees].any? %>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <% issue[:assignees].each do |assignee| %>
+                    <span class="d-inline-flex align-items-center gap-1 border rounded-pill px-2 py-1" style="font-size: 0.85em;">
+                      <% if assignee[:avatar_url].present? %>
+                        <img src="<%= assignee[:avatar_url] %>" width="18" height="18" class="rounded-circle">
+                      <% end %>
+                      <%= assignee[:login] %>
+                    </span>
+                  <% end %>
+                </div>
+              <% else %>
+                <span class="text-muted" style="font-size: 0.85em;">Unassigned</span>
+              <% end %>
+            </div>
+
+            <!-- Labels -->
+            <div class="col-md-6 mb-2">
+              <small class="text-muted d-block mb-1">Labels</small>
+              <% if issue[:labels].present? && issue[:labels].any? %>
+                <div class="d-flex align-items-center gap-1 flex-wrap">
+                  <% issue[:labels].each do |label| %>
+                    <% bg_color = label[:color].present? ? "##{label[:color]}" : "#6c757d" %>
+                    <% text_color = label[:color].present? && label[:color].scan(/../).map { |c| c.to_i(16) }.sum > 382 ? "#000" : "#fff" %>
+                    <span class="badge rounded-pill" style="background-color: <%= bg_color %>; color: <%= text_color %>; font-size: 0.78em;">
+                      <%= label[:name] %>
+                    </span>
+                  <% end %>
+                </div>
+              <% else %>
+                <span class="text-muted" style="font-size: 0.85em;">No labels</span>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+
       <% else %>
         <!-- No linked issue — show create/link options -->
         <div class="row">

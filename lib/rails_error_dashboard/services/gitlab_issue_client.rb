@@ -88,6 +88,29 @@ module RailsErrorDashboard
         end
       end
 
+      def fetch_issue(number:)
+        response = http_get(
+          "#{@api_url}/projects/#{@encoded_repo}/issues/#{number}",
+          auth_headers
+        )
+
+        if response[:status] == 200
+          data = response[:body]
+          success_response(
+            state: data["state"],
+            title: data["title"],
+            assignees: (data["assignees"] || []).map { |a|
+              { login: a["username"], avatar_url: a["avatar_url"] }
+            },
+            labels: (data["labels"] || []).map { |l|
+              { name: l, color: nil }
+            }
+          )
+        else
+          error_response("GitLab API error (#{response[:status]})")
+        end
+      end
+
       private
 
       def auth_headers
