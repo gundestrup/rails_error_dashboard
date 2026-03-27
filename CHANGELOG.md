@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.9] - 2026-03-27
+
+### Added
+- **Platform state mirror** — Issue status (open/closed), assignees with avatars, and labels with colors fetched from GitHub/GitLab/Codeberg API. Cached 60 seconds. Displayed in the Issue Tracker section as read-only badges. Platform is the single source of truth
+- **Platform comments in Discussion** — Real comments from linked GitHub/GitLab/Codeberg issues displayed with author avatars, timestamps, and body text. Scrollable list (400px max). "Reply on Platform" button in header
+- **Scrollable breadcrumbs** — Breadcrumbs table capped at 400px with overflow scroll. Long activity trails no longer push content off screen
+- **Issue pill in section navigation** — Quick-jump to the Issue Tracker section from the pill bar
+- **GitHub Sponsors** — Added as primary funding option alongside Buy Me a Coffee
+
+### Changed
+- **Workflow controls hidden when issue tracking enabled** — Mark as Resolved, Workflow Status, Assigned To, and Priority are hidden in the sidebar when `enable_issue_tracking = true`. Platform state (shown in Issue Tracker section) replaces them. Snooze and Mute remain visible (no platform equivalent). All controls remain when issue tracking is disabled
+- **Issue Tracker UX** — Create Issue opens new tab with the issue URL. Page scrolls to issue section after actions. "View Issue" button moved to card header. Removed Unlink button and duplicate Discuss button
+
+### Fixed
+- **ERB nesting** — Fixed Snooze/Mute accidentally hidden by the workflow controls guard
+
+---
+
 ## [0.5.8] - 2026-03-27
 
 ### Added
