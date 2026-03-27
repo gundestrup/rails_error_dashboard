@@ -72,90 +72,91 @@
           </div>
 
           <% unless RailsErrorDashboard.configuration.enable_issue_tracking %>
-          <!-- Phase 3: Workflow Status (hidden when issue tracking enabled — platform is source of truth) -->
-          <div class="mb-3">
-            <small class="metadata-label d-block mb-1">Workflow Status</small>
-            <% if error.respond_to?(:status) %>
-              <% badge_color = error.status_badge_color %>
-              <% text_dark = %w[info warning light].include?(badge_color) ? 'text-dark' : '' %>
-              <span class="badge bg-<%= badge_color %> <%= text_dark %> fs-6">
-                <%= error.status.titleize %>
-              </span>
-            <% elsif error.resolved? %>
-              <span class="badge bg-success">
-                <i class="bi bi-check-circle"></i> Resolved
-              </span>
-              <% if error.resolved_at.present? %>
+            <!-- Workflow Status (hidden when issue tracking enabled — platform is source of truth) -->
+            <div class="mb-3">
+              <small class="metadata-label d-block mb-1">Workflow Status</small>
+              <% if error.respond_to?(:status) %>
+                <% badge_color = error.status_badge_color %>
+                <% text_dark = %w[info warning light].include?(badge_color) ? 'text-dark' : '' %>
+                <span class="badge bg-<%= badge_color %> <%= text_dark %> fs-6">
+                  <%= error.status.titleize %>
+                </span>
+              <% elsif error.resolved? %>
+                <span class="badge bg-success">
+                  <i class="bi bi-check-circle"></i> Resolved
+                </span>
+                <% if error.resolved_at.present? %>
+                  <br>
+                  <small class="text-muted mt-1 d-block">
+                    <%= local_time(error.resolved_at, format: :full) %>
+                  </small>
+                <% end %>
+              <% else %>
+                <span class="badge bg-danger">
+                  <i class="bi bi-exclamation-circle"></i> Unresolved
+                </span>
+              <% end %>
+            </div>
+
+            <!-- Reopened indicator -->
+            <% if error.reopened? %>
+              <div class="mb-3">
+                <small class="metadata-label d-block mb-1">Reopened</small>
+                <span class="badge bg-warning text-dark">
+                  <i class="bi bi-arrow-counterclockwise"></i> Reopened
+                </span>
                 <br>
                 <small class="text-muted mt-1 d-block">
-                  <%= local_time(error.resolved_at, format: :full) %>
+                  <%= local_time(error.reopened_at, format: :full) %>
                 </small>
-              <% end %>
-            <% else %>
-              <span class="badge bg-danger">
-                <i class="bi bi-exclamation-circle"></i> Unresolved
-              </span>
+              </div>
             <% end %>
-          </div>
 
-          <!-- Reopened indicator -->
-          <% if error.reopened? %>
-            <div class="mb-3">
-              <small class="metadata-label d-block mb-1">Reopened</small>
-              <span class="badge bg-warning text-dark">
-                <i class="bi bi-arrow-counterclockwise"></i> Reopened
-              </span>
-              <br>
-              <small class="text-muted mt-1 d-block">
-                <%= local_time(error.reopened_at, format: :full) %>
-              </small>
-            </div>
-          <% end %>
-
-          <!-- Phase 3: Assignment -->
-          <% if error.respond_to?(:assigned_to) %>
-            <div class="mb-3">
-              <small class="metadata-label d-block mb-1">Assigned To</small>
-              <% if error.assigned? %>
-                <div class="d-flex align-items-center justify-content-between">
-                  <div>
-                    <i class="bi bi-person-fill text-primary"></i>
-                    <strong><%= error.assigned_to %></strong>
-                    <% if error.assigned_at.present? %>
-                      <br>
-                      <small class="text-muted">
-                        <%= local_time_ago(error.assigned_at) %>
-                      </small>
+            <!-- Assignment -->
+            <% if error.respond_to?(:assigned_to) %>
+              <div class="mb-3">
+                <small class="metadata-label d-block mb-1">Assigned To</small>
+                <% if error.assigned? %>
+                  <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                      <i class="bi bi-person-fill text-primary"></i>
+                      <strong><%= error.assigned_to %></strong>
+                      <% if error.assigned_at.present? %>
+                        <br>
+                        <small class="text-muted">
+                          <%= local_time_ago(error.assigned_at) %>
+                        </small>
+                      <% end %>
+                    </div>
+                    <%= button_to unassign_error_path(error), method: :post, class: "btn btn-sm btn-outline-secondary",
+                        data: { turbo_confirm: "Remove assignment?" } do %>
+                      <i class="bi bi-x"></i>
                     <% end %>
                   </div>
-                  <%= button_to unassign_error_path(error), method: :post, class: "btn btn-sm btn-outline-secondary",
-                      data: { turbo_confirm: "Remove assignment?" } do %>
-                    <i class="bi bi-x"></i>
-                  <% end %>
-                </div>
-              <% else %>
-                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#assignModal">
-                  <i class="bi bi-person-plus"></i> Assign
-                </button>
-              <% end %>
-            </div>
+                <% else %>
+                  <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#assignModal">
+                    <i class="bi bi-person-plus"></i> Assign
+                  </button>
+                <% end %>
+              </div>
 
-            <!-- Phase 3: Priority -->
-            <div class="mb-3">
-              <small class="metadata-label d-block mb-1">Priority</small>
-              <% if error.respond_to?(:priority_level) %>
-                <span class="badge bg-<%= error.priority_color %> fs-6">
-                  <%= error.priority_label %>
-                </span>
-                <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#priorityModal">
-                  <i class="bi bi-pencil"></i>
-                </button>
-              <% end %>
-            </div>
-
+              <!-- Priority -->
+              <div class="mb-3">
+                <small class="metadata-label d-block mb-1">Priority</small>
+                <% if error.respond_to?(:priority_level) %>
+                  <span class="badge bg-<%= error.priority_color %> fs-6">
+                    <%= error.priority_label %>
+                  </span>
+                  <button type="button" class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#priorityModal">
+                    <i class="bi bi-pencil"></i>
+                  </button>
+                <% end %>
+              </div>
+            <% end %>
           <% end %>
 
-            <!-- Phase 3: Snooze -->
+          <!-- Snooze (always visible — no platform equivalent) -->
+          <% if error.respond_to?(:assigned_to) %>
             <div class="mb-3">
               <small class="metadata-label d-block mb-1">Snooze</small>
               <% if error.respond_to?(:snoozed?) && error.snoozed? %>
