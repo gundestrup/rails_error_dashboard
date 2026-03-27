@@ -444,7 +444,7 @@ All overhead numbers validated against Sentry's production benchmarks and Ruby d
 
 ## Tier 2 — Competitive Parity Features (close the gap with SaaS)
 
-### 6. User Impact Scoring
+### 6. User Impact Scoring — DONE (v0.5.11)
 - **What:** Surface "this error affected 847 unique users in the last 24 hours" prominently. Rank errors by user impact, not just occurrence count. Show affected user trend over time
 - **Why:** The gem already captures `user_id` with errors — this is about aggregating and surfacing it. Sentry and Honeybadger both highlight user impact as a key prioritization metric. An error hitting 1 user 1000 times is very different from an error hitting 1000 users once each
 - **Community impact:** Helps teams prioritize what to fix first. Directly translates to business value
@@ -631,7 +631,7 @@ Each phase builds on the previous. Phase 1 features are quick wins (hours each).
 | ~~**v0.6**~~ | ~~GitHub/GitLab/Codeberg issue creation (Tier 1: manual, Tier 2: auto-create + lifecycle sync, Tier 3: webhooks)~~ | ~~3-5 days~~ | ~~Workflow +++~~ | ~~Phase 5~~ **DONE (v0.5.8)** |
 | **v0.5** | Telegram notifications (7a) | Half day | Adoption ++ | Phase 5 |
 | **v0.5** | Optional PostgreSQL partitioning generator | 1-2 days | Scale ++ | Phase 5 |
-| **v0.5** | User impact scoring | 1 day | Prioritization ++ | Phase 5 |
+| ~~**v0.5**~~ | ~~User impact scoring~~ | ~~1 day~~ | ~~Prioritization ++~~ | ~~Phase 5~~ **DONE (v0.5.11)** |
 | ~~**v0.6**~~ | ~~Process crash capture — at_exit hook (O)~~ | ~~Half day~~ | ~~Reliability ++~~ | ~~Phase 5~~ **DONE (v0.4.0)** |
 | ~~**v0.6**~~ | ~~On-demand diagnostic dump (P)~~ | ~~Half day~~ | ~~Operational ++~~ | ~~Phase 5~~ **DONE (v0.4.0)** |
 | | | | | |

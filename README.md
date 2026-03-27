@@ -169,6 +169,14 @@ config.issue_tracker_token = ENV["RED_BOT_TOKEN"]
 </details>
 
 <details>
+<summary><strong>User Impact Scoring</strong></summary>
+
+Dedicated `/errors/user_impact` page ranking errors by unique users affected — not occurrence count. An error hitting 1000 users once ranks higher than hitting 1 user 1000 times. Shows impact percentage (when `total_users_for_impact` is configured or auto-detected), severity badges, and per-error drill-down links.
+
+No configuration needed — works automatically when errors have `user_id` (auto-detected via `CurrentAttributes` or `current_user`).
+</details>
+
+<details>
 <summary><strong>Scheduled Digests</strong></summary>
 
 Daily or weekly error summary emails — new errors, resolution rate, top errors by count, critical unresolved, and period-over-period comparison. HTML + text templates. Users schedule the job via SolidQueue, Sidekiq, or cron.
