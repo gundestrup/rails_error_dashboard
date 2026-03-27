@@ -40,14 +40,16 @@
           <i class="bi bi-bell-slash"></i> Muted
         </button>
       <% end %>
-      <% if @error.resolved? %>
-        <span class="badge bg-success fs-6">
-          <i class="bi bi-check-circle"></i> Resolved
-        </span>
-      <% else %>
-        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#resolveModal">
-          <i class="bi bi-check-circle"></i> Mark as Resolved
-        </button>
+      <% unless RailsErrorDashboard.configuration.enable_issue_tracking %>
+        <% if @error.resolved? %>
+          <span class="badge bg-success fs-6">
+            <i class="bi bi-check-circle"></i> Resolved
+          </span>
+        <% else %>
+          <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#resolveModal">
+            <i class="bi bi-check-circle"></i> Mark as Resolved
+          </button>
+        <% end %>
       <% end %>
     </div>
   </div>
