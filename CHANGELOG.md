@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.8] - 2026-03-27
+
+### Added
+- **GitHub/GitLab/Codeberg issue tracking** — Create, link, and unlink issues from the error detail page. Supports all three platforms with provider auto-detection from `git_repository_url`. Three tiers of integration:
+  - **Manual:** "Create Issue" button + "Link Existing Issue" URL input on error page
+  - **Auto-create:** Configurable rules — on first occurrence and/or severity threshold (`:critical`, `:high`). Background jobs with circuit breaker (5 failures → skip)
+  - **Lifecycle sync:** Resolve error → close issue. Error recurs → reopen issue + comment. Recurring errors get throttled comments (max 1/hour). All async via ActiveJob
+  - **Two-way webhooks:** `POST /red/webhooks/:provider` with HMAC verification. Issue closed/reopened on platform → syncs to dashboard
+  - **RED branding:** All issues and comments include "Created by RED (Rails Error Dashboard)" footer with link
+- **ActiveStorage Service Health** — Track uploads, downloads, deletes, and existence checks across any ActiveStorage backend (Disk, S3, GCS, Azure). Dashboard page at `/errors/activestorage_health_summary` with per-service operation counts, avg/slowest durations. Provider-agnostic — works with any backend
+- **Codeberg/Gitea/Forgejo source code linking** — `GithubLinkGenerator` now detects `codeberg.org`, `gitea.*`, and `forgejo.*` URLs. Uses `/src/commit/` for SHA and `/src/branch/` for branch names
+- **RED branding** — Dashboard header shows "RED" bold with "Rails Error Dashboard" in small text. New installs mount at `/red` (existing `/error_dashboard` kept for backward compatibility). Footer branded. Bot account setup guide in installer
+
+### Changed
+- **Manual comment form removed** — Discussion now lives on your issue tracker. When an issue is linked, the error page shows "Discuss on GitHub/GitLab" button. Workflow audit trail (snooze, mute, status change comments) preserved as read-only "Activity Log"
+- **Copy for LLM improved** — Backticks and quotes no longer escaped in clipboard output. `[FILTERED]` variables omitted entirely (no debugging value for LLMs)
+
+### Fixed
+- **Copy for LLM backtick/quote escaping** — Universal JS unescape replaces all escape sequences in one pass, not just newlines
+- **Jekyll VitePress Theme** updated to ~> 1.2
+
+---
+
 ## [0.5.7] - 2026-03-25
 
 ### Added
