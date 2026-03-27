@@ -16,7 +16,7 @@ RSpec.describe RailsErrorDashboard::WebhooksController, type: :controller do
   end
 
   before do
-    RailsErrorDashboard.configuration.enable_issue_webhooks = true
+    RailsErrorDashboard.configuration.enable_issue_tracking = true
     RailsErrorDashboard.configuration.issue_webhook_secret = secret
   end
 
@@ -24,7 +24,7 @@ RSpec.describe RailsErrorDashboard::WebhooksController, type: :controller do
 
   describe "POST #receive" do
     context "when webhooks are disabled" do
-      before { RailsErrorDashboard.configuration.enable_issue_webhooks = false }
+      before { RailsErrorDashboard.configuration.enable_issue_tracking = false }
 
       it "returns 404" do
         post :receive, params: { provider: "github" }
@@ -35,9 +35,9 @@ RSpec.describe RailsErrorDashboard::WebhooksController, type: :controller do
     context "when no secret is configured" do
       before { RailsErrorDashboard.configuration.issue_webhook_secret = nil }
 
-      it "returns 401" do
+      it "returns 404 (webhooks inactive without secret)" do
         post :receive, params: { provider: "github" }
-        expect(response).to have_http_status(:unauthorized)
+        expect(response).to have_http_status(:not_found)
       end
     end
 

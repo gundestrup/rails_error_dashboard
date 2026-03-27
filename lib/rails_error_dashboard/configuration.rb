@@ -82,17 +82,17 @@ module RailsErrorDashboard
     attr_accessor :git_repository_url
 
     # Issue tracker integration (GitHub, GitLab, Codeberg/Gitea/Forgejo)
-    attr_accessor :enable_issue_tracking         # Master switch (default: false)
-    attr_accessor :issue_tracker_provider         # :github, :gitlab, :codeberg (auto-detected from git_repository_url)
+    # One switch enables everything: issue creation, auto-create, lifecycle sync,
+    # platform state mirroring, and comment display. Webhooks activate when
+    # issue_webhook_secret is set.
+    attr_accessor :enable_issue_tracking         # Master switch (default: false) — enables all platform integration
     attr_accessor :issue_tracker_token            # String or lambda/proc for Rails credentials
+    attr_accessor :issue_tracker_provider         # :github, :gitlab, :codeberg (auto-detected from git_repository_url)
     attr_accessor :issue_tracker_repo             # "owner/repo" (auto-extracted from git_repository_url)
     attr_accessor :issue_tracker_labels           # Array of label strings (default: ["bug"])
     attr_accessor :issue_tracker_api_url          # Custom API base URL for self-hosted instances
-    attr_accessor :auto_create_issues              # Boolean (default: false) — auto-create issues for new errors
-    attr_accessor :auto_create_issues_on_first_occurrence  # Boolean (default: true) — create on first occurrence
-    attr_accessor :auto_create_issues_for_severities       # Array of symbols (default: [:critical, :high])
-    attr_accessor :enable_issue_webhooks            # Boolean (default: false) — receive webhooks for two-way sync
-    attr_accessor :issue_webhook_secret             # String — HMAC secret for webhook signature verification
+    attr_accessor :issue_tracker_auto_create_severities  # Auto-create for these severities (default: [:critical, :high])
+    attr_accessor :issue_webhook_secret           # HMAC secret — webhooks activate when this is set
 
     # Advanced error analysis features
     attr_accessor :enable_similar_errors          # Fuzzy error matching
@@ -244,17 +244,14 @@ module RailsErrorDashboard
       @total_users_for_impact = nil # Auto-detect if not set
       @git_repository_url = ENV["GIT_REPOSITORY_URL"]
 
-      # Issue tracker integration defaults — OFF by default
+      # Issue tracker integration defaults — OFF by default, one switch enables all
       @enable_issue_tracking = false
+      @issue_tracker_token = ENV["RED_BOT_TOKEN"] || ENV["ISSUE_TRACKER_TOKEN"]
       @issue_tracker_provider = nil    # Auto-detect from git_repository_url
-      @issue_tracker_token = ENV["ISSUE_TRACKER_TOKEN"]
       @issue_tracker_repo = nil        # Auto-extract from git_repository_url
       @issue_tracker_labels = [ "bug" ]
       @issue_tracker_api_url = nil     # For self-hosted instances
-      @auto_create_issues = false
-      @auto_create_issues_on_first_occurrence = true
-      @auto_create_issues_for_severities = [ :critical, :high ]
-      @enable_issue_webhooks = false
+      @issue_tracker_auto_create_severities = [ :critical, :high ]
       @issue_webhook_secret = ENV["ISSUE_WEBHOOK_SECRET"]
 
       # Advanced error analysis features (all OFF by default - opt-in)

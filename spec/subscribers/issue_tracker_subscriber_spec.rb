@@ -13,9 +13,7 @@ RSpec.describe RailsErrorDashboard::Subscribers::IssueTrackerSubscriber do
     RailsErrorDashboard.configuration.issue_tracker_provider = :github
     RailsErrorDashboard.configuration.issue_tracker_token = "ghp_test"
     RailsErrorDashboard.configuration.issue_tracker_repo = "user/repo"
-    RailsErrorDashboard.configuration.auto_create_issues = true
-    RailsErrorDashboard.configuration.auto_create_issues_on_first_occurrence = true
-    RailsErrorDashboard.configuration.auto_create_issues_for_severities = [ :critical, :high ]
+    RailsErrorDashboard.configuration.issue_tracker_auto_create_severities = [ :critical, :high ]
   end
 
   after { RailsErrorDashboard.reset_configuration! }
@@ -27,8 +25,8 @@ RSpec.describe RailsErrorDashboard::Subscribers::IssueTrackerSubscriber do
       described_class.on_error_logged(error_log)
     end
 
-    it "skips when auto_create_issues is disabled" do
-      RailsErrorDashboard.configuration.auto_create_issues = false
+    it "skips when issue tracking is disabled" do
+      RailsErrorDashboard.configuration.enable_issue_tracking = false
       error_log.update!(occurrence_count: 1)
       expect(RailsErrorDashboard::CreateIssueJob).not_to receive(:perform_later)
       described_class.on_error_logged(error_log)

@@ -49,17 +49,15 @@ module RailsErrorDashboard
 
         def should_auto_create?(error_log)
           config = RailsErrorDashboard.configuration
-          return false unless config.enable_issue_tracking && config.auto_create_issues
+          return false unless config.enable_issue_tracking
           return false if error_log.external_issue_url.present?
 
-          # First occurrence check
-          if config.auto_create_issues_on_first_occurrence && error_log.occurrence_count == 1
-            return true
-          end
+          # First occurrence — always auto-create
+          return true if error_log.occurrence_count == 1
 
           # Severity threshold check
           severity = error_log.severity&.to_sym
-          if config.auto_create_issues_for_severities&.include?(severity)
+          if config.issue_tracker_auto_create_severities&.include?(severity)
             return true
           end
 

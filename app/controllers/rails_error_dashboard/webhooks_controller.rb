@@ -43,7 +43,8 @@ module RailsErrorDashboard
     private
 
     def verify_webhook_enabled
-      unless RailsErrorDashboard.configuration.enable_issue_webhooks
+      config = RailsErrorDashboard.configuration
+      unless config.enable_issue_tracking && config.issue_webhook_secret.present?
         head :not_found
       end
     end

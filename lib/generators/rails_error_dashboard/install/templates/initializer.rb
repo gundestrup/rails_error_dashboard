@@ -455,33 +455,29 @@ RailsErrorDashboard.configure do |config|
   # ISSUE TRACKING (GitHub / GitLab / Codeberg)
   # ============================================================================
   #
-  # Connect errors to your issue tracker. Create issues from the dashboard,
-  # auto-create on first occurrence or severity threshold, and sync lifecycle
-  # (resolve → close, reopen → reopen, recurrence → comment).
+  # One switch enables everything: issue creation, auto-create on first
+  # occurrence, lifecycle sync (resolve → close, reopen → reopen), platform
+  # state mirroring (status, assignees, labels), and comment display.
   #
-  # IMPORTANT: When enabled, the following dashboard controls are replaced by
-  # your platform's issue state and will no longer appear in the UI:
-  #   - "Mark as Resolved" button → issue open/closed state shown instead
-  #   - Workflow Status → issue state (open/closed) from platform
+  # IMPORTANT: When enabled, the dashboard shows platform state instead of
+  # internal workflow controls:
+  #   - "Mark as Resolved" → replaced by issue open/closed from platform
+  #   - Workflow Status → issue state from platform
   #   - Assigned To → assignees from platform (with avatars)
   #   - Priority → labels from platform (with colors)
+  #   - Snooze and Mute remain (no platform equivalent)
   #
-  # Snooze and Mute remain available (no platform equivalent).
-  # When disabled, all dashboard controls work as before.
-  #
-  # Setup: Create a dedicated RED (Rails Error Dashboard) bot account on your
-  # platform and generate a token. Issues will appear as created by your RED bot.
+  # Setup:
+  #   1. Create a RED bot account on GitHub/GitLab/Codeberg
+  #   2. Generate a token and set RED_BOT_TOKEN env var
+  #   3. Set git_repository_url above (already used for source code linking)
+  #   4. Enable:
   #
   # config.enable_issue_tracking = true
   # config.issue_tracker_token = ENV["RED_BOT_TOKEN"]
-  # config.issue_tracker_labels = ["bug"]
   #
-  # Auto-create issues (optional):
-  # config.auto_create_issues = true
-  # config.auto_create_issues_on_first_occurrence = true
-  # config.auto_create_issues_for_severities = [:critical, :high]
-  #
-  # Two-way webhook sync (optional):
-  # config.enable_issue_webhooks = true
-  # config.issue_webhook_secret = ENV["ISSUE_WEBHOOK_SECRET"]
+  # Optional overrides:
+  # config.issue_tracker_labels = ["bug"]                          # Labels added to new issues
+  # config.issue_tracker_auto_create_severities = [:critical, :high]  # Auto-create threshold
+  # config.issue_webhook_secret = ENV["ISSUE_WEBHOOK_SECRET"]      # Enables two-way webhook sync
 end
