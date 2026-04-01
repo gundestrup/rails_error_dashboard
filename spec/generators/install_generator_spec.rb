@@ -81,8 +81,8 @@ RSpec.describe RailsErrorDashboard::Generators::InstallGenerator, type: :generat
         expect(initializer_content).to include("config.enable_pagerduty_notifications = false")
         expect(initializer_content).to include("config.enable_webhook_notifications = false")
 
-        # Performance features should be disabled
-        expect(initializer_content).to include("config.async_logging = false")
+        # Async logging is ON by default (uses Rails :async adapter, zero infrastructure)
+        expect(initializer_content).to include("config.async_logging = true")
         expect(initializer_content).to include("config.sampling_rate = 1.0")
         expect(initializer_content).to include("config.use_separate_database = false")
 
@@ -158,7 +158,7 @@ RSpec.describe RailsErrorDashboard::Generators::InstallGenerator, type: :generat
 
         expect(initializer_content).to include("# Async Error Logging - ENABLED")
         expect(initializer_content).to include("config.async_logging = true")
-        expect(initializer_content).to include("config.async_adapter = :sidekiq")
+        expect(initializer_content).to include("config.async_adapter = :async")
       end
     end
 
@@ -171,7 +171,7 @@ RSpec.describe RailsErrorDashboard::Generators::InstallGenerator, type: :generat
         initializer_content = File.read("#{destination_root}/config/initializers/rails_error_dashboard.rb")
 
         expect(initializer_content).to include("# Error Sampling - ENABLED")
-        expect(initializer_content).to include("config.sampling_rate = 0.1")
+        expect(initializer_content).to include("config.sampling_rate = 0.5")
       end
     end
 
@@ -258,7 +258,7 @@ RSpec.describe RailsErrorDashboard::Generators::InstallGenerator, type: :generat
         initializer_content = File.read("#{destination_root}/config/initializers/rails_error_dashboard.rb")
 
         expect(initializer_content).to include("config.async_logging = true")
-        expect(initializer_content).to include("config.sampling_rate = 0.1")
+        expect(initializer_content).to include("config.sampling_rate = 0.5")
         expect(initializer_content).to include("config.use_separate_database = true")
       end
 
@@ -314,7 +314,7 @@ RSpec.describe RailsErrorDashboard::Generators::InstallGenerator, type: :generat
 
       # Each disabled feature should have "To enable:" comments
       expect(initializer_content).to include("# To enable: Set config.enable_slack_notifications = true")
-      expect(initializer_content).to include("# To enable: Set config.async_logging = true")
+      expect(initializer_content).to include("# To disable: Set config.async_logging = false")
       expect(initializer_content).to include("# To enable: Set config.enable_baseline_alerts = true")
     end
 
@@ -453,6 +453,59 @@ RSpec.describe RailsErrorDashboard::Generators::InstallGenerator, type: :generat
     end
   end
 
+  describe "--quick flag" do
+    before do
+      run_generator [ "--quick" ]
+    end
+
+    it "enables async logging" do
+      initializer_content = File.read("#{destination_root}/config/initializers/rails_error_dashboard.rb")
+      expect(initializer_content).to include("config.async_logging = true")
+    end
+
+    it "enables all 7 analytics features" do
+      initializer_content = File.read("#{destination_root}/config/initializers/rails_error_dashboard.rb")
+      expect(initializer_content).to include("config.enable_baseline_alerts = true")
+      expect(initializer_content).to include("config.enable_similar_errors = true")
+      expect(initializer_content).to include("config.enable_co_occurring_errors = true")
+      expect(initializer_content).to include("config.enable_error_cascades = true")
+      expect(initializer_content).to include("config.enable_error_correlation = true")
+      expect(initializer_content).to include("config.enable_platform_comparison = true")
+      expect(initializer_content).to include("config.enable_occurrence_patterns = true")
+    end
+
+    it "disables all notifications" do
+      initializer_content = File.read("#{destination_root}/config/initializers/rails_error_dashboard.rb")
+      expect(initializer_content).to include("config.enable_slack_notifications = false")
+      expect(initializer_content).to include("config.enable_email_notifications = false")
+      expect(initializer_content).to include("config.enable_discord_notifications = false")
+      expect(initializer_content).to include("config.enable_pagerduty_notifications = false")
+      expect(initializer_content).to include("config.enable_webhook_notifications = false")
+    end
+
+    it "enables breadcrumbs, system health, and error sampling" do
+      initializer_content = File.read("#{destination_root}/config/initializers/rails_error_dashboard.rb")
+      expect(initializer_content).to include("config.enable_breadcrumbs = true")
+      expect(initializer_content).to include("config.enable_system_health = true")
+      expect(initializer_content).to include("config.sampling_rate = 0.5")
+    end
+
+    it "uses shared database (no separate DB)" do
+      initializer_content = File.read("#{destination_root}/config/initializers/rails_error_dashboard.rb")
+      expect(initializer_content).to include("config.use_separate_database = false")
+    end
+
+    it "creates the initializer without error" do
+      initializer_path = "#{destination_root}/config/initializers/rails_error_dashboard.rb"
+      expect(File.exist?(initializer_path)).to be true
+    end
+
+    it "mounts the route" do
+      routes_content = File.read("#{destination_root}/config/routes.rb")
+      expect(routes_content).to include("mount RailsErrorDashboard::Engine => '/red'")
+    end
+  end
+
   describe "interactive mode simulation" do
     # Note: Interactive mode is difficult to test in RSpec without complex stubbing
     # This tests the logic paths but not actual user interaction
@@ -508,7 +561,7 @@ RSpec.describe RailsErrorDashboard::Generators::InstallGenerator, type: :generat
 
         expect(initializer_content).to include("# Slack Notifications - DISABLED")
         expect(initializer_content).to include("# To enable: Set config.enable_slack_notifications = true")
-        expect(initializer_content).not_to include("# To disable:")
+        expect(initializer_content).not_to include("# To disable: Set config.enable_slack_notifications = false")
       end
     end
   end

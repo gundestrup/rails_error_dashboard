@@ -15,7 +15,7 @@ module RailsErrorDashboard
       class_option :pagerduty, type: :boolean, default: false, desc: "Enable PagerDuty notifications"
       class_option :webhooks, type: :boolean, default: false, desc: "Enable webhook notifications"
       # Performance options
-      class_option :async_logging, type: :boolean, default: false, desc: "Enable async error logging"
+      class_option :async_logging, type: :boolean, default: true, desc: "Enable async error logging (default: true, uses Rails :async adapter — no extra infrastructure needed)"
       class_option :error_sampling, type: :boolean, default: false, desc: "Enable error sampling (reduce volume)"
       class_option :separate_database, type: :boolean, default: false, desc: "Use separate database for errors"
       class_option :database, type: :string, default: nil, desc: "Database name to use for errors (e.g., 'error_dashboard')"
@@ -35,11 +35,13 @@ module RailsErrorDashboard
       class_option :swallowed_exceptions, type: :boolean, default: false, desc: "Enable swallowed exception detection (Ruby 3.3+)"
       class_option :crash_capture, type: :boolean, default: false, desc: "Enable process crash capture via at_exit hook"
       class_option :diagnostic_dump, type: :boolean, default: false, desc: "Enable on-demand diagnostic dump"
+      class_option :quick, type: :boolean, default: false, desc: "Zero-prompt install with sensible defaults (~60 seconds to working dashboard)"
 
       def welcome_message
         say "\n"
         say "=" * 70
-        say "  📊 Rails Error Dashboard Installation", :cyan
+        say "  Rails Error Dashboard Installation", :cyan
+        say "  Quick mode: zero prompts, working dashboard in ~60 seconds", :yellow if quick_mode?
         say "=" * 70
         say "\n"
         say "Core features will be enabled automatically:", :green
@@ -52,7 +54,15 @@ module RailsErrorDashboard
       end
 
       def select_optional_features
-        return unless options[:interactive] && behavior == :invoke
+        return unless behavior == :invoke
+
+        if quick_mode?
+          @selected_features = build_quick_defaults
+          say "  Using sensible defaults (analytics ON, notifications OFF, breadcrumbs OFF)", :green
+          return
+        end
+
+        return unless options[:interactive]
         return unless $stdin.tty?  # Skip interactive mode if not running in a terminal
 
         say "Let's configure optional features...\n", :cyan
@@ -60,166 +70,116 @@ module RailsErrorDashboard
 
         @selected_features = {}
 
-        # Feature definitions with descriptions - organized by category
-        # Note: separate_database is handled separately via select_database_mode
-        features = [
-          # === NOTIFICATIONS ===
-          {
-            key: :slack,
-            name: "Slack Notifications",
-            description: "Send error alerts to Slack channels",
-            category: "Notifications"
-          },
-          {
-            key: :email,
-            name: "Email Notifications",
-            description: "Send error alerts via email",
-            category: "Notifications"
-          },
-          {
-            key: :discord,
-            name: "Discord Notifications",
-            description: "Send error alerts to Discord",
-            category: "Notifications"
-          },
-          {
-            key: :pagerduty,
-            name: "PagerDuty Integration",
-            description: "Critical errors to PagerDuty",
-            category: "Notifications"
-          },
-          {
-            key: :webhooks,
-            name: "Generic Webhooks",
-            description: "Send data to custom endpoints",
-            category: "Notifications"
-          },
+        # =====================================================================
+        # QUESTION 1: Notifications (gated — one y/N opens 5 sub-questions)
+        # =====================================================================
+        notification_keys = %i[slack email discord pagerduty webhooks]
+        any_notification_cli_flag = notification_keys.any? { |k| options[k] }
 
-          # === PERFORMANCE & SCALABILITY ===
-          {
-            key: :async_logging,
-            name: "Async Error Logging",
-            description: "Process errors in background jobs (faster responses)",
-            category: "Performance"
-          },
-          {
-            key: :error_sampling,
-            name: "Error Sampling",
-            description: "Log only % of non-critical errors (reduce volume)",
-            category: "Performance"
-          },
+        say "[1/3] Notifications [background/dashboard only — zero request overhead]", :cyan
+        say "    Alert your team via Slack, email, Discord, PagerDuty, or webhooks.", :white
 
-          # === ADVANCED ANALYTICS ===
-          {
-            key: :baseline_alerts,
-            name: "Baseline Anomaly Alerts",
-            description: "Auto-detect unusual error rate spikes",
-            category: "Advanced Analytics"
-          },
-          {
-            key: :similar_errors,
-            name: "Fuzzy Error Matching",
-            description: "Find similar errors across different hashes",
-            category: "Advanced Analytics"
-          },
-          {
-            key: :co_occurring_errors,
-            name: "Co-occurring Errors",
-            description: "Detect errors that happen together",
-            category: "Advanced Analytics"
-          },
-          {
-            key: :error_cascades,
-            name: "Error Cascade Detection",
-            description: "Identify error chains (A causes B causes C)",
-            category: "Advanced Analytics"
-          },
-          {
-            key: :error_correlation,
-            name: "Error Correlation Analysis",
-            description: "Correlate with versions, users, time",
-            category: "Advanced Analytics"
-          },
-          {
-            key: :platform_comparison,
-            name: "Platform Comparison",
-            description: "Compare iOS vs Android vs Web health",
-            category: "Advanced Analytics"
-          },
-          {
-            key: :occurrence_patterns,
-            name: "Occurrence Pattern Detection",
-            description: "Detect cyclical patterns and bursts",
-            category: "Advanced Analytics"
-          },
-
-          # === DEVELOPER TOOLS ===
-          {
-            key: :source_code_integration,
-            name: "Source Code Integration (NEW!)",
-            description: "View source code directly in error details",
-            category: "Developer Tools"
-          },
-          {
-            key: :git_blame,
-            name: "Git Blame Integration (NEW!)",
-            description: "Show git blame info (author, commit, timestamp)",
-            category: "Developer Tools"
-          },
-          {
-            key: :breadcrumbs,
-            name: "Breadcrumbs (NEW!)",
-            description: "Capture request activity trail (SQL, controller, cache events)",
-            category: "Developer Tools"
-          },
-          {
-            key: :system_health,
-            name: "System Health Snapshot (NEW!)",
-            description: "Capture GC, memory, threads, connection pool at error time",
-            category: "Developer Tools"
-          },
-          {
-            key: :swallowed_exceptions,
-            name: "Swallowed Exception Detection (Ruby 3.3+)",
-            description: "Detect exceptions being silently rescued via TracePoint(:rescue)",
-            category: "Developer Tools"
-          },
-          {
-            key: :crash_capture,
-            name: "Process Crash Capture",
-            description: "Capture fatal crashes via at_exit hook (written to disk, imported on next boot)",
-            category: "Developer Tools"
-          },
-          {
-            key: :diagnostic_dump,
-            name: "Diagnostic Dump",
-            description: "On-demand system state snapshot (rake task + dashboard page)",
-            category: "Developer Tools"
-          }
-        ]
-
-        features.each_with_index do |feature, index|
-          say "\n[#{index + 1}/#{features.length}] #{feature[:name]}", :cyan
-          say "    #{feature[:description]}", :white
-
-          # Check if feature was passed via command line option
-          if options[feature[:key]]
-            @selected_features[feature[:key]] = true
-            say "    ✓ Enabled (via --#{feature[:key]} flag)", :green
-          else
-            response = ask("    Enable? (y/N):", :yellow, limited_to: [ "y", "Y", "n", "N", "" ])
-            @selected_features[feature[:key]] = response.downcase == "y"
-
-            if @selected_features[feature[:key]]
-              say "    ✓ Enabled", :green
-            else
-              say "    ✗ Disabled", :white
+        if any_notification_cli_flag
+          # Individual CLI flags passed — respect them, skip the gate prompt
+          notification_keys.each { |k| @selected_features[k] = options[k] }
+          say "    ✓ Using CLI flags for notification channels", :green
+        else
+          wants_notifications = ask("    Set up notifications? (y/N):", :yellow, limited_to: [ "y", "Y", "n", "N", "" ])
+          if wants_notifications.downcase == "y"
+            notification_channels = [
+              { key: :slack,      name: "Slack",     hint: "SLACK_WEBHOOK_URL" },
+              { key: :email,      name: "Email",     hint: "ERROR_NOTIFICATION_EMAILS" },
+              { key: :discord,    name: "Discord",   hint: "DISCORD_WEBHOOK_URL" },
+              { key: :pagerduty,  name: "PagerDuty", hint: "PAGERDUTY_INTEGRATION_KEY" },
+              { key: :webhooks,   name: "Webhooks",  hint: "WEBHOOK_URLS" }
+            ]
+            notification_channels.each do |ch|
+              r = ask("      #{ch[:name]}? (ENV[#{ch[:hint]}]) (y/N):", :yellow, limited_to: [ "y", "Y", "n", "N", "" ])
+              @selected_features[ch[:key]] = r.downcase == "y"
             end
+          else
+            notification_keys.each { |k| @selected_features[k] = false }
+            say "    ✓ Notifications off (enable anytime in initializer)", :white
           end
+        end
 
-          if @selected_features[feature[:key]] && feature[:key] == :swallowed_exceptions && RUBY_VERSION < "3.3"
-            say "    ⚠ Warning: This feature requires Ruby 3.3+ (you have #{RUBY_VERSION})", :yellow
-            say "    The feature will be included in your config but won't activate until you upgrade Ruby.", :white
+        # =====================================================================
+        # QUESTION 2: Advanced Analytics (grouped — defaults YES)
+        # =====================================================================
+        analytics_keys = %i[baseline_alerts similar_errors co_occurring_errors
+                             error_cascades error_correlation platform_comparison occurrence_patterns]
+        any_analytics_cli_flag = analytics_keys.any? { |k| options[k] }
+
+        say "\n[2/3] Advanced Analytics (7 features) [background/dashboard only]", :cyan
+        say "    Baseline alerts, fuzzy matching, co-occurring errors, cascade detection,", :white
+        say "    correlation analysis, platform comparison, occurrence patterns.", :white
+        say "    All run at query time or as background jobs — zero request-path overhead.", :white
+
+        if any_analytics_cli_flag
+          # Let create_initializer_file read options[] directly via the &.dig fallback
+          say "    ✓ Using individual CLI flags for analytics", :white
+        else
+          response = ask("    Enable all? (Y/n):", :yellow, limited_to: [ "y", "Y", "n", "N", "" ])
+          analytics_on = response.downcase != "n"
+          analytics_keys.each { |k| @selected_features[k] = analytics_on }
+          say analytics_on ? "    ✓ All 7 analytics features enabled" : "    ✗ Analytics disabled (enable individually in initializer)", analytics_on ? :green : :white
+        end
+
+        # =====================================================================
+        # QUESTION 3: Advanced Options (gated — defaults NO)
+        # =====================================================================
+        advanced_keys = %i[async_logging error_sampling breadcrumbs system_health
+                           source_code_integration git_blame swallowed_exceptions
+                           crash_capture diagnostic_dump]
+        any_advanced_cli_flag = advanced_keys.any? { |k| options[k] }
+
+        say "\n[3/3] Advanced Options (performance tuning & diagnostics)", :cyan
+        say "    Async logging, error sampling, breadcrumbs, system health,", :white
+        say "    source code viewer, git blame, crash capture, and more.", :white
+
+        if any_advanced_cli_flag
+          # CLI flags passed — set them and skip the gate
+          advanced_features = [
+            { key: :async_logging,           name: "Async Logging",                  desc: "Process errors in background jobs [removes request-path overhead]" },
+            { key: :error_sampling,          name: "Error Sampling",                 desc: "Log only % of non-critical errors [error-time only]" },
+            { key: :breadcrumbs,             name: "Breadcrumbs",                    desc: "6 AS::Notifications subscribers: SQL, cache, jobs, mailers, Rack::Attack, ActionCable [request-path overhead]" },
+            { key: :system_health,           name: "System Health Snapshot",         desc: "GC, memory, threads, connection pool at error time [error-time only]" },
+            { key: :source_code_integration, name: "Source Code Integration",        desc: "Inline source viewer in error details [dashboard only]" },
+            { key: :git_blame,               name: "Git Blame",                      desc: "Author, commit, timestamp per source line [dashboard only]" },
+            { key: :swallowed_exceptions,    name: "Swallowed Exception Detection",  desc: "TracePoint(:rescue) catches silently rescued exceptions [request-path overhead, Ruby 3.3+]" },
+            { key: :crash_capture,           name: "Process Crash Capture",          desc: "at_exit hook captures fatal crashes [error-time only]" },
+            { key: :diagnostic_dump,         name: "Diagnostic Dump",                desc: "On-demand system snapshot via rake task [background/dashboard only]" }
+          ]
+          advanced_features.each { |f| @selected_features[f[:key]] = options[f[:key]] }
+          say "    ✓ Using CLI flags for advanced options", :white
+        else
+          wants_advanced = ask("    Configure advanced options? (y/N):", :yellow, limited_to: [ "y", "Y", "n", "N", "" ])
+          if wants_advanced.downcase == "y"
+            advanced_features = [
+              { key: :async_logging,           name: "Async Logging",                  desc: "Process errors in background jobs — removes overhead from request path [removes request-path overhead]" },
+              { key: :error_sampling,          name: "Error Sampling",                 desc: "Log only % of non-critical errors to reduce volume [error-time only]" },
+              { key: :breadcrumbs,             name: "Breadcrumbs",                    desc: "Subscribes 6 AS::Notifications: SQL, cache, jobs, mailers, Rack::Attack, ActionCable [request-path overhead]" },
+              { key: :system_health,           name: "System Health Snapshot",         desc: "GC stats, memory (RSS/peak/swap), threads, connection pool at error time [error-time only]" },
+              { key: :source_code_integration, name: "Source Code Integration",        desc: "View source code inline in error details (+/- 7 lines context) [dashboard only]" },
+              { key: :git_blame,               name: "Git Blame Integration",          desc: "Show author, commit, timestamp for each source line (requires git) [dashboard only]" },
+              { key: :swallowed_exceptions,    name: "Swallowed Exception Detection",  desc: "Detect silently rescued exceptions via TracePoint(:rescue) [request-path overhead, Ruby 3.3+]" },
+              { key: :crash_capture,           name: "Process Crash Capture",          desc: "Capture fatal crashes via at_exit hook, written to disk [error-time only]" },
+              { key: :diagnostic_dump,         name: "Diagnostic Dump",                desc: "On-demand system state snapshot via rake task or dashboard button [background/dashboard only]" }
+            ]
+            advanced_features.each do |f|
+              say "\n    #{f[:name]}", :cyan
+              say "    #{f[:desc]}", :white
+              r = ask("    Enable? (y/N):", :yellow, limited_to: [ "y", "Y", "n", "N", "" ])
+              @selected_features[f[:key]] = r.downcase == "y"
+              if @selected_features[f[:key]] && f[:key] == :swallowed_exceptions && RUBY_VERSION < "3.3"
+                say "    ⚠ Requires Ruby 3.3+ (you have #{RUBY_VERSION}) — will activate after upgrade", :yellow
+              end
+            end
+          else
+            # Set all advanced keys to false EXCEPT async_logging which defaults ON via class_option.
+            # We do not set async_logging here so options[:async_logging] (default: true) wins in create_initializer_file.
+            (advanced_keys - [ :async_logging ]).each { |k| @selected_features[k] = false }
+            say "    ✓ Using defaults (async logging ON, everything else OFF)", :white
           end
         end
 
@@ -246,6 +206,13 @@ module RailsErrorDashboard
       def select_database_mode
         # Skip if existing config already detected database mode
         return if @existing_install_detected && @database_mode
+
+        # Quick mode: use shared DB, no prompt
+        if quick_mode?
+          @database_mode = :same
+          @application_name = detect_application_name
+          return
+        end
 
         # Skip if not interactive or if --separate_database was passed via CLI
         if options[:separate_database]
@@ -421,6 +388,7 @@ module RailsErrorDashboard
         say "  ✓ Dashboard UI", :green
         say "  ✓ Real-time Updates", :green
         say "  ✓ Analytics", :green
+        say "  ✓ Async Logging (Rails :async adapter — no extra infrastructure needed)", :green
 
         # Count optional features enabled
         enabled_count = 0
@@ -496,7 +464,16 @@ module RailsErrorDashboard
         say "  → Set DISCORD_WEBHOOK_URL in .env", :yellow if @enable_discord
         say "  → Set PAGERDUTY_INTEGRATION_KEY in .env", :yellow if @enable_pagerduty
         say "  → Set WEBHOOK_URLS in .env", :yellow if @enable_webhooks
-        say "  → Ensure Sidekiq/Solid Queue running", :yellow if @enable_async_logging
+        if @enable_async_logging
+          # Check which async adapter is in use — only warn about external workers when needed
+          async_section = File.exist?(File.join(destination_root, "config/initializers/rails_error_dashboard.rb")) &&
+                          File.read(File.join(destination_root, "config/initializers/rails_error_dashboard.rb"))
+          if async_section && (async_section.include?("async_adapter = :sidekiq") || async_section.include?("async_adapter = :solid_queue"))
+            say "  → Ensure your background worker (Sidekiq/SolidQueue) is running for async logging", :yellow
+          else
+            say "  ✓ Async logging uses Rails :async adapter — no extra process needed", :green
+          end
+        end
 
         # Database-specific instructions
         if @enable_separate_database
@@ -553,6 +530,36 @@ module RailsErrorDashboard
       end
 
       private
+
+      def quick_mode?
+        options[:quick]
+      end
+
+      def build_quick_defaults
+        {
+          # Async ON (built-in Rails :async adapter, zero infrastructure)
+          async_logging: true,
+          # All analytics ON — run at query/background time, zero request-path overhead
+          baseline_alerts: true,
+          similar_errors: true,
+          co_occurring_errors: true,
+          error_cascades: true,
+          error_correlation: true,
+          platform_comparison: true,
+          occurrence_patterns: true,
+          # ON — small overhead, high insight value
+          breadcrumbs: true,       # ~0.1ms per request — SQL, cache, job trail leading to each error
+          system_health: true,     # ~1ms per error — GC, memory, threads at exact error moment
+          error_sampling: true,    # 50% sampling on non-critical errors — halves storage, still shows patterns
+          # OFF — require credentials, config, or niche use case
+          slack: false, email: false, discord: false, pagerduty: false, webhooks: false,
+          source_code_integration: false,
+          git_blame: false,
+          swallowed_exceptions: false,
+          crash_capture: false,
+          diagnostic_dump: false
+        }
+      end
 
       def detect_application_name
         if defined?(Rails) && Rails.application

@@ -138,17 +138,19 @@ RailsErrorDashboard.configure do |config|
 
 <% if @enable_async_logging -%>
   # Async Error Logging - ENABLED
-  # Errors will be logged in background jobs for better performance
+  # Errors are logged in background jobs — zero impact on request response time.
+  # Default adapter is :async (Rails built-in, no extra infrastructure needed).
+  # Swap to :sidekiq or :solid_queue when you have a background worker running.
   config.async_logging = true
-  config.async_adapter = :sidekiq  # Options: :sidekiq, :solid_queue, :async
+  config.async_adapter = :async  # Options: :async (built-in), :sidekiq, :solid_queue
   # To disable: Set config.async_logging = false
 
 <% else -%>
   # Async Error Logging - DISABLED
-  # Errors are logged synchronously (blocking)
-  # To enable: Set config.async_logging = true and configure adapter
+  # Errors are logged synchronously (adds ~1-5ms to requests that trigger errors)
+  # To enable: Set config.async_logging = true
   config.async_logging = false
-  # config.async_adapter = :sidekiq  # Options: :sidekiq, :solid_queue, :async
+  # config.async_adapter = :async  # Options: :async (built-in), :sidekiq, :solid_queue
 
 <% end -%>
   # Backtrace size limiting (100 lines is industry standard: Rollbar, Airbrake, Bugsnag)
@@ -156,15 +158,18 @@ RailsErrorDashboard.configure do |config|
 
 <% if @enable_error_sampling -%>
   # Error Sampling - ENABLED
-  # Reduce volume by logging only a percentage of non-critical errors
-  # Critical errors are ALWAYS logged regardless of sampling rate
-  config.sampling_rate = 0.1  # 10% - Adjust as needed (0.0 to 1.0)
+  # Samples non-critical errors to reduce storage volume.
+  # Critical and high severity errors are ALWAYS logged at 100% regardless of this setting.
+  # 0.5 = log 50% of non-critical occurrences — halves storage while keeping
+  # occurrence counts meaningful and error patterns visible.
+  # Tune lower (e.g. 0.1) if one error is flooding the DB; set to 1.0 to log everything.
+  config.sampling_rate = 0.5  # 50% of non-critical errors
   # To disable: Set config.sampling_rate = 1.0 (100%)
 
 <% else -%>
   # Error Sampling - DISABLED
-  # All errors are logged (100% sampling rate)
-  # To enable: Set config.sampling_rate < 1.0 (e.g., 0.1 for 10%)
+  # All errors are logged (100% sampling rate).
+  # To enable: Set config.sampling_rate < 1.0 (e.g., 0.5 for 50%, 0.1 for 10%)
   config.sampling_rate = 1.0
 
 <% end -%>
