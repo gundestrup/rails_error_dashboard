@@ -1,5 +1,8 @@
 # Rails Error Dashboard
 
+[![codecov](https://codecov.io/gh/gundestrup/rails_error_dashboard/branch/main/graph/badge.svg)](https://codecov.io/gh/gundestrup/rails_error_dashboard)
+
+
 [![Gem Version](https://badge.fury.io/rb/rails_error_dashboard.svg)](https://badge.fury.io/rb/rails_error_dashboard)
 [![Downloads](https://img.shields.io/gem/dt/rails_error_dashboard)](https://rubygems.org/gems/rails_error_dashboard)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
