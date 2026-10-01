@@ -17,6 +17,34 @@ RSpec.describe RailsErrorDashboard::ErrorReporter do
     RailsErrorDashboard.reset_configuration!
   end
 
+  describe "context round trip through the subscriber path" do
+    before do
+      RailsErrorDashboard.configuration.async_logging = false
+      RailsErrorDashboard.configuration.enable_storm_protection = false
+    end
+
+    it "stores request/session IDs on the occurrence and honours an explicit environment" do
+      reporter.report(error, handled: false, severity: :error,
+        context: { request_id: "req-round-trip", session_id: "sess-round-trip", environment: "staging" })
+
+      occurrence = RailsErrorDashboard::ErrorOccurrence.last
+      expect(occurrence.request_id).to eq("req-round-trip")
+      # Stored as a keyed digest, never raw (filter_sensitive_data is on by default).
+      expect(occurrence.session_id)
+        .to eq(RailsErrorDashboard::Services::SensitiveDataFilter.digest_session_id("sess-round-trip"))
+      expect(RailsErrorDashboard::ErrorOccurrence.for_session("sess-round-trip")).to include(occurrence)
+      expect(occurrence.error_log.environment).to eq("staging")
+    end
+
+    it "stores the Rails request ID when the request comes from the middleware's Thread.current env" do
+      Thread.current[:rails_error_dashboard_request_env] = env.merge("action_dispatch.request_id" => "rails-req-77")
+
+      reporter.report(error, handled: false, severity: :error, context: {}, source: "application.action_dispatch")
+
+      expect(RailsErrorDashboard::ErrorOccurrence.last.request_id).to eq("rails-req-77")
+    end
+  end
+
   describe "#report" do
     context "when error from Rails internals inside an HTTP request" do
       before do

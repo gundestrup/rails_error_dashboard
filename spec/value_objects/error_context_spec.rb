@@ -312,8 +312,28 @@ RSpec.describe RailsErrorDashboard::ValueObjects::ErrorContext do
       expect(result).to be_a(Hash)
       expect(result.keys).to contain_exactly(
         :user_id, :request_url, :request_params, :user_agent, :ip_address, :platform,
-        :controller_name, :action_name, :http_method, :hostname, :content_type, :request_duration_ms
+        :controller_name, :action_name, :request_id, :session_id, :http_method, :hostname,
+        :content_type, :request_duration_ms, :environment,
+        # Both must be in to_h, not only in the readers: LogError builds a
+        # SECOND ErrorContext from this hash on the async path, so a key
+        # missing here is dropped there.
+        :occurred_at, :app_version
       )
+    end
+
+    it "survives a round trip: a context rebuilt from to_h keeps request/session IDs and environment" do
+      original = described_class.new(
+        { request_id: "req-42", session_id: "sess-42", environment: "staging", user_id: 1 }
+      )
+      rebuilt = described_class.new(original.to_h)
+
+      expect(rebuilt.request_id).to eq("req-42")
+      expect(rebuilt.session_id).to eq("sess-42")
+      expect(rebuilt.environment).to eq("staging")
+    end
+
+    it "leaves environment nil when the caller gave none, so LogError resolves it from configuration" do
+      expect(described_class.new({ user_id: 1 }).to_h[:environment]).to be_nil
     end
   end
 end

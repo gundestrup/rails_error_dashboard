@@ -2,10 +2,18 @@
 
 require 'spec_helper'
 
-# Load the database schema if the database doesn't have tables yet
-# Use schema.rb instead of maintaining migrations to avoid conflicts
-# between gem migrations and dummy app migrations
-ActiveRecord::Tasks::DatabaseTasks.load_schema_current
+# Build the test schema. Two sources, chosen with RED_TEST_SCHEMA:
+#
+#   schema      (default on SQLite) load spec/dummy/db/schema.rb — fast, and
+#               the file is written for SQLite
+#   migrations  (default on every other adapter) run the gem's OWN migrations
+#               from db/migrate, which is what a host installs; the CI
+#               PostgreSQL/MySQL rows use this so adapter-specific DDL (key
+#               limits, FK types, partial and GIN indexes) is exercised
+#
+# bin/check-schema-parity keeps the two in step.
+require_relative "support/test_schema"
+RailsErrorDashboard::TestSchema.build!
 
 RSpec.configure do |config|
   # Enable transactional fixtures
@@ -29,7 +37,18 @@ RSpec.configure do |config|
   # the suite. Storm specs opt back in via their own (later-running) hooks.
   config.before(:each) do
     RailsErrorDashboard::Services::StormProtection::Gate.reset!
+    # The stats-broadcast throttle is per-process state too: without this an
+    # example that expects a stats broadcast depends on what ran before it.
+    RailsErrorDashboard::Services::ErrorBroadcaster.reset_throttle!
     RailsErrorDashboard.configuration.enable_storm_protection = false
+
+    # The new-error burst cap counts per PROCESS, and the suite is one
+    # process: without this the eleventh first-occurrence notification inside
+    # any 60 s of wall time is suppressed, in whichever example it lands.
+    RailsErrorDashboard::Services::NotificationThrottler.clear!
+
+    # Likewise per process: which errors sampling has already admitted once.
+    RailsErrorDashboard::Services::ExceptionFilter.reset_seen!
 
     # async_logging is forced off for the same reason, and it is the more
     # dangerous leak of the two: when it escapes, LogError enqueues

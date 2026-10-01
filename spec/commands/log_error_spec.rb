@@ -406,8 +406,10 @@ RSpec.describe RailsErrorDashboard::Commands::LogError do
         error1 = described_class.call(exception, context)
         error1.update!(resolved: true, status: "resolved", resolved_at: Time.current)
 
-        # Clear cooldown from first notification so reopened error can notify
-        RailsErrorDashboard::Services::NotificationThrottler.clear!
+        # Put the first notification outside the cooldown so the reopened error
+        # can notify. The cooldown lives on the row now, so clearing this
+        # process's memory (what this example used to do) no longer resets it.
+        error1.update_columns(last_notified_at: 10.minutes.ago)
 
         # Reopened — should send notification
         expect {
@@ -526,6 +528,55 @@ RSpec.describe RailsErrorDashboard::Commands::LogError do
         expect {
           described_class.call(exception, context)
         }.not_to have_enqueued_job(RailsErrorDashboard::SlackErrorNotificationJob)
+      end
+
+      # The first notification was sent by ANOTHER process: this one has no
+      # memory of it (clear!), only the row does. A per-process cooldown
+      # notified again here, once per worker.
+      it 'does not notify a reopened error within cooldown when a different process sent the first notification' do
+        RailsErrorDashboard.configuration.notification_cooldown_minutes = 60
+
+        error1 = described_class.call(exception, context)
+        error1.update!(resolved: true, status: "resolved", resolved_at: Time.current)
+        RailsErrorDashboard::Services::NotificationThrottler.clear!
+
+        expect {
+          described_class.call(exception, context)
+        }.not_to have_enqueued_job(RailsErrorDashboard::SlackErrorNotificationJob)
+      end
+
+      it 'notifies a reopened error once the cooldown has passed' do
+        RailsErrorDashboard.configuration.notification_cooldown_minutes = 60
+
+        error1 = described_class.call(exception, context)
+        error1.update!(resolved: true, status: "resolved", resolved_at: Time.current)
+
+        travel_to(61.minutes.from_now) do
+          expect {
+            described_class.call(exception, context)
+          }.to have_enqueued_job(RailsErrorDashboard::SlackErrorNotificationJob)
+        end
+      end
+
+      it 'still notifies a threshold milestone inside the cooldown' do
+        RailsErrorDashboard.configuration.notification_cooldown_minutes = 60
+        RailsErrorDashboard.configuration.notification_threshold_alerts = [ 3 ]
+
+        error1 = described_class.call(exception, context) # notified, row stamped
+        error1.update!(occurrence_count: 2)
+
+        expect {
+          described_class.call(exception, context)
+        }.to have_enqueued_job(RailsErrorDashboard::SlackErrorNotificationJob)
+      end
+
+      it 'notifies when the claim itself fails (fail-open)' do
+        allow(RailsErrorDashboard::Services::NotificationThrottler).to receive(:claim_in_database)
+          .and_raise(ActiveRecord::StatementInvalid, "db down")
+
+        expect {
+          described_class.call(exception, context)
+        }.to have_enqueued_job(RailsErrorDashboard::SlackErrorNotificationJob)
       end
 
       it 'notifies recurring error at threshold milestone' do
@@ -1102,6 +1153,226 @@ RSpec.describe RailsErrorDashboard::Commands::LogError do
 
         described_class.call(exc, {})
       end
+    end
+  end
+
+  describe "environment awareness" do
+    let(:env_exception) do
+      e = RuntimeError.new("env boom")
+      e.set_backtrace([ "#{Rails.root}/app/models/widget.rb:7:in 'explode'" ])
+      e
+    end
+
+    before { RailsErrorDashboard.configuration.async_logging = false }
+    after { RailsErrorDashboard.reset_configuration! }
+
+    it "stores the process environment (Rails.env by default)" do
+      log = described_class.call(env_exception)
+      expect(log.environment).to eq("test")
+    end
+
+    it "stores config.environment when set" do
+      RailsErrorDashboard.configuration.environment = "uat"
+      expect(described_class.call(env_exception).environment).to eq("uat")
+    end
+
+    it "lets context[:environment] override the configured environment" do
+      RailsErrorDashboard.configuration.environment = "uat"
+      log = described_class.call(env_exception, { environment: "remote-sender" })
+      expect(log.environment).to eq("remote-sender")
+    end
+
+    it "truncates an over-long context environment to the column limit" do
+      log = described_class.call(env_exception, { environment: "x" * 80 })
+      expect(log.environment.length).to eq(64)
+    end
+
+    it "captures normally when the environment column does not exist yet" do
+      without = RailsErrorDashboard::ErrorLog.column_names - [ "environment" ]
+      allow(RailsErrorDashboard::ErrorLog).to receive(:column_names).and_return(without)
+      expect(RailsErrorDashboard::Logger).not_to receive(:error)
+
+      log = described_class.call(env_exception)
+      expect(log).to be_persisted
+      expect(log.environment).to be_nil
+    end
+  end
+  describe "release attribution on occurrences" do
+    before do
+      RailsErrorDashboard.configuration.async_logging = false
+      RailsErrorDashboard.configuration.app_version = "9.9.9"
+      RailsErrorDashboard.configuration.git_sha = "deadbeef"
+    end
+    after { RailsErrorDashboard.reset_configuration! }
+
+    it "fits over-long string metadata to its columns so the capture is never lost to a length error" do
+      RailsErrorDashboard.configuration.app_version = "v" * 400
+      RailsErrorDashboard.configuration.git_sha = "s" * 300
+      error = StandardError.new("length clamp")
+      error.set_backtrace([ "app/models/widget.rb:10:in 'explode'" ])
+
+      log = described_class.call(error)
+
+      expect(log).to be_persisted
+      expect(log.app_version.length).to eq(255)
+      expect(log.git_sha.length).to eq(255)
+      occurrence = RailsErrorDashboard::ErrorOccurrence.where(error_log: log).last
+      expect(occurrence.app_version.length).to eq(255)
+      expect(occurrence.git_sha.length).to eq(255)
+    end
+
+    it "records the release each occurrence happened under, while the group keeps its first release" do
+      error = StandardError.new("release attribution")
+      error.set_backtrace([ "app/models/widget.rb:10:in 'explode'" ])
+      log = described_class.call(error)
+      expect(log.app_version).to eq("9.9.9")
+
+      RailsErrorDashboard.configuration.app_version = "10.0.0"
+      RailsErrorDashboard.configuration.git_sha = "cafebabe"
+      again = described_class.call(error)
+      expect(again.id).to eq(log.id)
+      expect(again.reload.app_version).to eq("9.9.9")
+
+      versions = RailsErrorDashboard::ErrorOccurrence.where(error_log: log).order(:id).pluck(:app_version, :git_sha)
+      expect(versions).to eq([ [ "9.9.9", "deadbeef" ], [ "10.0.0", "cafebabe" ] ])
+    end
+  end
+end
+
+RSpec.describe "LogError — one capture, one occurrence" do
+  # Regression cluster for the capture-path "execute at most once" invariant.
+  #
+  # Before this was fixed, Tracer.in_span rescued around its own yield: any
+  # exception raised AFTER the row was persisted (notification dispatch, a host
+  # subscriber on our AS::Notifications event) re-ran the entire capture block,
+  # so one exception became two occurrences and two count increments. Making the
+  # block run once then exposed the other half of the problem — the failure
+  # escaped to LogError's outer rescue, which returned nil for a capture that
+  # had in fact succeeded. Both halves are asserted here.
+  before do
+    RailsErrorDashboard.reset_configuration!
+    RailsErrorDashboard.configuration.enable_storm_protection = false
+    RailsErrorDashboard.configuration.async_logging = false
+    RailsErrorDashboard.configuration.enable_otel_export = false
+    allow(RailsErrorDashboard::Services::ErrorBroadcaster).to receive(:available?).and_return(false)
+  end
+
+  after { RailsErrorDashboard.reset_configuration! }
+
+  def boom
+    StandardError.new("capture-once boom").tap do |e|
+      e.set_backtrace([ "#{Rails.root}/app/models/widget.rb:12:in 'explode'" ])
+    end
+  end
+
+  context "when the notification dispatcher raises after persistence" do
+    before do
+      allow(RailsErrorDashboard::Services::ErrorNotificationDispatcher)
+        .to receive(:call).and_raise(IOError, "notification channel down")
+    end
+
+    it "creates exactly one error log" do
+      expect { RailsErrorDashboard::Commands::LogError.call(boom) }
+        .to change(RailsErrorDashboard::ErrorLog, :count).by(1)
+    end
+
+    it "counts the event exactly once" do
+      RailsErrorDashboard::Commands::LogError.call(boom)
+      expect(RailsErrorDashboard::ErrorLog.sole.occurrence_count).to eq(1)
+    end
+
+    it "records exactly one occurrence row" do
+      RailsErrorDashboard::Commands::LogError.call(boom)
+      expect(RailsErrorDashboard::ErrorOccurrence.count).to eq(1)
+    end
+
+    it "still returns the persisted record — the capture succeeded" do
+      result = RailsErrorDashboard::Commands::LogError.call(boom)
+
+      expect(result).to be_a(RailsErrorDashboard::ErrorLog)
+      expect(result).to be_persisted
+    end
+
+    it "logs the dispatch failure instead of swallowing it silently" do
+      expect(RailsErrorDashboard::Logger)
+        .to receive(:error).with(/Failed to dispatch notification/).at_least(:once)
+
+      RailsErrorDashboard::Commands::LogError.call(boom)
+    end
+  end
+
+  context "when a host instrumentation subscriber raises" do
+    # AS::Notifications re-raises subscriber exceptions to the instrumenting
+    # caller, so a buggy host subscriber must not abort an persisted capture.
+    around do |example|
+      subscription = ActiveSupport::Notifications.subscribe("error_logged.rails_error_dashboard") do |*|
+        raise IOError, "host subscriber blew up"
+      end
+      example.run
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscription)
+    end
+
+    it "creates exactly one error log with a count of one" do
+      result = RailsErrorDashboard::Commands::LogError.call(boom)
+
+      expect(RailsErrorDashboard::ErrorLog.count).to eq(1)
+      expect(RailsErrorDashboard::ErrorLog.sole.occurrence_count).to eq(1)
+      expect(result).to be_a(RailsErrorDashboard::ErrorLog)
+    end
+  end
+end
+
+RSpec.describe "LogError — worker vs request failure contracts" do
+  # The capture path's blanket rescue exists so a failing capture can never
+  # break a user's request (safety rule 1). A background worker has the
+  # opposite obligation: if the store was unreachable, it did NOT deliver the
+  # capture, and returning normally discards the payload. Same command, two
+  # contracts, selected by the `worker:` flag.
+  before do
+    RailsErrorDashboard.reset_configuration!
+    RailsErrorDashboard.configuration.enable_storm_protection = false
+    RailsErrorDashboard.configuration.async_logging = false
+    allow(RailsErrorDashboard::Services::ErrorBroadcaster).to receive(:available?).and_return(false)
+  end
+
+  after { RailsErrorDashboard.reset_configuration! }
+
+  def boom
+    StandardError.new("contract boom").tap { |e| e.set_backtrace([ "#{Rails.root}/app/models/widget.rb:1:in 'go'" ]) }
+  end
+
+  context "when the error store is unreachable" do
+    before do
+      allow(RailsErrorDashboard::ErrorLog).to receive(:transaction)
+        .and_raise(ActiveRecord::ConnectionNotEstablished, "db down")
+    end
+
+    it "never raises on the request path" do
+      expect { RailsErrorDashboard::Commands::LogError.call(boom) }.not_to raise_error
+    end
+
+    it "returns nil on the request path" do
+      expect(RailsErrorDashboard::Commands::LogError.call(boom)).to be_nil
+    end
+
+    it "raises in worker mode so the job can be retried" do
+      expect {
+        RailsErrorDashboard::Commands::LogError.new(boom, {}, worker: true).call
+      }.to raise_error(ActiveRecord::ConnectionNotEstablished)
+    end
+  end
+
+  context "when the failure is not about reaching the store" do
+    before do
+      allow(RailsErrorDashboard::Services::ErrorHashGenerator)
+        .to receive(:call).and_raise(ArgumentError, "bad payload")
+    end
+
+    it "stays swallowed even in worker mode — a retry would fail identically" do
+      expect {
+        RailsErrorDashboard::Commands::LogError.new(boom, {}, worker: true).call
+      }.not_to raise_error
     end
   end
 end

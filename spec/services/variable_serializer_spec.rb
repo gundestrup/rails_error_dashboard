@@ -183,6 +183,174 @@ RSpec.describe RailsErrorDashboard::Services::VariableSerializer do
         expect(result["config"][:value]["db"]["host"]).to eq("localhost")
       end
 
+      # Rails' own filter semantics, which the examples above never exercise:
+      # every pattern here is a FLAT name that matches at any depth. A dotted
+      # pattern is a PATH, and it only matches when the filter sees the whole
+      # tree -- so the variable's own name has to be part of that tree. Passing
+      # just the inner hash silently dropped the outer key, and the same value
+      # Rails redacts in request params stayed readable in captured locals.
+      context "with a dotted filter_parameters pattern" do
+        around do |example|
+          original = Rails.application.config.filter_parameters
+          Rails.application.config.filter_parameters = [ "profile.private_note" ]
+          RailsErrorDashboard::Services::SensitiveDataFilter.reset!
+          example.run
+        ensure
+          Rails.application.config.filter_parameters = original
+          RailsErrorDashboard::Services::SensitiveDataFilter.reset!
+        end
+
+        it "redacts the value at the dotted path, under the variable's own name" do
+          result = described_class.call({ profile: { private_note: "SYNTHETIC_SECRET", public: "ok" } })
+
+          expect(result["profile"][:value]["private_note"]).to eq("[FILTERED]")
+          expect(result["profile"][:value]["public"]).to eq("ok")
+        end
+
+        it "applies the same path semantics to instance variables" do
+          # Instance variables reach the same filter_serialized entry point, and
+          # carry an @ prefix that must not break the path match.
+          result = described_class.call(
+            { "@profile" => { private_note: "SYNTHETIC_SECRET" } },
+            additional_filter_patterns: [ "@profile.private_note" ]
+          )
+
+          expect(result["@profile"][:value]["private_note"]).to eq("[FILTERED]")
+        end
+
+        it "leaves the same key alone under a different variable name" do
+          # profile.private_note is a path, not a name: private_note under
+          # `other` is a different path and must survive, exactly as it does
+          # for request params.
+          result = described_class.call({ other: { private_note: "KEEP_ME" } })
+
+          expect(result["other"][:value]["private_note"]).to eq("KEEP_ME")
+        end
+
+        # REQ-F4: nothing may observe a value that carries display metadata but
+        # has not been filtered. The pipeline is serialize -> filter -> return,
+        # and `type`/`truncated` are SIBLINGS of `value`, never wrapped around
+        # it, so the filter always receives the raw structure. Asserted here
+        # rather than assumed, because the whole R6 class of bug came from the
+        # filter seeing something other than what it needed to see.
+        it "returns no variable whose value is unfiltered but already labelled" do
+          result = described_class.call(
+            { profile: [ { private_note: "SYNTHETIC_SECRET" } ], other: { ok: "fine" } }
+          )
+
+          result.each_value do |info|
+            expect(info).to have_key(:type)
+            expect(info).to have_key(:truncated)
+            expect(info[:value].to_s).not_to include("SYNTHETIC_SECRET")
+          end
+        end
+
+        # The contract is PARITY WITH RAILS, not maximal redaction. Each
+        # expectation below is what ActiveSupport::ParameterFilter itself does
+        # to the same structure in request params -- verified by running it,
+        # not assumed. Over-redaction is a defect on the same footing as
+        # under-redaction: it silently destroys data a developer needs.
+        #
+        # The array row is the R6 leak: the previous fix wrapped Hash values
+        # under the variable name and sent Array values straight to the
+        # recursive walker, dropping the "profile" path segment.
+        describe "parity with ActiveSupport::ParameterFilter" do
+          def rails_result(structure)
+            ActiveSupport::ParameterFilter
+              .new([ "profile.private_note" ])
+              .filter("profile" => structure)["profile"]
+          end
+
+          {
+            "a hash" => { private_note: "SYNTHETIC_SECRET" },
+            "an array of hashes" => [ { private_note: "SYNTHETIC_SECRET" } ],
+            "a nested array of hashes" => [ [ { private_note: "SYNTHETIC_SECRET" } ] ]
+          }.each do |shape, value|
+            it "redacts #{shape}, as Rails does" do
+              result = described_class.call({ profile: value })
+
+              expect(result["profile"][:value].to_s).not_to include("SYNTHETIC_SECRET")
+              expect(result["profile"][:value].to_s).to include("[FILTERED]")
+              # And the shape is preserved, not collapsed.
+              expect(result["profile"][:value].class).to eq(value.class)
+            end
+          end
+
+          # These paths do NOT match, so the secret must survive filtering.
+          # Depth limiting is a separate concern and would mask the assertion,
+          # so the nested case is given headroom via local_variable_max_depth.
+          {
+            "a hash under an intermediate key" => { list: [ { private_note: "SYNTHETIC_SECRET" } ] },
+            "a scalar" => "SYNTHETIC_SECRET"
+          }.each do |shape, value|
+            it "leaves #{shape} alone, because Rails does not match that path" do
+              # profile.list.private_note and profile are DIFFERENT paths from
+              # profile.private_note. Redacting here would exceed Rails.
+              expect(rails_result(value).to_s).to include("SYNTHETIC_SECRET")
+
+              RailsErrorDashboard.configuration.local_variable_max_depth = 6
+              result = described_class.call({ profile: value })
+
+              expect(result["profile"][:value].to_s).to include("SYNTHETIC_SECRET")
+            end
+          end
+        end
+
+        it "redacts an array-valued instance variable under its @-prefixed name" do
+          # Instance variables reach the same entry point with an @ prefix that
+          # must not break the path match -- and the array shape is the one
+          # that leaked.
+          result = described_class.call(
+            { "@profile" => [ { private_note: "SYNTHETIC_SECRET" } ] },
+            additional_filter_patterns: [ "@profile.private_note" ]
+          )
+
+          expect(result["@profile"][:value].to_s).not_to include("SYNTHETIC_SECRET")
+        end
+
+        it "applies a Regexp pattern to an array-valued variable" do
+          result = described_class.call(
+            { profile: [ { private_note: "SYNTHETIC_SECRET" } ] },
+            additional_filter_patterns: [ /private_note/ ]
+          )
+
+          expect(result["profile"][:value].to_s).not_to include("SYNTHETIC_SECRET")
+        end
+
+        it "hands a Proc pattern the key and value, not a synthesized dotted path" do
+          # ParameterFilter calls a Proc with (key, value) -- or
+          # (key, value, original_params) for a 3-arity Proc. Wrapping under the
+          # variable name preserves that contract precisely BECAUSE
+          # ParameterFilter does the walking; hand-rolled path matching could
+          # not emulate it.
+          seen = []
+          proc_filter = lambda do |key, value|
+            seen << key
+            value.replace("[FILTERED]") if key == "private_note" && value.is_a?(String)
+          end
+
+          result = described_class.call(
+            { profile: [ { private_note: +"SYNTHETIC_SECRET" } ] },
+            additional_filter_patterns: [ proc_filter ]
+          )
+
+          expect(seen).to include("private_note")
+          expect(seen).not_to include("profile.private_note")
+          expect(result["profile"][:value].to_s).not_to include("SYNTHETIC_SECRET")
+        end
+
+        it "redacts a nested path when the pattern actually names it" do
+          # Same structure as the negative case above; only the pattern differs.
+          Rails.application.config.filter_parameters = [ "profile.list.private_note" ]
+          RailsErrorDashboard::Services::SensitiveDataFilter.reset!
+          RailsErrorDashboard.configuration.local_variable_max_depth = 6
+
+          result = described_class.call({ profile: { list: [ { private_note: "SYNTHETIC_SECRET" } ] } })
+
+          expect(result["profile"][:value].to_s).not_to include("SYNTHETIC_SECRET")
+        end
+      end
+
       it "filters sensitive keys inside arrays of hashes" do
         result = described_class.call({ users: [ { name: "John", password: "secret" } ] })
         expect(result["users"][:value].first["password"]).to eq("[FILTERED]")
@@ -389,6 +557,50 @@ RSpec.describe RailsErrorDashboard::Services::VariableSerializer do
         expect(result["person"][:value]).to include("Alice")
       end
 
+      # inspect on an unknown object is arbitrary APPLICATION code running on
+      # the failure path. Truncating its output to 200 characters bounds what
+      # is stored, not what it costs: an object whose inspect is slow or
+      # allocates a megabyte pays that in full before a single character is
+      # discarded. The default is now a safe structural summary, with full
+      # inspect available per type by opt-in.
+      it "does not call inspect on an unknown object by default" do
+        expensive = Object.new
+        called = false
+        expensive.define_singleton_method(:inspect) do
+          called = true
+          "x" * 1_000_000
+        end
+
+        result = described_class.call({ thing: expensive })
+
+        expect(called).to be(false)
+        expect(result["thing"][:value]).to include("#<Object")
+      end
+
+      it "calls inspect for a type the host app opted in to" do
+        klass = Struct.new(:name)
+        config.local_variable_inspect_allowlist = [ "Struct" ]
+
+        result = described_class.call({ person: klass.new("Alice") })
+
+        expect(result["person"][:value]).to include("Alice")
+      end
+
+      # A budget, so even an allowlisted type cannot stall the failure path.
+      it "falls back to a safe summary when inspect exceeds its budget" do
+        slow = Object.new
+        slow.define_singleton_method(:inspect) do
+          sleep 0.05
+          "slow value"
+        end
+        config.local_variable_inspect_allowlist = [ "Object" ]
+        config.local_variable_inspect_budget_ms = 1
+
+        result = described_class.call({ slow: slow })
+
+        expect(result["slow"][:value]).to include("#<Object")
+      end
+
       it "handles object whose inspect raises" do
         bad_obj = Object.new
         def bad_obj.inspect; raise "nope"; end
@@ -487,6 +699,79 @@ RSpec.describe RailsErrorDashboard::Services::VariableSerializer do
       Thread.current[described_class::THREAD_KEY] = Set.new([ 999 ])
       described_class.call({ x: 1 })
       expect(Thread.current[described_class::THREAD_KEY]).to be_nil
+    end
+  end
+
+  # R8: the default path must never call arbitrary #inspect -- not directly,
+  # and not transitively through an allowlisted container.
+  #
+  # Struct and ActiveModel were allowlisted because they print their own
+  # attributes cheaply. That is true of the CONTAINER and false of whatever it
+  # holds: Struct#inspect calls its members' #inspect, so a Struct wrapping an
+  # unknown object with a slow #inspect ran that code in full. Measuring
+  # elapsed time AFTERWARDS selects the output; it does not bound the work.
+  describe "bounded execution of nested inspect" do
+    let(:slow) do
+      Class.new do
+        def self.name = "SlowNested"
+
+        def inspect
+          $slow_inspect_called = true
+          sleep 0.025
+          "x" * 100_000
+        end
+      end.new
+    end
+
+    around do |example|
+      $slow_inspect_called = false
+      RailsErrorDashboard.reset_configuration!
+      example.run
+    ensure
+      $slow_inspect_called = false
+      RailsErrorDashboard.reset_configuration!
+    end
+
+    it "does not run a nested object's inspect through the default Struct allowlist" do
+      struct = Struct.new(:payload).new(slow)
+
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      described_class.call({ wrapper: struct })
+      elapsed_ms = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000
+
+      expect($slow_inspect_called).to be(false),
+        "Struct#inspect reached the nested object's own inspect"
+      expect(elapsed_ms).to be < 25,
+        "serialization took #{elapsed_ms.round(1)}ms -- the nested inspect ran"
+    end
+
+    it "still renders a plain Struct's own attributes" do
+      point = Struct.new(:name, :age).new("Alice", 30)
+
+      result = described_class.call({ point: point })
+
+      expect(result["point"][:value].to_s).to include("Alice")
+    end
+
+    it "summarizes ActiveModel rather than reading attributes" do
+      # Reading ActiveModel::Attributes#attributes runs each attribute's type
+      # cast, which is application code -- so member-wise traversal would have
+      # the same unbounded-work problem by another door. Verified: a type whose
+      # cast sleeps 20ms takes 24ms to read.
+      cast_ran = false
+      type = Class.new(ActiveModel::Type::Value) do
+        define_method(:cast) { |_v| cast_ran = true; sleep 0.025; "casted" }
+      end.new
+      model_class = Class.new do
+        def self.name = "SlowModel"
+        include ActiveModel::Model
+        include ActiveModel::Attributes
+      end
+      model_class.attribute :field, type
+
+      described_class.call({ model: model_class.new(field: "raw") })
+
+      expect(cast_ran).to be(false), "reading ActiveModel attributes ran a custom type's cast"
     end
   end
 end

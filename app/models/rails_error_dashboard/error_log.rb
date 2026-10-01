@@ -37,6 +37,16 @@ module RailsErrorDashboard
     # Association for tracking individual error occurrences
     has_many :error_occurrences, class_name: "RailsErrorDashboard::ErrorOccurrence", dependent: :destroy
 
+    # Hour buckets for storm-shed events. delete_all, not destroy: these rows
+    # are pure counters with no callbacks, and a group can own one per hour.
+    #
+    # The association has to live HERE. `dependent:` on EventCount's own
+    # belongs_to is rejected by Rails (":dependent option must be one of
+    # [:destroy, :delete, :destroy_async]"), so the cleanup can only be
+    # declared from the parent side. Retention deletes them separately as well,
+    # because it uses delete_all, which does not fire callbacks.
+    has_many :event_counts, class_name: "RailsErrorDashboard::EventCount", dependent: :delete_all
+
     # Comments used as internal audit trail for workflow actions (snooze, mute, status changes).
     # Manual comment form removed in v0.6 — discussion now lives on issue tracker.
     has_many :comments, class_name: "RailsErrorDashboard::ErrorComment", foreign_key: :error_log_id, dependent: :destroy
@@ -61,6 +71,7 @@ module RailsErrorDashboard
     scope :by_error_type, ->(type) { where(error_type: type) }
     scope :by_type, ->(type) { where(error_type: type) }
     scope :by_platform, ->(platform) { where(platform: platform) }
+    scope :by_environment, ->(environment) { where(environment: environment) }
     scope :last_24_hours, -> { where("occurred_at >= ?", 24.hours.ago) }
     scope :last_week, -> { where("occurred_at >= ?", 1.week.ago) }
 
@@ -78,15 +89,16 @@ module RailsErrorDashboard
     # Set defaults and tracking
     before_validation :set_defaults, on: :create
     before_create :set_tracking_fields
+    before_save :sync_group_window
     before_create :set_priority_score
 
     # Turbo Stream broadcasting
     after_create_commit -> { Services::ErrorBroadcaster.broadcast_new(self) }
     after_update_commit -> { Services::ErrorBroadcaster.broadcast_update(self) }
 
-    # Cache invalidation - clear analytics caches when errors are created/updated/deleted
-    after_save -> { Services::AnalyticsCacheManager.clear }
-    after_destroy -> { Services::AnalyticsCacheManager.clear }
+    # No cache invalidation here, on purpose. A save is what a CAPTURE does, in
+    # the host app's request thread; the stats caches expire by TTL instead, and
+    # the commands behind user actions call AnalyticsCacheManager.clear themselves.
 
     def set_defaults
       self.platform ||= "API"
@@ -97,6 +109,52 @@ module RailsErrorDashboard
       self.first_seen_at ||= Time.current
       self.last_seen_at ||= Time.current
       self.occurrence_count ||= 1
+      set_group_window
+    end
+
+    # The immutable bucket that completes an unresolved group's database
+    # identity (see 20260915000001). Stamped once, at creation, and never
+    # rewritten -- not on increment, not on reopen: the row keeps the identity
+    # it was created with for its whole life, which is exactly what makes it
+    # usable as an index key.
+    #
+    # Two captures racing to create the same group are milliseconds apart and
+    # therefore share a bucket, so one of them loses on the unique index and
+    # takes the existing RecordNotUnique retry path. A capture that arrives
+    # after the previous group's 24 h window has rolled over lands in a
+    # different bucket and is allowed to open a new group, which is intended
+    # behaviour.
+    def set_group_window
+      return unless respond_to?(:group_window=)
+      return if group_window.present?
+
+      self.group_window = computed_group_window
+    rescue StandardError
+      # A bad occurred_at must never block a capture; a NULL bucket simply
+      # falls back to the pre-migration behaviour for this one row.
+      nil
+    end
+
+    # The bucket is DERIVED from occurred_at, so it must follow it. In
+    # production occurred_at is written once, at creation, and never rewritten
+    # -- so this is a no-op there and the bucket is immutable in practice.
+    # But anything that does move occurred_at (a fixture ageing a row, a
+    # backfill, a data repair) would otherwise leave the bucket pointing at the
+    # old window, and the row would sit in an index slot that no longer matches
+    # its own timestamp: a later capture computing the correct bucket would
+    # collide with a row the 24 h lookup had already excluded.
+    def sync_group_window
+      return unless respond_to?(:group_window=)
+      return unless has_attribute?(:occurred_at) && will_save_change_to_attribute?(:occurred_at)
+
+      self.group_window = computed_group_window
+    rescue StandardError
+      nil
+    end
+
+    def computed_group_window
+      basis = occurred_at || first_seen_at || Time.current
+      basis.utc.strftime("%Y-%m-%d")
     end
 
     def set_priority_score
@@ -223,7 +281,13 @@ module RailsErrorDashboard
       end
     end
 
+    # The five workflow statuses. One list, so that a command can tell
+    # "unknown status" from "known, but not reachable from here".
+    STATUSES = %w[new in_progress investigating resolved wont_fix].freeze
+
     def can_transition_to?(new_status)
+      return false unless STATUSES.include?(new_status)
+
       # Define valid status transitions
       valid_transitions = {
         "new" => [ "in_progress", "investigating", "wont_fix" ],
@@ -338,13 +402,10 @@ module RailsErrorDashboard
       return { anomaly: false, message: "Feature disabled" } unless RailsErrorDashboard.configuration.enable_baseline_alerts
       return { anomaly: false, message: "No baseline available" } unless defined?(Queries::BaselineStats)
 
-      # Get count of this error type today
-      today_count = ErrorLog.where(
-        error_type: error_type,
-        platform: platform
-      ).where("occurred_at >= ?", Time.current.beginning_of_day).count
-
-      Queries::BaselineStats.new(error_type, platform).check_anomaly(today_count, sensitivity: sensitivity)
+      # Current hour / day / week counted in the baselines' own units — a
+      # day's count against an hourly baseline flagged everything.
+      Queries::BaselineStats.new(error_type, platform)
+                            .check_current_anomaly(sensitivity: sensitivity, application_id: application_id)
     end
 
     # Detect cyclical occurrence patterns (daily/weekly rhythms)

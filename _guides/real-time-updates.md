@@ -23,12 +23,12 @@ This guide explains how Rails Error Dashboard uses Turbo Streams to provide real
 
 ## Overview
 
-Rails Error Dashboard now includes **real-time updates** powered by Turbo Streams. When errors occur in your application, the dashboard automatically updates without requiring a manual page refresh.
+Rails Error Dashboard now includes **real-time updates** powered by Turbo Streams. When errors occur in your application, the dashboard automatically updates without requiring a manual page refresh. This requires `turbo-rails` and a working ActionCable adapter in the host app; without them the dashboard does not auto-refresh — there is no polling fallback.
 
 ### What Gets Updated in Real-Time:
 
 1. **Error List** - New errors appear instantly at the top of the list
-2. **Dashboard Stats** - Error counts update automatically (Today, This Week, Unresolved, Resolved)
+2. **Dashboard Stats** - Error counts update automatically (Today, This Week, Unresolved, Resolved). The figures are cached, so after a newly captured error the stat cards can lag by up to 60 seconds (analytics by up to 5 minutes); resolving, muting, batch actions and the retention job refresh them immediately.
 3. **Visual Indicators** - New errors are highlighted with animations
 4. **Live Status** - A pulsing "Live" indicator shows the connection is active
 
@@ -167,6 +167,25 @@ spec.add_dependency "turbo-rails", "~> 2.0"
   import * as Turbo from 'https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/+esm'
 </script>
 ```
+
+### Streams
+
+Broadcasts go out on three kinds of stream, each of which exists globally and once per application. `RailsErrorDashboard::Services::ErrorBroadcaster.stream_name` is the single source for the names, used by the built-in views and by the broadcaster.
+
+| Stream | Per application | Carries |
+|---|---|---|
+| `error_list` | `error_list_app_<id>` | New rows (`prepend` into `#error_list`) |
+| `error_updates` | `error_updates_app_<id>` | Changed rows (`replace` of `#error_<id>`) |
+| `error_stats` | `error_stats_app_<id>` | The stats partial (`replace` of `#dashboard_stats`) |
+
+The error list subscribes according to what it is showing:
+
+- Filtered to an application, it listens to that application's streams only, so another application's errors never appear in it.
+- With any other filter, a sort, or on a page after the first, it does not listen to the new-row stream: a new error may not match the filter, and would not belong at the top. Rows already on the page still update in place.
+
+The stats payload is computed at most once every 5 seconds per stream and per process, one payload per captured error at most, and nothing is broadcast while storm protection is active; the page catches up on its next load. The built-in error list does not currently contain a `dashboard_stats` element, so the stats stream only has a visible effect in a view that provides one.
+
+If you built a custom view against the single `error_list` stream of earlier versions, subscribe it to `error_updates` and `error_stats` as well: row replacements and stats moved off `error_list` in 0.13.0.
 
 ### 2. Error Model Broadcasting
 
@@ -731,10 +750,10 @@ Dashboard continues to function normally with manual refresh.
 ✅ **Real-time error list updates** - New errors appear instantly
 ✅ **Live stats refresh** - Counts update automatically
 ✅ **Visual feedback** - Animations highlight changes
-✅ **Zero configuration** - Works out of the box
+✅ **Requirements** - `turbo-rails` plus a working ActionCable adapter in the host app; there is no polling fallback
 ✅ **High performance** - Minimal overhead (~800 bytes per error)
 ✅ **Browser compatible** - All modern browsers supported
-✅ **Production ready** - All 545 tests passing
+✅ **Production ready** - Covered by the request and system specs
 
 **Related Features:**
 - [Error Trend Visualizations](/rails_error_dashboard/docs/guides/error-trend-visualizations/) - Charts for 7-day trends

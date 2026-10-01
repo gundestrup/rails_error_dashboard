@@ -2,6 +2,12 @@
 
 module RailsErrorDashboard
   class Configuration
+    # The built-in Basic auth credentials. They are published (README, demo,
+    # gemspec), so outside development and test they are refused unless
+    # ERROR_DASHBOARD_PASSWORD explicitly supplies the password.
+    DEFAULT_DASHBOARD_USERNAME = "gandalf"
+    DEFAULT_DASHBOARD_PASSWORD = "youshallnotpass"
+
     # Dashboard authentication (always required)
     attr_accessor :dashboard_username
     attr_accessor :dashboard_password
@@ -13,6 +19,12 @@ module RailsErrorDashboard
     # Multi-app support - Application name
     attr_accessor :application_name
     attr_accessor :database  # Database connection name for shared error dashboard DB
+
+    # Environment awareness. Errors record which environment they came from
+    # (production, staging, uat, ...). Names are free-form strings, never an
+    # enum -- teams invent environment names, and a fixed list is wrong tomorrow.
+    attr_accessor :environment                # Overrides Rails.env for captured errors (ENV: ERROR_DASHBOARD_ENVIRONMENT)
+    attr_accessor :notification_environments  # Only notify for these environments; nil = all (ENV: ERROR_DASHBOARD_NOTIFICATION_ENVIRONMENTS)
 
     # Notifications
     attr_accessor :slack_webhook_url
@@ -151,6 +163,8 @@ module RailsErrorDashboard
     attr_accessor :notification_minimum_severity   # Minimum severity to notify (default: :low = notify all)
     attr_accessor :notification_cooldown_minutes    # Per-error cooldown in minutes (default: 5, 0 = disabled)
     attr_accessor :notification_threshold_alerts    # Occurrence milestones that trigger notification (default: [10, 50, 100, 500, 1000])
+    attr_accessor :notification_burst_limit          # Max FIRST-OCCURRENCE notifications per window, per process (default: 10, 0 = no cap)
+    attr_accessor :notification_burst_window_seconds # Length of that window in seconds (default: 60)
 
     # Breadcrumbs (request activity trail)
     attr_accessor :enable_breadcrumbs              # Master switch (default: false)
@@ -163,6 +177,8 @@ module RailsErrorDashboard
 
     # System health snapshot (GC, memory, threads, connection pool at error time)
     attr_accessor :enable_system_health            # Master switch (default: false)
+    attr_accessor :system_health_queue_stats       # Include job-queue depth counts (default: true)
+    attr_accessor :system_health_queue_stats_cache_seconds # Reuse queue counts this long per process (default: 10)
 
     # Local variable capture via TracePoint(:raise)
     attr_accessor :enable_local_variables            # Master switch (default: false)
@@ -172,6 +188,12 @@ module RailsErrorDashboard
     attr_accessor :local_variable_max_array_items     # Max array items to serialize (default: 10)
     attr_accessor :local_variable_max_hash_items      # Max hash entries to serialize (default: 20)
     attr_accessor :local_variable_filter_patterns     # Additional sensitive name patterns (default: [])
+    # Calling #inspect on an unknown object runs arbitrary APPLICATION code on
+    # the failure path; truncating the result bounds storage, not cost. The
+    # default is a safe structural summary, with full inspect per type by
+    # opt-in and a wall-clock budget even then.
+    attr_accessor :local_variable_inspect_allowlist   # Class names whose #inspect may run (default: safe built-ins)
+    attr_accessor :local_variable_inspect_budget_ms   # Wall-clock budget for one #inspect (default: 5)
 
     # Instance variable capture from tp.self (receiver object at raise time)
     attr_accessor :enable_instance_variables           # Master switch (default: false)
@@ -199,7 +221,7 @@ module RailsErrorDashboard
     # their own table, independent of error capture (breadcrumbs optional).
     attr_accessor :enable_rack_attack_tracking          # Master switch (default: false)
     attr_accessor :rack_attack_max_cache_size           # Max buffered keys per thread (default: 1000)
-    attr_accessor :rack_attack_flush_interval           # Seconds between DB flushes (default: 60)
+    attr_accessor :rack_attack_flush_interval           # Seconds between DB flushes (default: 5)
 
     # ActionCable event tracking (requires enable_breadcrumbs = true)
     attr_accessor :enable_actioncable_tracking          # Master switch (default: false)
@@ -222,6 +244,19 @@ module RailsErrorDashboard
     # Dashboard UI appearance
     attr_accessor :accent_color  # :crimson (default), :ruby, :ember, :violet
 
+    # Locale the dashboard renders in, independent of the host app's locale.
+    #
+    # Drives both Pagy's pagination labels and RED's own translation lookups.
+    # Ships "en", "de", "es", "fr", "pt-BR", "ja", "ru", "uk", "pl", "it" and
+    # "zh-CN". "fr" has been reviewed by a native speaker; everything but
+    # English and French is machine-translated and has NOT been — see
+    # docs/guides/TRANSLATIONS.md. A missing or wrong translation falls back to
+    # English rather than breaking the page.
+    #
+    # Users can override this per-session with the dashboard's language picker.
+    # Unknown or wrong-cased values fall back to "en" (default: "en").
+    attr_accessor :dashboard_locale
+
     # LLM-powered AI help (disabled unless provider and API key are configured)
     attr_accessor :llm_provider              # :openai or :anthropic
     attr_accessor :llm_api_key               # String or lambda/proc
@@ -240,8 +275,8 @@ module RailsErrorDashboard
 
     def initialize
       # Default values - Authentication is ALWAYS required
-      @dashboard_username = ENV.fetch("ERROR_DASHBOARD_USER", "gandalf")
-      @dashboard_password = ENV.fetch("ERROR_DASHBOARD_PASSWORD", "youshallnotpass")
+      @dashboard_username = ENV.fetch("ERROR_DASHBOARD_USER", DEFAULT_DASHBOARD_USERNAME)
+      @dashboard_password = ENV.fetch("ERROR_DASHBOARD_PASSWORD", DEFAULT_DASHBOARD_PASSWORD)
       @authenticate_with = nil
 
       @user_model = nil  # Auto-detect if not set
@@ -249,6 +284,10 @@ module RailsErrorDashboard
       # Multi-app support defaults
       @application_name = ENV["APPLICATION_NAME"]  # Auto-detected if not set
       @database = nil  # Use primary database by default
+
+      # Environment awareness defaults: attribute to Rails.env unless overridden
+      @environment = ENV["ERROR_DASHBOARD_ENVIRONMENT"].to_s.strip.then { |v| v.empty? ? nil : v }
+      @notification_environments = parse_name_list(ENV["ERROR_DASHBOARD_NOTIFICATION_ENVIRONMENTS"])
 
       # Notification settings (disabled by default - enable during installation or in initializer)
       @slack_webhook_url = ENV["SLACK_WEBHOOK_URL"]
@@ -277,7 +316,8 @@ module RailsErrorDashboard
 
       @use_separate_database = ENV.fetch("USE_SEPARATE_ERROR_DB", "false") == "true"
 
-      # Retention policy - days to keep errors before automatic deletion (default: 90)
+      # Retention policy - days an error may go unseen (last_seen_at) before it is
+      # deleted automatically (default: 90). An error still occurring is kept.
       # Set to nil to keep errors forever (not recommended for production)
       # Schedule cleanup: RailsErrorDashboard::RetentionCleanupJob.perform_later
       @retention_days = 90
@@ -359,6 +399,8 @@ module RailsErrorDashboard
       @notification_minimum_severity = :low  # Notify on all severities (current behavior)
       @notification_cooldown_minutes = 5     # 5 min cooldown per error_hash (0 = disabled)
       @notification_threshold_alerts = [ 10, 50, 100, 500, 1000 ] # Occurrence milestones
+      @notification_burst_limit = 10          # New-error notifications per window, per process (0 = no cap)
+      @notification_burst_window_seconds = 60 # One summary message replaces the rest of the window
 
       # Breadcrumbs defaults - OFF by default (opt-in)
       @enable_breadcrumbs = false         # Master switch
@@ -371,6 +413,11 @@ module RailsErrorDashboard
 
       # System health snapshot defaults - OFF by default (opt-in)
       @enable_system_health = false  # Capture GC, memory, threads, connection pool at error time
+      # Queue-depth counts are queries against the queue store (five COUNTs
+      # for Solid Queue), the one part of the snapshot that is not sub-ms.
+      # Cached per process so an error burst runs them once per interval.
+      @system_health_queue_stats = true
+      @system_health_queue_stats_cache_seconds = 10
 
       # Local variable capture defaults - OFF by default (opt-in)
       @enable_local_variables = false           # TracePoint(:raise) for local var capture
@@ -380,6 +427,20 @@ module RailsErrorDashboard
       @local_variable_max_array_items = 10      # Max array items to serialize
       @local_variable_max_hash_items = 20       # Max hash entries to serialize
       @local_variable_filter_patterns = []      # Additional sensitive variable name patterns
+      # Struct is serialized MEMBER-WISE (never via its own #inspect), so it
+      # needs no allowlist entry -- see VariableSerializer.serialize_struct.
+      #
+      # ActiveModel is deliberately NOT allowlisted. Reading
+      # ActiveModel::Attributes#attributes runs each attribute's type cast,
+      # which is application code, so neither #inspect nor member-wise reading
+      # can be bounded for it; it gets a safe summary instead.
+      #
+      # Anything added here opts that type IN to unbounded execution: the only
+      # way to interrupt arbitrary Ruby mid-call is Timeout, which is not safe
+      # on the capture path. The budget below selects the stored OUTPUT after
+      # the fact; it does not bound the work.
+      @local_variable_inspect_allowlist = []
+      @local_variable_inspect_budget_ms = 5
 
       # Instance variable capture defaults - OFF by default (opt-in)
       @enable_instance_variables = false         # Capture ivars from tp.self at raise time
@@ -407,7 +468,12 @@ module RailsErrorDashboard
       # Persists to its own table; does NOT require breadcrumbs.
       @enable_rack_attack_tracking = false
       @rack_attack_max_cache_size = 1000 # Max buffered keys per thread (LRU eviction)
-      @rack_attack_flush_interval = 60   # Seconds between DB flushes
+      # Max age of buffered events before they are written out. Lowered from 60
+      # to 5 alongside the end-of-request drain (issue #170): the executor hook
+      # gates on this interval, so it is the upper bound on how stale the Rate
+      # Limits page can be, not a per-request cost. A flood still collapses to
+      # roughly one write per thread per interval.
+      @rack_attack_flush_interval = 5    # Seconds between DB flushes
 
       # ActionCable event tracking defaults - OFF by default (opt-in, requires breadcrumbs)
       @enable_actioncable_tracking = false
@@ -429,10 +495,11 @@ module RailsErrorDashboard
 
       # Internal logging defaults - SILENT by default
       @enable_internal_logging = false  # Opt-in for debugging
-      @log_level = :silent  # Silent by default, use :debug, :info, :warn, :error, or :silent
+      @log_level = :silent  # Silent by default; see Logger::LOG_LEVELS for the levels
 
       # Dashboard UI
       @accent_color = :crimson  # :crimson, :ruby, :ember, :violet
+      @dashboard_locale = "en"  # en, de, es, fr, pt-BR, ja, ru, uk, pl, it, zh-CN (fr native-reviewed; other non-English machine-translated)
 
       # LLM-powered AI help defaults - OFF until provider and API key are configured
       @llm_provider = ENV["RED_LLM_PROVIDER"]&.to_sym
@@ -465,12 +532,34 @@ module RailsErrorDashboard
       errors = []
       warnings = []
 
-      # Block boot with default or blank credentials in production
-      # Skip during asset precompilation (SECRET_KEY_BASE_DUMMY=1) — ENV vars aren't available at build time
-      if default_credentials? &&
-         defined?(Rails) && Rails.respond_to?(:env) && Rails.env.production? &&
-         ENV["SECRET_KEY_BASE_DUMMY"].blank?
-        errors << "Default or blank credentials cannot be used in production. Set ERROR_DASHBOARD_USER and ERROR_DASHBOARD_PASSWORD environment variables, or use authenticate_with for custom auth."
+      # Block boot with default or blank credentials anywhere that is not local
+      # development or test.
+      #
+      # Deliberately an ALLOWLIST of safe environments rather than a check for
+      # `production`. Gating on Rails.env.production? tests one literal string,
+      # so an internet-facing `staging`, `uat`, `demo` or `preprod` box booted
+      # happily on credentials this project publishes in its own README
+      # (GHSA-qhgm-3pxf-mvc6). Every future environment name a team invents is
+      # now refused by default and has to be added here on purpose.
+      #
+      # Skip during asset precompilation (SECRET_KEY_BASE_DUMMY=1) — ENV vars aren't available at build time.
+      # The login refuses the same credentials on its own, so SECRET_KEY_BASE_DUMMY
+      # left set at runtime does not reopen them.
+      if refuse_default_credentials? && ENV["SECRET_KEY_BASE_DUMMY"].blank?
+        reason = if credentials_problem == :blank
+          "the dashboard username or password is blank"
+        else
+          "the dashboard password is the published default and was not set by ERROR_DASHBOARD_PASSWORD"
+        end
+        errors << "Default or blank credentials cannot be used in #{Rails.env}: #{reason}. Only development and test may run on the built-in credentials. Set ERROR_DASHBOARD_USER and ERROR_DASHBOARD_PASSWORD environment variables and make sure the initializer does not overwrite them, or use authenticate_with for custom auth."
+      end
+
+      # In development the app boots on a blank credential, and the login then
+      # denies everyone: say so, or the developer is locked out with no clue
+      # why. Development only, because a test run boots on every CI job.
+      if default_credentials? && credentials_problem == :blank &&
+         defined?(Rails) && Rails.respond_to?(:env) && Rails.env.development?
+        warnings.concat(blank_credential_warnings)
       end
 
       # Validate sampling_rate (must be between 0.0 and 1.0)
@@ -590,6 +679,16 @@ module RailsErrorDashboard
         if rack_attack_flush_interval && rack_attack_flush_interval < 1
           errors << "rack_attack_flush_interval must be at least 1 (got: #{rack_attack_flush_interval})"
         end
+
+        # Warn rather than auto-disable: validation may run before the host's
+        # Rack::Attack initializer has loaded, so a missing constant here does
+        # not prove it will still be missing at after_initialize (when the
+        # subscriber actually registers). Auto-disabling would break that case.
+        unless rack_attack_defined?
+          warnings << "enable_rack_attack_tracking is enabled but the rack-attack gem " \
+                      "does not appear to be loaded. No events will be recorded until " \
+                      "Rack::Attack is installed and configured."
+        end
       end
 
       # Validate actioncable tracking requires breadcrumbs
@@ -695,7 +794,9 @@ module RailsErrorDashboard
 
       # Validate log level (must be valid symbol)
       if log_level
-        valid_log_levels = %i[debug info warn error fatal silent]
+        # Referenced here, not as a class-body constant: this file loads before
+        # logger.rb, and a bare Logger in the class body would be ::Logger.
+        valid_log_levels = RailsErrorDashboard::Logger::LOG_LEVELS.keys
         unless valid_log_levels.include?(log_level)
           errors << "log_level must be one of #{valid_log_levels.inspect} (got: #{log_level.inspect})"
         end
@@ -759,6 +860,26 @@ module RailsErrorDashboard
         errors << "total_users_for_impact must be at least 1 (got: #{total_users_for_impact})"
       end
 
+      # Validate environment (free-form, but it has to fit the 64-char column)
+      unless environment.nil?
+        if !environment.is_a?(String) || environment.strip.empty?
+          errors << "environment must not be blank (got: #{environment.inspect}); leave it nil to use Rails.env"
+        elsif environment.length > 64
+          errors << "environment must be 64 characters or fewer (got #{environment.length})"
+        end
+      end
+
+      # Validate notification_environments (nil = notify everywhere; otherwise names only)
+      unless notification_environments.nil?
+        valid_list = notification_environments.is_a?(Array) &&
+                     notification_environments.any? &&
+                     notification_environments.all? { |name| name.is_a?(String) && !name.strip.empty? }
+        unless valid_list
+          errors << "notification_environments must be nil or a non-empty Array of environment names " \
+                    "(got: #{notification_environments.inspect})"
+        end
+      end
+
       # Validate notification_minimum_severity (must be valid symbol)
       if notification_minimum_severity
         valid_notification_severities = %i[critical high medium low]
@@ -778,6 +899,19 @@ module RailsErrorDashboard
         errors << "notification_threshold_alerts must be an Array (got: #{notification_threshold_alerts.class})"
       end
 
+      # Validate the first-occurrence burst cap (non-negative integers; 0 or nil
+      # turns the cap off)
+      {
+        notification_burst_limit: notification_burst_limit,
+        notification_burst_window_seconds: notification_burst_window_seconds
+      }.each do |name, value|
+        next if value.nil?
+
+        unless value.is_a?(Integer) && value >= 0
+          errors << "#{name} must be a non-negative Integer (got: #{value.inspect})"
+        end
+      end
+
       # Log warnings (non-fatal issues)
       warnings.each do |warning|
         Rails.logger.warn "[Rails Error Dashboard] #{warning}" if defined?(Rails) && Rails.respond_to?(:logger) && Rails.logger
@@ -789,23 +923,108 @@ module RailsErrorDashboard
       true
     end
 
-    # Check if using default or blank demo credentials with basic auth
+    # The environment this process attributes captured errors to.
     #
-    # Returns false if the user explicitly set ENV vars (even to the same default values),
-    # because that's a deliberate choice. Only blocks when credentials are untouched defaults
-    # or blank.
+    # Explicit option first, then Rails.env. Never nil and never raises: an
+    # error must still be captured when the environment cannot be named.
     #
-    # @return [Boolean] true if basic auth is active with untouched default or blank credentials
+    # @return [String]
+    def current_environment
+      name = environment.to_s.strip
+      return name unless name.empty?
+
+      rails_env = defined?(Rails) && Rails.respond_to?(:env) ? Rails.env.to_s.strip : ""
+      rails_env.empty? ? "unknown" : rails_env
+    rescue StandardError
+      "unknown"
+    end
+
+    # "production, uat" -> ["production", "uat"]; blank or all-blank -> nil.
+    def parse_name_list(raw)
+      list = raw.to_s.split(",").map(&:strip).reject(&:empty?)
+      list.empty? ? nil : list
+    end
+
+    # Why the Basic auth credentials cannot be trusted outside development and
+    # test, or nil when they can.
+    #
+    # - :blank - the username or password is empty or whitespace. An explicitly
+    #   empty variable is not a choice: a compose file passing an unset variable
+    #   through produces exactly that, and "" would match an empty login.
+    # - :published_password - the password is the published default and did not
+    #   come from ERROR_DASHBOARD_PASSWORD. Setting that variable, even to the
+    #   default, is a deliberate choice (the live demo runs that way). It has to
+    #   be THAT variable: setting only ERROR_DASHBOARD_USER used to leave the
+    #   password on the published default, and an initializer can hardcode it.
+    #
+    # Both compare values the way the login does, with to_s: a Symbol holding the
+    # published password logs in just the same.
+    #
+    # @return [Symbol, nil]
+    def credentials_problem
+      return :blank if self.class.blank_credential?(dashboard_username) ||
+                       self.class.blank_credential?(dashboard_password)
+
+      if dashboard_password.to_s == DEFAULT_DASHBOARD_PASSWORD &&
+         ENV["ERROR_DASHBOARD_PASSWORD"] != DEFAULT_DASHBOARD_PASSWORD
+        return :published_password
+      end
+
+      nil
+    end
+
+    # True for a credential that cannot be a secret: nil, empty, or only
+    # whitespace, including Unicode whitespace such as a no-break space, which
+    # String#strip leaves in place. The boot check and the login both use it.
+    #
+    # @return [Boolean]
+    def self.blank_credential?(value)
+      value.to_s.blank?
+    end
+
+    # Check if basic auth is active with blank credentials or the published
+    # default password (see #credentials_problem)
+    #
+    # Basic auth is active whenever authenticate_with is falsy, not only nil:
+    # the login falls back to it for `false` too, which is what
+    # `Rails.env.production? && -> { ... }` evaluates to in staging.
+    #
+    # @return [Boolean]
     def default_credentials?
-      return false unless authenticate_with.nil?
+      !authenticate_with && !credentials_problem.nil?
+    end
 
-      # If user explicitly set ENV vars, respect their choice
-      return false if ENV.key?("ERROR_DASHBOARD_USER") || ENV.key?("ERROR_DASHBOARD_PASSWORD")
+    # True where default_credentials? has to stop the dashboard: anywhere that is
+    # not local development or test. The boot check and the login both use it,
+    # so the login still refuses when the boot check was skipped.
+    #
+    # @return [Boolean]
+    def refuse_default_credentials?
+      return false unless default_credentials?
+      return false unless defined?(Rails) && Rails.respond_to?(:env)
 
-      default = dashboard_username == "gandalf" && dashboard_password == "youshallnotpass"
-      blank = dashboard_username.to_s.strip.empty? || dashboard_password.to_s.strip.empty?
+      !Rails.env.development? && !Rails.env.test?
+    end
 
-      default || blank
+    # One warning per blank credential, naming where the blank came from: an
+    # environment variable that is set but empty, or the initializer.
+    #
+    # @return [Array<String>]
+    private def blank_credential_warnings
+      {
+        "ERROR_DASHBOARD_USER" => [ :dashboard_username, dashboard_username ],
+        "ERROR_DASHBOARD_PASSWORD" => [ :dashboard_password, dashboard_password ]
+      }.filter_map do |variable, (setting, value)|
+        next unless self.class.blank_credential?(value)
+
+        if ENV.key?(variable) && ENV[variable].to_s == value.to_s
+          "#{variable} is set but empty, so every dashboard login will be denied. " \
+            "Unset it to use the development default, or give it a value."
+        else
+          "config.#{setting} is blank, so every dashboard login will be denied. " \
+            "Remove that line from the initializer to use the development default, or give it a value."
+        end
+      end
     end
 
     # Resolve the effective issue tracker provider (auto-detect from git_repository_url).
@@ -948,6 +1167,14 @@ module RailsErrorDashboard
 
     # Detect where the engine is mounted in the host app's routes.
     # @return [String] mount path (default: "/red")
+    # Extracted so specs can simulate the gem's absence. rack-attack is in the
+    # dev bundle (so specs can drive the real middleware), which means
+    # ::Rack::Attack is always defined during the suite and absence can no
+    # longer be produced by simply not requiring it.
+    def rack_attack_defined?
+      defined?(::Rack::Attack) ? true : false
+    end
+
     def detect_engine_mount_path
       return "/red" unless defined?(Rails) && Rails.application
 

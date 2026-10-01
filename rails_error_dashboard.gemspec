@@ -6,26 +6,67 @@ Gem::Specification.new do |spec|
   spec.authors     = [ "Anjan Jagirdar" ]
   spec.email       = [ "anjan.jagirdar@gmail.com" ]
   spec.homepage    = "https://AnjanJ.github.io/rails_error_dashboard"
-  spec.summary     = "Self-hosted error tracking for Rails — local variables, system health, " \
-                     "separate or shared database. A free, open-source Sentry alternative."
-  spec.description = "Own your errors. Own your stack. A fully open-source, self-hosted error tracking " \
-                     "Rails engine — a free Sentry alternative that runs entirely inside your own " \
-                     "process, with no external services and zero recurring cost. " \
-                     "Captures what SaaS tools charge extra for: local and instance variables at the " \
-                     "moment of failure (via TracePoint), exception cause chains, swallowed-exception " \
-                     "detection, breadcrumbs, and system-health snapshots (GC, memory, threads, " \
-                     "connection pool, Puma). Plus N+1 query detection, storm protection (a circuit " \
-                     "breaker that shields your app from error floods, ON by default), multi-app " \
-                     "support, error sampling, and async logging via Sidekiq, SolidQueue, or GoodJob. " \
-                     "Runs on SQLite, PostgreSQL, or MySQL/Trilogy — in your app's existing database " \
-                     "or an isolated separate error database. Beautiful dashboard UI (dark/light), " \
-                     "multi-channel notifications (Slack, Email, Discord, PagerDuty, webhooks), " \
-                     "workflow management, advanced analytics, platform detection (iOS/Android/Web/API), " \
-                     "and two-way issue sync with GitHub, GitLab, Codeberg, and Linear. Also: LLM " \
-                     "observability, AI-powered debugging help, and OpenTelemetry span export. " \
-                     "5-minute setup, works out-of-the-box. Rails 7.0-8.1, Ruby 3.2-4.0. " \
-                     "BETA: API may change before v1.0.0. " \
-                     "Live demo: https://rails-error-dashboard.anjan.dev (gandalf/youshallnotpass)"
+  spec.summary     = "Rails-native, self-hosted error monitoring with exception-time Ruby state, " \
+                     "runtime health, and storm-safe capture."
+
+  # HOW RUBYGEMS.ORG RENDERS THIS — do not reformat without re-reading.
+  #
+  # rubygems.org's RubygemsHelper#simple_markup gates on the regexp
+  #
+  #     /^==+ [A-Z]/
+  #
+  # If it matches, the text is rendered through RDoc::Markup: headings,
+  # paragraphs, bullet lists and auto-linked URLs. If it does NOT match, the
+  # entire description is dumped into one <p> — the cramped wall of text with an
+  # unclickable demo link that this gem shipped for months.
+  #
+  # The anchor is ^, so a heading must begin at COLUMN 0. An earlier attempt used
+  # <<~DESC with the body indented two spaces past its terminator; <<~ strips
+  # only the *common* indentation, so every line retained two leading spaces, the
+  # regexp never matched, and that "fix" would have rendered exactly as broken as
+  # the text it replaced. Hence <<-DESC with the content flush left.
+  #
+  # spec/gemspec_description_spec.rb asserts the gate matches and that the
+  # rendered HTML really contains headings, a list and an anchor tag.
+  spec.description = <<-DESC
+== Rails-native failure investigation
+
+Rails Error Dashboard (RED) is an open-source, self-hosted Rails engine for
+investigating production exceptions without sending error data to a monitoring
+vendor. It groups errors and records request context and cause chains and, when
+enabled, breadcrumbs plus local and instance variables captured before Ruby
+unwinds the stack.
+
+== What it records
+
+* Rails and Ruby runtime health on the error record, refreshed on every captured
+  occurrence: Active Record pool, Puma, background jobs, GC, memory, threads,
+  file descriptors and system pressure
+* Built-in storm protection that progressively sheds expensive context and I/O
+  during error floods while retaining useful exemplars and exact occurrence
+  counts
+* Copy as RSpec, curl or LLM prompt; swallowed-exception detection; LLM
+  observability without prompt capture; OpenTelemetry span export
+* Workflow, notifications (Slack, Email, Discord, PagerDuty, webhooks) and
+  two-way issue sync with GitHub, GitLab, Codeberg and Linear
+* Rails-specific operational views: jobs, database, cache, Action Cable, Active
+  Storage, Rack::Attack and deprecations
+
+== Running it
+
+Run RED with your application's database or an isolated error database, on
+PostgreSQL, MySQL/Trilogy or SQLite. The dashboard is translated into 11
+languages (French native-reviewed; the rest machine-translated and awaiting
+native review). A
+self-hosted Sentry alternative that keeps error data in your own database. The
+gem is MIT and free forever.
+
+Supports Rails 7.0-8.1 and Ruby 3.2-4.0. Beta: APIs may change before 1.0.
+
+Live demo: https://rails-error-dashboard.anjan.dev
+
+Documentation: https://AnjanJ.github.io/rails_error_dashboard
+  DESC
   spec.license     = "MIT"
   spec.required_ruby_version = ">= 3.2.0"
 
@@ -79,7 +120,7 @@ Gem::Specification.new do |spec|
   # browser (~> 6.0)    — richer platform detection (falls back to regex)
   # chartkick (~> 5.0)  — chart helpers (falls back to CDN-only JS)
   # httparty (>= 0.24)  — Discord/PagerDuty/webhook notifications (falls back to Net::HTTP)
-  # turbo-rails (~> 2.0) — real-time Turbo Stream updates (falls back to page refresh)
+  # turbo-rails (~> 2.0) — real-time Turbo Stream updates (without it the dashboard does not auto-refresh)
 
   # concurrent-ruby powers the storm-protection primitives (AtomicReference,
   # AtomicFixnum, Map) — a real runtime dependency, not incidental.
@@ -121,7 +162,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "shoulda-matchers", "~> 6.0"
   spec.add_development_dependency "webmock", "~> 3.0"
   spec.add_development_dependency "vcr", "~> 6.0"
-  spec.add_development_dependency "simplecov", "~> 0.22"
+  spec.add_development_dependency "simplecov", "~> 1.1"
   # Note: sqlite3 version is specified in Gemfile based on Rails version
   # Rails 7.0 requires ~> 1.4, Rails 8.0 requires >= 2.1
   spec.add_development_dependency "appraisal", "~> 2.5"

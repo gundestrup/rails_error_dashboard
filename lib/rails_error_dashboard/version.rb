@@ -1,3 +1,3 @@
 module RailsErrorDashboard
-  VERSION = "0.8.3"
+  VERSION = "0.14.3"
 end

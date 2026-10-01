@@ -500,12 +500,45 @@ RSpec.describe RailsErrorDashboard::Configuration do
 
       expect { config.validate! }.not_to raise_error
     end
+
+    # rack-attack IS in the dev bundle now, so that specs can drive the real
+    # middleware (issue #170 shipped two bugs that doubles could not catch).
+    # ::Rack::Attack is therefore defined here and absence must be simulated,
+    # rather than relying on the gem happening to be missing.
+    context "when the rack-attack gem is not loaded" do
+      before do
+        allow(config).to receive(:rack_attack_defined?).and_return(false)
+      end
+
+      it "logs a warning without raising" do
+        config.enable_rack_attack_tracking = true
+
+        expect(Rails.logger).to receive(:warn).with(/rack-attack gem does not appear to be loaded/)
+
+        expect { config.validate! }.not_to raise_error
+      end
+
+      it "does not auto-disable tracking" do
+        config.enable_rack_attack_tracking = true
+        config.validate!
+
+        expect(config.enable_rack_attack_tracking).to be true
+      end
+
+      it "stays silent when tracking is disabled" do
+        config.enable_rack_attack_tracking = false
+
+        expect(Rails.logger).not_to receive(:warn).with(/rack-attack/)
+
+        config.validate!
+      end
+    end
   end
 
   describe "rack_attack tracking defaults" do
     it { expect(config.enable_rack_attack_tracking).to be false }
     it { expect(config.rack_attack_max_cache_size).to eq(1000) }
-    it { expect(config.rack_attack_flush_interval).to eq(60) }
+    it { expect(config.rack_attack_flush_interval).to eq(5) }
   end
 
   describe "instance variable capture defaults" do
@@ -612,6 +645,104 @@ RSpec.describe RailsErrorDashboard::Configuration do
       config.storm_open_threshold_per_second = 0 # would be invalid if protection were on
 
       expect { config.validate! }.not_to raise_error
+    end
+  end
+
+  describe "environment awareness" do
+    around do |example|
+      saved = ENV.to_h.slice("ERROR_DASHBOARD_ENVIRONMENT", "ERROR_DASHBOARD_NOTIFICATION_ENVIRONMENTS")
+      ENV.delete("ERROR_DASHBOARD_ENVIRONMENT")
+      ENV.delete("ERROR_DASHBOARD_NOTIFICATION_ENVIRONMENTS")
+      example.run
+    ensure
+      ENV.delete("ERROR_DASHBOARD_ENVIRONMENT")
+      ENV.delete("ERROR_DASHBOARD_NOTIFICATION_ENVIRONMENTS")
+      saved.each { |k, v| ENV[k] = v }
+    end
+
+    describe "environment" do
+      it "defaults to nil and resolves current_environment from Rails.env" do
+        expect(config.environment).to be_nil
+        expect(config.current_environment).to eq(Rails.env.to_s)
+      end
+
+      it "reads ERROR_DASHBOARD_ENVIRONMENT" do
+        ENV["ERROR_DASHBOARD_ENVIRONMENT"] = "uat"
+        fresh = described_class.new
+        expect(fresh.environment).to eq("uat")
+        expect(fresh.current_environment).to eq("uat")
+      end
+
+      it "prefers the explicit option over Rails.env" do
+        config.environment = "staging"
+        expect(config.current_environment).to eq("staging")
+      end
+
+      it "treats a whitespace-only option as unset when resolving" do
+        config.environment = nil
+        expect(config.current_environment).to eq(Rails.env.to_s)
+      end
+
+      it "raises on a blank environment" do
+        config.environment = "   "
+        expect { config.validate! }.to raise_error(
+          RailsErrorDashboard::ConfigurationError, /environment must not be blank/
+        )
+      end
+
+      it "raises on an environment longer than 64 characters" do
+        config.environment = "e" * 65
+        expect { config.validate! }.to raise_error(
+          RailsErrorDashboard::ConfigurationError, /environment must be 64 characters or fewer/
+        )
+      end
+
+      it "accepts any free-form name up to 64 characters" do
+        config.environment = "preprod-eu-west-2"
+        expect { config.validate! }.not_to raise_error
+      end
+    end
+
+    describe "notification_environments" do
+      it "defaults to nil (notify for every environment)" do
+        expect(config.notification_environments).to be_nil
+      end
+
+      it "reads ERROR_DASHBOARD_NOTIFICATION_ENVIRONMENTS as a comma-separated list, stripping whitespace" do
+        ENV["ERROR_DASHBOARD_NOTIFICATION_ENVIRONMENTS"] = " production, uat ,,"
+        expect(described_class.new.notification_environments).to eq(%w[production uat])
+      end
+
+      it "treats an empty ENV value as nil" do
+        ENV["ERROR_DASHBOARD_NOTIFICATION_ENVIRONMENTS"] = " , "
+        expect(described_class.new.notification_environments).to be_nil
+      end
+
+      it "accepts a non-empty array of names" do
+        config.notification_environments = %w[production uat]
+        expect { config.validate! }.not_to raise_error
+      end
+
+      it "raises when it is not an array" do
+        config.notification_environments = "production"
+        expect { config.validate! }.to raise_error(
+          RailsErrorDashboard::ConfigurationError, /notification_environments must be nil or a non-empty Array/
+        )
+      end
+
+      it "raises when it is an empty array" do
+        config.notification_environments = []
+        expect { config.validate! }.to raise_error(
+          RailsErrorDashboard::ConfigurationError, /notification_environments must be nil or a non-empty Array/
+        )
+      end
+
+      it "raises when it contains a blank entry" do
+        config.notification_environments = [ "production", " " ]
+        expect { config.validate! }.to raise_error(
+          RailsErrorDashboard::ConfigurationError, /notification_environments must be nil or a non-empty Array/
+        )
+      end
     end
   end
 end

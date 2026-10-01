@@ -40,6 +40,50 @@ RSpec.describe RailsErrorDashboard::AsyncErrorLoggingJob, type: :job do
       expect(error_log.backtrace).to include("app/controllers/test_controller.rb:10:in `index'")
     end
 
+    context "with exception classes whose constructors do not take a message" do
+      it "keeps ActiveRecord::RecordInvalid (constructor wants a record) with its class and message" do
+        data = { class_name: "ActiveRecord::RecordInvalid", message: "Validation failed: Name can't be blank",
+                 backtrace: [ "app/models/user.rb:10" ] }
+
+        expect { described_class.new.perform(data, context) }.to change(RailsErrorDashboard::ErrorLog, :count).by(1)
+        log = RailsErrorDashboard::ErrorLog.last
+        expect(log.error_type).to eq("ActiveRecord::RecordInvalid")
+        expect(log.message).to eq("Validation failed: Name can't be blank")
+      end
+
+      it "keeps a custom exception with a required keyword argument" do
+        stub_const("KeywordError", Class.new(StandardError) do
+          def initialize(message, code:)
+            @code = code
+            super(message)
+          end
+        end)
+        data = { class_name: "KeywordError", message: "failed with code", backtrace: [] }
+
+        expect { described_class.new.perform(data, context) }.to change(RailsErrorDashboard::ErrorLog, :count).by(1)
+        expect(RailsErrorDashboard::ErrorLog.last.error_type).to eq("KeywordError")
+      end
+
+      it "falls back to the constructor when the subclass builds its message from constructor state" do
+        stub_const("StatefulMessageError", Class.new(StandardError) do
+          def initialize(detail)
+            @detail = detail
+            super("stateful: #{detail}")
+          end
+
+          def message
+            "stateful: #{@detail.upcase}"
+          end
+        end)
+        data = { class_name: "StatefulMessageError", message: "boom", backtrace: [] }
+
+        expect { described_class.new.perform(data, context) }.to change(RailsErrorDashboard::ErrorLog, :count).by(1)
+        log = RailsErrorDashboard::ErrorLog.last
+        expect(log.error_type).to eq("StatefulMessageError")
+        expect(log.message).to eq("stateful: BOOM")
+      end
+    end
+
     it "preserves context data" do
       described_class.new.perform(exception_data, context)
       error_log = RailsErrorDashboard::ErrorLog.last
@@ -70,13 +114,19 @@ RSpec.describe RailsErrorDashboard::AsyncErrorLoggingJob, type: :job do
     end
 
     context "when exception class doesn't exist" do
-      it "falls back to StandardError" do
+      # The reconstructed OBJECT is still a StandardError -- allocating a class
+      # that does not exist is impossible -- but the stored error_type keeps
+      # the name that was reported. A frontend or mobile client reporting
+      # "FrontendWidgetFailure" is the normal case for this path, and renaming
+      # every one of them StandardError collapsed distinct client errors into
+      # a single group.
+      it "keeps the reported type rather than the fallback class" do
         data = exception_data.merge(class_name: "NonExistentError")
 
         described_class.new.perform(data, context)
         error_log = RailsErrorDashboard::ErrorLog.last
 
-        expect(error_log.error_type).to eq("StandardError")
+        expect(error_log.error_type).to eq("NonExistentError")
       end
 
       it "still logs the original message" do
@@ -102,7 +152,9 @@ RSpec.describe RailsErrorDashboard::AsyncErrorLoggingJob, type: :job do
       end
     end
 
-    context "when job execution fails" do
+    context "when the payload cannot be processed" do
+      # A bad payload fails identically on every attempt, so retrying just
+      # replays it three times before discarding. Swallow and log.
       it "logs the error and doesn't raise" do
         # Mock the instance method, not the class method
         allow_any_instance_of(RailsErrorDashboard::Commands::LogError).to receive(:call).and_raise("Job error")
@@ -113,6 +165,52 @@ RSpec.describe RailsErrorDashboard::AsyncErrorLoggingJob, type: :job do
         expect {
           described_class.new.perform(exception_data, context)
         }.not_to raise_error
+      end
+    end
+
+    context "when the error store is unreachable" do
+      # The opposite contract: nothing was written, so the job did NOT deliver
+      # this capture. Acknowledging it discards the payload for good. Fail, so
+      # retry_on schedules another attempt.
+      before do
+        allow(RailsErrorDashboard::ErrorLog).to receive(:transaction)
+          .and_raise(ActiveRecord::ConnectionNotEstablished, "db down")
+      end
+
+      # Two layers, asserted separately on purpose: #perform is where the
+      # failure is raised, and perform_now is where retry_on catches it and
+      # schedules another attempt.
+      it "raises out of #perform rather than reporting a delivery it never made" do
+        expect {
+          described_class.new.perform(exception_data, context)
+        }.to raise_error(ActiveRecord::ConnectionNotEstablished)
+      end
+
+      it "schedules a retry rather than acknowledging the capture" do
+        expect {
+          described_class.perform_now(exception_data, context)
+        }.to change { described_class.queue_adapter.enqueued_jobs.count { |j| j[:job] == described_class } }.by(1)
+      end
+
+      it "writes no error log" do
+        expect {
+          begin
+            described_class.new.perform(exception_data, context)
+          rescue ActiveRecord::ConnectionNotEstablished
+            nil
+          end
+        }.not_to change(RailsErrorDashboard::ErrorLog, :count)
+      end
+
+      it "says why it is failing rather than dropping the capture silently" do
+        expect(Rails.logger).to receive(:error).with(/error storage unavailable/).at_least(:once)
+        allow(Rails.logger).to receive(:error)
+
+        begin
+          described_class.new.perform(exception_data, context)
+        rescue ActiveRecord::ConnectionNotEstablished
+          nil
+        end
       end
     end
   end

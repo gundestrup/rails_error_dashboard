@@ -51,8 +51,22 @@ Complete reference of all 60+ configuration options with defaults, types, and de
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `application_name` | String | Auto-detected | Application identifier (ENV: `APPLICATION_NAME`) |
+| `environment` | String | `Rails.env` | Environment errors are attributed to — `production`, `staging`, `uat`, any name (ENV: `ERROR_DASHBOARD_ENVIRONMENT`) |
 | `database` | Symbol/String | `nil` | Database connection name (nil = primary database) |
 | `use_separate_database` | Boolean | `false` | Use separate database for errors (ENV: `USE_SEPARATE_ERROR_DB`) |
+
+### Dashboard UI
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `accent_color` | Symbol | `:crimson` | Dashboard accent colour — `:crimson`, `:ruby`, `:ember`, `:violet` |
+| `dashboard_locale` | String | `"en"` | Locale the dashboard renders in, independent of the host app's locale. Ships `en`, `de`, `es`, `fr`, `pt-BR`, `ja`, `ru`, `uk`, `pl`, `it`, `zh-CN` — `fr` is **community-reviewed by a native speaker**, and everything but English and French is **machine-translated and unreviewed by a native speaker**, falling back to English per missing key. Users can override it per-session with the language picker. Unknown or wrong-cased values fall back to `"en"`. See [Translations](TRANSLATIONS.md) |
+
+The dashboard sets its own locale for the duration of each request and restores
+the previous value afterwards, so it neither inherits the host app's locale nor
+leaks its own back into the host. This matters because Pagy stores its locale in
+a thread-local it never resets — without this, a dashboard request landing on a
+recycled Puma thread would render in whatever language the host app last used.
 
 ### Notifications - Slack
 
@@ -91,13 +105,31 @@ Complete reference of all 60+ configuration options with defaults, types, and de
 | `enable_webhook_notifications` | Boolean | `false` | Enable custom webhooks |
 | `webhook_urls` | Array | `[]` | Custom webhook URLs (ENV: `WEBHOOK_URLS`, comma-separated) |
 
+### Notifications - Environment Filter (v0.11.0)
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `notification_environments` | Array | `nil` (all) | Only notify for these environments; applies to every channel plus storm and baseline alerts (ENV: `ERROR_DASHBOARD_NOTIFICATION_ENVIRONMENTS`, comma-separated) |
+
+### Notifications - Throttling
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `notification_minimum_severity` | Symbol | `:low` | Skip notifications below this severity (`:low`, `:medium`, `:high`, `:critical`) |
+| `notification_cooldown_minutes` | Integer | `5` | Minimum gap between notifications for one error that keeps being reopened. Claimed in the database (`error_logs.last_notified_at`), so it holds across every worker and job process. `0` disables it. First occurrences and threshold milestones are never held back by it |
+| `notification_threshold_alerts` | Array | `[10, 50, 100, 500, 1000]` | Occurrence counts that send a milestone notification |
+| `notification_burst_limit` | Integer | `10` | Most notifications for **new** errors per window, **per process**. When it is exceeded, one summary message replaces the rest of the window. Every error is still recorded. `0` disables the cap |
+| `notification_burst_window_seconds` | Integer | `60` | Length of that window |
+
+The burst cap exists for the bad deploy that produces hundreds of *distinct* new errors: each is a first occurrence, so the per-error cooldown never applies to it. The cap is per process, so the worst case is `notification_burst_limit` × the number of processes per window. The summary goes to Slack, Discord and custom webhooks (event `new_error_notifications_suppressed`). A deployment with only email or PagerDuty enabled has no channel for it: the cap still applies and the summary is written to the Rails log at `warn`. With no notification channel enabled at all, the cap does nothing.
+
 ### Core Features
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `enable_middleware` | Boolean | `true` | Enable error catching middleware |
 | `enable_error_subscriber` | Boolean | `true` | Enable Rails.error subscriber |
-| `retention_days` | Integer | `90` | Days to keep errors before auto-deletion |
+| `retention_days` | Integer | `90` | Delete an error once it has **not been seen** for this many days (by `last_seen_at`, not by when it first occurred, so an error that is still happening is never deleted). Diagnostic dumps and swallowed-exception records older than this are pruned too |
 
 ### Error Classification
 
@@ -139,7 +171,7 @@ Complete reference of all 60+ configuration options with defaults, types, and de
 | `enable_co_occurring_errors` | Boolean | `false` | Detect errors happening together |
 | `enable_error_cascades` | Boolean | `false` | Detect parent→child error relationships |
 | `enable_error_correlation` | Boolean | `false` | Version/user/time correlation analysis |
-| `enable_platform_comparison` | Boolean | `false` | iOS vs Android vs Web health comparison |
+| `enable_platform_comparison` | Boolean | `false` | iOS vs Android vs API health comparison |
 | `enable_occurrence_patterns` | Boolean | `false` | Cyclical and burst pattern detection |
 
 ### Advanced Analytics - Baseline Monitoring
@@ -177,6 +209,8 @@ Complete reference of all 60+ configuration options with defaults, types, and de
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `enable_system_health` | Boolean | `false` | Capture GC, memory, threads, connection pool, RubyVM cache, YJIT stats at error time |
+| `system_health_queue_stats` | Boolean | `true` | Include job-queue depth counts (Sidekiq/Solid Queue/GoodJob) in the snapshot. These are queries against the queue store, not in-process reads |
+| `system_health_queue_stats_cache_seconds` | Integer | `10` | Reuse the queue counts for this long per process, so an error burst runs them once per interval. `0` runs them on every error |
 
 ### Local Variable Capture (v0.4.0)
 
@@ -189,6 +223,8 @@ Complete reference of all 60+ configuration options with defaults, types, and de
 | `local_variable_max_array_items` | Integer | `10` | Maximum array items to serialize |
 | `local_variable_max_hash_items` | Integer | `20` | Maximum hash entries to serialize |
 | `local_variable_filter_patterns` | Array | `[]` | Additional sensitive variable name patterns to filter (beyond Rails `filter_parameters`) |
+| `local_variable_inspect_allowlist` | Array | `[]` | Class names whose `#inspect` may run. Empty by default: an unknown object gets a safe structural summary instead, because `#inspect` is arbitrary application code on the failure path. **Adding a type here opts it in to unbounded execution** — there is no safe way to interrupt arbitrary Ruby mid-call. Structs are serialized member-wise and need no entry. |
+| `local_variable_inspect_budget_ms` | Integer | `5` | Wall-clock threshold for an allowlisted `#inspect`. Output-selection only: it decides whether the result is *stored*, after the call has already completed. It does not bound execution. |
 
 ### Instance Variable Capture (v0.4.0)
 
@@ -220,7 +256,7 @@ Complete reference of all 60+ configuration options with defaults, types, and de
 |--------|------|---------|-------------|
 | `enable_rack_attack_tracking` | Boolean | `false` | Record Rack::Attack throttle/blocklist/track events to their own table |
 | `rack_attack_max_cache_size` | Integer | `1000` | Max buffered event keys per thread before LRU eviction |
-| `rack_attack_flush_interval` | Integer | `60` | Seconds between background flushes of buffered events |
+| `rack_attack_flush_interval` | Integer | `5` | Maximum age of buffered events before they are written to the database |
 
 ### ActionCable Connection Monitoring (v0.5.0)
 
@@ -283,12 +319,16 @@ config.issue_tracker_token = ENV["RED_BOT_TOKEN"]
 All environment variables that can be used instead of or alongside configuration:
 
 ```bash
-# Authentication
-ERROR_DASHBOARD_USER=admin
-ERROR_DASHBOARD_PASSWORD=secure_password
+# Authentication. Not needed in development and test. Everywhere else,
+# set both (see Dashboard Credentials). Generate the password with:
+#   openssl rand -base64 32
+# ERROR_DASHBOARD_USER=admin
+# ERROR_DASHBOARD_PASSWORD=
 
 # Multi-App
 APPLICATION_NAME=my-api
+ERROR_DASHBOARD_ENVIRONMENT=staging                 # Defaults to Rails.env
+ERROR_DASHBOARD_NOTIFICATION_ENVIRONMENTS=production  # Comma-separated; unset = notify everywhere
 
 # Database
 USE_SEPARATE_ERROR_DB=true  # "true" or "false"
@@ -371,9 +411,8 @@ Create an initializer at `config/initializers/rails_error_dashboard.rb`:
 
 ```ruby
 RailsErrorDashboard.configure do |config|
-  # Dashboard authentication (always required)
-  config.dashboard_username = "admin"
-  config.dashboard_password = ENV.fetch("ERROR_DASHBOARD_PASSWORD", "changeme")
+  # Dashboard credentials come from the ERROR_DASHBOARD_USER and
+  # ERROR_DASHBOARD_PASSWORD environment variables. Don't set them here.
 
   # Data retention (days)
   config.retention_days = 90
@@ -386,6 +425,85 @@ RailsErrorDashboard.configure do |config|
   config.enable_error_subscriber = true
 end
 ```
+
+### Dashboard Credentials
+
+Unless you configure `authenticate_with` (see [Custom Authentication](#custom-authentication)), the dashboard is protected by HTTP Basic Auth. The gem reads the credentials from two environment variables itself, so you don't need to set them in the initializer:
+
+| Variable | Default |
+|----------|---------|
+| `ERROR_DASHBOARD_USER` | `gandalf` |
+| `ERROR_DASHBOARD_PASSWORD` | `youshallnotpass` |
+
+**In development and test**, the defaults work. There is nothing to set.
+
+**In every other environment** (`production`, `staging`, `uat`, or any other name), the defaults are refused, because they are published. Set both variables before you deploy:
+
+```bash
+# Generate a strong password
+openssl rand -base64 32
+```
+
+Put the values wherever your platform keeps secrets or environment variables: Kamal secrets, Heroku config vars, Fly.io secrets, Render environment variables, or the `environment:` section of a Compose file. Don't commit them.
+
+If you set only `ERROR_DASHBOARD_PASSWORD`, the username stays `gandalf`. That works, but set both. If you set only `ERROR_DASHBOARD_USER`, the password stays the published default and the app refuses to boot.
+
+#### What is checked at boot
+
+Outside development and test, the app refuses to boot and raises `RailsErrorDashboard::ConfigurationError` when either of these is true:
+
+- the username or password is blank, including whitespace only;
+- the password is the published default (`youshallnotpass`) and did not come from `ERROR_DASHBOARD_PASSWORD`.
+
+The message says which one it was. The login applies the same rule on every request, so these credentials are refused even when the boot check is skipped.
+
+The check runs every time the app boots in that environment, which includes `bin/rails db:migrate`, `bin/rails console` and `bin/rails assets:precompile`. So the two variables must also be present wherever those commands run: a release phase, a migration job, a one-off console.
+
+Two exceptions:
+
+- **Docker asset builds.** A build step has no secrets. When `SECRET_KEY_BASE_DUMMY=1` is set, the check is skipped. The Dockerfile that Rails 7.1+ generates already runs `SECRET_KEY_BASE_DUMMY=1 ./bin/rails assets:precompile`. If yours precompiles without it, add it. Set it on that command only, never in the runtime environment: while it is set, RED skips its error subscriber and captures no errors at all. (It wouldn't reopen the default credentials, because the login still refuses them.)
+- **A deliberately public dashboard.** Setting `ERROR_DASHBOARD_PASSWORD=youshallnotpass` explicitly counts as a choice, and is allowed. That is how the public demo runs. Never do it for an app with real data.
+
+#### Patterns to avoid
+
+| In the initializer | What goes wrong |
+|--------------------|-----------------|
+| `config.dashboard_password = ENV.fetch("ERROR_DASHBOARD_PASSWORD", "changeme")` | If the variable is missing, the app boots with `changeme`. The boot check only knows the gem's own default, so it can't catch this. |
+| `config.dashboard_password = "s3cret"` | Hardcoded credentials end up in source control. |
+| `config.dashboard_username = ENV["ERROR_DASHBOARD_USER"]` | Where the variable is unset, the value is `nil`. In development every login is then denied; elsewhere the app refuses to boot. |
+| `config.dashboard_password = ENV.fetch("ERROR_DASHBOARD_PASSWORD")` | Raises `KeyError` wherever the variable is unset, including development and CI. |
+| `config.username = ...` or `config.password = ...` | These settings don't exist (`NoMethodError`). The names are `dashboard_username` and `dashboard_password`. |
+
+`config.authenticate_with = false` does not turn authentication off. Any falsy value, including `Rails.env.production? && -> { ... }` outside production, falls back to HTTP Basic Auth.
+
+#### Using Rails credentials instead
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  # Development and test keep the built-in defaults.
+  unless Rails.env.development? || Rails.env.test?
+    config.dashboard_username = Rails.application.credentials.dig(:error_dashboard, :username)
+    config.dashboard_password = Rails.application.credentials.dig(:error_dashboard, :password)
+  end
+end
+```
+
+If an entry is missing, its value is `nil` and the app refuses to boot, saying the credentials are blank.
+
+#### Checking your setup
+
+`bin/rails error_dashboard:verify` reports whether the app is using custom, default or blank credentials, using the same rule as the boot check.
+
+#### Upgrading to 0.14.2
+
+0.14.2 closed several ways around the boot check ([GHSA-qh4g-qc9x-9f83](https://github.com/AnjanJ/rails_error_dashboard/security/advisories/GHSA-qh4g-qc9x-9f83)). An app that relied on one of them now refuses to boot outside development and test. The common causes are:
+
+- only `ERROR_DASHBOARD_USER` was set;
+- the initializer hardcoded the default password;
+- a variable was passed through empty, for example by a Compose file;
+- `authenticate_with` evaluated to `false`.
+
+To fix it, set both variables to real values and make sure the initializer doesn't overwrite them, or configure an `authenticate_with` lambda.
 
 ### Custom Authentication
 
@@ -425,7 +543,7 @@ end
 - **Falsy return** (including `nil`) → 403 Forbidden
 - **Lambda raises** → rescued, logged, 403 (fail closed)
 - **Lambda calls `redirect_to`** → redirect honored (e.g. to your login page)
-- **`authenticate_with = nil`** (default) → falls back to HTTP Basic Auth
+- **`authenticate_with` is `nil`** (the default) **or `false`** → HTTP Basic Auth is used (see [Dashboard Credentials](#dashboard-credentials))
 
 ---
 
@@ -616,7 +734,7 @@ See [Error Correlation Guide](../features/ERROR_CORRELATION.md) for details.
 
 ### Platform Comparison
 
-Compare iOS vs Android vs Web health metrics and platform-specific error rates.
+Compare iOS vs Android vs API health metrics and platform-specific error rates (a desktop browser request is classed as API; `Web` only appears when you report it manually).
 
 ```ruby
 RailsErrorDashboard.configure do |config|
@@ -851,7 +969,7 @@ end
 
 ## Local Variable Capture (v0.4.0)
 
-Capture local variables at the exact moment an exception is raised via `TracePoint(:raise)`. The most valuable debugging context possible.
+Capture local variables when an exception is raised via `TracePoint(:raise)`. The most valuable debugging context possible. The snapshot is one level deep: strings, arrays and hashes are copied at raise time, while nested containers and other objects are retained by reference and show their state at serialization time.
 
 ```ruby
 RailsErrorDashboard.configure do |config|
@@ -929,16 +1047,61 @@ Trigger via dashboard button or `rails error_dashboard:diagnostic_dump NOTE="dep
 
 ## Rack Attack Event Tracking (v0.4.0)
 
-Track Rack::Attack throttle, blocklist, and track events as breadcrumbs. Requires breadcrumbs to be enabled.
+Record Rack::Attack throttle, blocklist, and track events to their own table, aggregated hourly. Requires the `rack-attack` gem to be installed and configured in your app. Breadcrumbs are **not** required.
 
 ```ruby
 RailsErrorDashboard.configure do |config|
-  config.enable_breadcrumbs = true              # Required dependency
   config.enable_rack_attack_tracking = true
+  config.rack_attack_max_cache_size = 1000      # Buffered keys per thread (LRU)
+  config.rack_attack_flush_interval = 5         # Max age of buffered events before a write
 end
 ```
 
-Auto-disabled with warning if breadcrumbs are not enabled. Dashboard page at `/errors/rack_attack_summary`.
+Buffered events are written out at the end of the request or job that fills the
+buffer once `rack_attack_flush_interval` has elapsed, and again when the process
+exits. The interval is therefore an upper bound on how stale the Rate Limits page
+can be, not a delay you have to wait out — a rule that matches once still appears.
+Raising it reduces write volume under sustained rate-limiting; lowering it makes
+the page more immediate.
+
+If `rack-attack` is not loaded, a startup warning is logged and no events are recorded. Enabling breadcrumbs as well adds the event to the activity trail on error detail pages. Dashboard page at `/errors/rack_attack_summary`.
+
+### Measuring AI crawler traffic (v0.10.0)
+
+Events record the client's user agent, and known AI agents are named on the dashboard — `GPTBot`, `ChatGPT-User`, `OAI-SearchBot`, `ClaudeBot`, `Claude-User`, `Claude Code`, `PerplexityBot`, `GitHub Copilot`, `Bytespider`, `CCBot` and others, alongside ordinary crawlers such as Googlebot so the two can be told apart. The page shows an **AI Agent Requests** total and a **Top Agent** column per rule.
+
+`Rack::Attack.track` rules are the way to feed it. They count matching requests without blocking or throttling anything:
+
+```ruby
+# Who is reading the site, regardless of the format they ask for
+Rack::Attack.track("ai agents") do |req|
+  ua = req.user_agent.to_s
+  req.ip if ua.match?(/GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|Claude-User|Claude-Code|PerplexityBot|GitHubCopilot/i)
+end
+
+# Who specifically wants Markdown
+Rack::Attack.track("requests accepting markdown") do |req|
+  req.ip if req.get? && req.env["HTTP_ACCEPT"].to_s.include?("text/markdown")
+end
+```
+
+Run together, the two answer different questions — how many agents read the site, versus how many prefer Markdown. A rule keyed only on `Accept: text/markdown` will undercount badly: agents differ enormously in whether they use content negotiation at all, so a low Markdown figure means "this agent doesn't ask for it", not "no agent wants it".
+
+`path` is recorded per event, so `.md` routes and `/llms.txt` hits appear in the per-rule breakdown without extra configuration.
+
+> **Don't add `limit:`/`period:` to a `track` rule.** Rack::Attack routes a counted track through `Throttle`, which only emits a notification once `count > limit` — so the rule stays silent *below* its limit, the opposite of what adding a limit suggests. Leave track rules uncounted.
+
+### Buffer overflow
+
+Events are buffered per thread, keyed on rule, match type, discriminator, path and method, and capped by `rack_attack_max_cache_size`. Past the cap the oldest entry is evicted, and its count is added to an overflow total rather than discarded — the dashboard reports it instead of silently showing a smaller number.
+
+Tracking many clients (a crawler fleet on rotating IPs generates a distinct key per address) makes eviction more likely. Raise the cap if the page reports overflow:
+
+```ruby
+config.rack_attack_max_cache_size = 5000
+```
+
+Buffered counts are flushed on the interval above, and also at process exit, so a deploy does not discard whatever a thread was still holding.
 
 ---
 
@@ -953,7 +1116,7 @@ RailsErrorDashboard.configure do |config|
 end
 ```
 
-Writes crash data to JSON on disk (database may be unavailable during shutdown). Imported automatically on next boot. A self-hosted only feature — impossible for SaaS tools.
+Writes crash data to JSON on disk (database may be unavailable during shutdown). Imported automatically on next boot. Honeybadger, Bugsnag and AppSignal have `at_exit` reporters too; RED's difference is that the crash lands in your own database rather than a SaaS.
 
 ---
 
@@ -1439,7 +1602,8 @@ RailsErrorDashboard.configure do |config|
   # ============================================================================
   # AUTHENTICATION (Always Required)
   # ============================================================================
-  # Authentication is always required in all environments
+  # The defaults work in development and test only. Everywhere else, set
+  # ERROR_DASHBOARD_USER and ERROR_DASHBOARD_PASSWORD (see Dashboard Credentials).
   config.dashboard_username = ENV.fetch("ERROR_DASHBOARD_USER", "gandalf")
   config.dashboard_password = ENV.fetch("ERROR_DASHBOARD_PASSWORD", "youshallnotpass")
 
@@ -1946,11 +2110,10 @@ See [Database Optimization Guide](DATABASE_OPTIMIZATION.md) for more.
    RailsErrorDashboard.configuration.dashboard_password
    ```
 
-2. **Verify HTTP Basic Auth is configured**
-   ```ruby
-   config.dashboard_username = "admin"
-   config.dashboard_password = "secure_password"
-   ```
+2. **Check neither value is blank**
+   A blank or `nil` username or password denies every login, in development too. The usual cause is
+   `config.dashboard_username = ENV["ERROR_DASHBOARD_USER"]` in the initializer with the variable unset.
+   See [Dashboard Credentials](#dashboard-credentials).
 
 3. **Test credentials**
    ```bash

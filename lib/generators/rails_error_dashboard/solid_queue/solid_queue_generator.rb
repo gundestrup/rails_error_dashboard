@@ -2,34 +2,54 @@
 
 module RailsErrorDashboard
   module Generators
-    # Generator for Solid Queue configuration
+    # Deprecated: checks the app's Solid Queue config for RED. Writes nothing.
     # Usage: rails generate rails_error_dashboard:solid_queue
+    #
+    # It used to write a config/queue.yml with workers and no dispatchers.
+    # Solid Queue only falls back to its default dispatcher when a section has
+    # neither, so that file ran no dispatcher: no delayed job ran, the host
+    # app's own included. A Solid Queue config with a "*" worker and a
+    # dispatcher already processes RED's queues, so this generator now only
+    # checks the file the app has. It never writes Solid Queue's files or
+    # points at Solid Queue's installer (decision 0001). To be removed in a
+    # later minor release.
     class SolidQueueGenerator < Rails::Generators::Base
-      source_root File.expand_path("templates", __dir__)
+      desc "Deprecated: checks config/queue.yml for problems that stop RED's jobs. Writes nothing."
 
-      desc "Creates Solid Queue configuration for RailsErrorDashboard"
+      def check_queue_config
+        say "\nrails_error_dashboard:solid_queue is deprecated and no longer writes config/queue.yml.", :yellow
+        say "A Solid Queue config with a \"*\" worker and a dispatcher already processes RED's queues.\n\n"
 
-      def create_queue_config
-        template "queue.yml", "config/queue.yml"
+        check = RailsErrorDashboard::Services::SolidQueueConfigCheck
+        path = check.config_path(destination_root)
+        relative = path.relative_path_from(Pathname(destination_root)).to_s
+
+        unless path.exist?
+          say "No #{relative}: Solid Queue runs its defaults (a \"*\" worker and a dispatcher), which process RED's queues.", :green
+          return
+        end
+
+        environments = check.app_environments(destination_root)
+        environments = [ Rails.env.to_s ] if environments.empty?
+        result = check.call(path, environments: environments)
+
+        if result[:skipped]
+          say "Could not check #{relative}: #{result[:skipped]}", :yellow
+        elsif result[:problems].any?
+          say "#{relative} has problems that stop jobs from running:", :red
+          result[:problems].each { |problem| say "  - #{problem}", :red }
+          say ""
+          check::FIX.each { |line| say line, :yellow }
+        else
+          say "#{relative} processes RED's queues (#{check.red_queue_names.join(', ')}) and runs a dispatcher.", :green
+        end
       end
 
       def show_instructions
-        say "\n" + "=" * 80, :green
-        say "Solid Queue configuration created!", :green
-        say "=" * 80, :green
-        say "\nNext steps:", :yellow
-        say "  1. Install Solid Queue gem (if not already):", :cyan
-        say "     bundle add solid_queue", :white
-        say "\n  2. Run Solid Queue migrations:", :cyan
-        say "     bin/rails solid_queue:install", :white
-        say "\n  3. Set ActiveJob adapter in config/application.rb:", :cyan
-        say "     config.active_job.queue_adapter = :solid_queue", :white
-        say "\n  4. Start Solid Queue worker:", :cyan
-        say "     bin/jobs", :white
-        say "\n  5. Enable async logging in config/initializers/rails_error_dashboard.rb:", :cyan
-        say "     config.async_logging = true", :white
-        say "     config.async_adapter = :solid_queue", :white
-        say "\n" + "=" * 80, :green
+        say "\nTo run RED's jobs with Solid Queue:", :cyan
+        say "  config.active_job.queue_adapter = :solid_queue   (config/environments/production.rb)", :white
+        say "  Run a worker: bin/jobs, or SOLID_QUEUE_IN_PUMA=1 with Puma's solid_queue plugin", :white
+        say "  Check anytime: bin/rails error_dashboard:verify\n", :white
       end
     end
   end

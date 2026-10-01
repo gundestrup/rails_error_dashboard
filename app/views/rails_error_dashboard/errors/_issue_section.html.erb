@@ -3,11 +3,13 @@
     <div class="card-header d-flex justify-content-between align-items-center">
       <h5 class="mb-0">
         <i class="bi bi-link-45deg me-2"></i>
-        Issue Tracker
+        <%= red_t("red.errors.issue_section.title") %>
       </h5>
-      <% if @error.external_issue_url.present? %>
-        <a href="<%= @error.external_issue_url %>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
-          <i class="bi bi-box-arrow-up-right me-1"></i> View Issue
+      <%# nil unless the stored value is plain http(s) — see safe_external_url. %>
+      <% issue_url = safe_external_url(@error.external_issue_url) %>
+      <% if issue_url %>
+        <a href="<%= issue_url %>" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-box-arrow-up-right me-1"></i> <%= red_t("red.errors.issue_section.view_issue") %>
         </a>
       <% end %>
     </div>
@@ -23,18 +25,29 @@
                    end %>
         <% issue = @platform_issue %>
 
+        <% unless issue_url %>
+          <%# Stored, but not plain http(s): shown as text, never as a link. %>
+          <div class="alert alert-warning py-2 px-3 mb-3" style="font-size: 0.85em;">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            <%= red_t("red.errors.issue_section.unsafe_link") %>
+            <code class="d-block text-break mt-1"><%= @error.external_issue_url.to_s.truncate(200) %></code>
+          </div>
+        <% end %>
+
         <!-- Issue badge + status -->
         <div class="d-flex align-items-center gap-2 mb-3">
           <span class="badge bg-success">
             <i class="bi <%= icon %> me-1"></i>
-            <%= provider&.capitalize || "Linked" %> #<%= @error.external_issue_number || "?" %>
+            <%# Provider names are brands: github -> "GitHub", not "Github". %>
+            <% issue_provider = provider.present? ? red_t("red.errors.providers.#{provider}", default: provider.to_s) : red_t("red.errors.issue_section.linked") %>
+            <%= red_t("red.errors.issue_section.issue_reference", provider: issue_provider, number: @error.external_issue_number || "?") %>
           </span>
           <% if issue %>
             <% state_color = issue[:state] == "open" ? "success" : "secondary" %>
             <% state_icon = issue[:state] == "open" ? "bi-circle-fill" : "bi-check-circle-fill" %>
             <span class="badge bg-<%= state_color %>">
               <i class="bi <%= state_icon %> me-1" style="font-size: 0.6em;"></i>
-              <%= issue[:state]&.capitalize %>
+              <%= red_t("red.errors.issue_section.states.#{issue[:state]}", default: issue[:state].to_s) %>
             </span>
           <% end %>
         </div>
@@ -43,38 +56,39 @@
           <div class="row">
             <!-- Assignees -->
             <div class="col-md-6 mb-2">
-              <small class="text-muted d-block mb-1">Assignees</small>
+              <small class="text-muted d-block mb-1"><%= red_t("red.errors.issue_section.assignees") %></small>
               <% if issue[:assignees].present? && issue[:assignees].any? %>
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                   <% issue[:assignees].each do |assignee| %>
                     <span class="d-inline-flex align-items-center gap-1 border rounded-pill px-2 py-1" style="font-size: 0.85em;">
-                      <% if assignee[:avatar_url].present? %>
-                        <img src="<%= assignee[:avatar_url] %>" width="18" height="18" class="rounded-circle">
+                      <% if (avatar = safe_external_url(assignee[:avatar_url])) %>
+                        <img src="<%= avatar %>" width="18" height="18" class="rounded-circle">
                       <% end %>
                       <%= assignee[:login] %>
                     </span>
                   <% end %>
                 </div>
               <% else %>
-                <span class="text-muted" style="font-size: 0.85em;">Unassigned</span>
+                <span class="text-muted" style="font-size: 0.85em;"><%= red_t("red.errors.issue_section.unassigned") %></span>
               <% end %>
             </div>
 
             <!-- Labels -->
             <div class="col-md-6 mb-2">
-              <small class="text-muted d-block mb-1">Labels</small>
+              <small class="text-muted d-block mb-1"><%= red_t("red.errors.issue_section.labels") %></small>
               <% if issue[:labels].present? && issue[:labels].any? %>
                 <div class="d-flex align-items-center gap-1 flex-wrap">
                   <% issue[:labels].each do |label| %>
-                    <% bg_color = label[:color].present? ? "##{label[:color]}" : "#6c757d" %>
-                    <% text_color = label[:color].present? && label[:color].scan(/../).map { |c| c.to_i(16) }.sum > 382 ? "#000" : "#fff" %>
+                    <%# Third-party value going into style=: validated, never interpolated raw. %>
+                    <% bg_color = safe_label_color(label[:color]) %>
+                    <% text_color = label_text_color(bg_color) %>
                     <span class="badge rounded-pill" style="background-color: <%= bg_color %>; color: <%= text_color %>; font-size: 0.78em;">
                       <%= label[:name] %>
                     </span>
                   <% end %>
                 </div>
               <% else %>
-                <span class="text-muted" style="font-size: 0.85em;">No labels</span>
+                <span class="text-muted" style="font-size: 0.85em;"><%= red_t("red.errors.issue_section.no_labels") %></span>
               <% end %>
             </div>
           </div>
@@ -84,26 +98,30 @@
         <!-- No linked issue — show create/link options -->
         <div class="row">
           <div class="col-md-6">
-            <h6 class="text-muted mb-2">Create New Issue</h6>
+            <h6 class="text-muted mb-2"><%= red_t("red.errors.issue_section.create_new") %></h6>
             <% provider = RailsErrorDashboard.configuration.effective_issue_tracker_provider %>
             <% if provider && RailsErrorDashboard.configuration.effective_issue_tracker_token %>
               <%= button_to create_issue_error_path(@error), method: :post, class: "btn btn-sm btn-primary" do %>
                 <i class="bi bi-plus-circle me-1"></i>
-                Create <%= provider.to_s.capitalize %> Issue
+                <%= red_t("red.errors.issue_section.create_issue", provider: red_t("red.errors.providers.#{provider}", default: provider.to_s)) %>
               <% end %>
             <% else %>
               <p class="text-muted small mb-0">
                 <i class="bi bi-info-circle"></i>
-                Configure <code>issue_tracker_token</code> and <code>git_repository_url</code> in your initializer to enable issue creation.
+                <%# The config option names are identifiers and stay English;
+                    only the sentence around them is translated. %>
+                <%= red_t("red.errors.issue_section.configure_html",
+                      token: tag.code("issue_tracker_token"),
+                      url: tag.code("git_repository_url")) %>
               </p>
             <% end %>
           </div>
           <div class="col-md-6">
-            <h6 class="text-muted mb-2">Link Existing Issue</h6>
+            <h6 class="text-muted mb-2"><%= red_t("red.errors.issue_section.link_existing") %></h6>
             <%= form_tag link_issue_error_path(@error), method: :post, class: "d-flex gap-2" do %>
               <%= text_field_tag :issue_url, nil, placeholder: "https://github.com/user/repo/issues/42", class: "form-control form-control-sm", required: true %>
               <button type="submit" class="btn btn-sm btn-outline-secondary text-nowrap">
-                <i class="bi bi-link"></i> Link
+                <i class="bi bi-link"></i> <%= red_t("red.errors.issue_section.link") %>
               </button>
             <% end %>
           </div>
@@ -112,10 +130,12 @@
     </div>
   </div>
 
-  <% if flash[:new_issue_url].present? %>
+  <%# The URL comes from the forge's API response; window.open would run a
+      javascript: target, so it gets the same http(s) check as the links. %>
+  <% if (new_issue_url = safe_external_url(flash[:new_issue_url])) %>
     <script<%= " nonce=\"#{red_csp_nonce}\"".html_safe if red_csp_nonce %>>
       (function() {
-        window.open('<%= j flash[:new_issue_url] %>', '_blank');
+        window.open(<%= js_safe_json(new_issue_url) %>, '_blank');
       })();
     </script>
   <% end %>

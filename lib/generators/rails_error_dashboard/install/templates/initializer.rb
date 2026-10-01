@@ -5,11 +5,35 @@ RailsErrorDashboard.configure do |config|
   # AUTHENTICATION (Always Required - Cannot Be Disabled)
   # ============================================================================
 
-  # Dashboard authentication credentials
-  # ⚠️ CHANGE THESE BEFORE PRODUCTION! ⚠️
-  # Authentication is ALWAYS enforced in ALL environments (production, development, test)
+  # Dashboard login (HTTP Basic Auth). Always enforced, in every environment.
+  # gandalf / youshallnotpass work in development and test only. Everywhere
+  # else, set ERROR_DASHBOARD_USER and ERROR_DASHBOARD_PASSWORD in the
+  # environment, or the app refuses to boot. Don't replace the fallback values
+  # below with a real password: it would end up in source control.
+  # https://github.com/AnjanJ/rails_error_dashboard/blob/main/docs/guides/CONFIGURATION.md#dashboard-credentials
   config.dashboard_username = ENV.fetch("ERROR_DASHBOARD_USER", "gandalf")
   config.dashboard_password = ENV.fetch("ERROR_DASHBOARD_PASSWORD", "youshallnotpass")
+
+  # Environment awareness (v0.11.0). Every error records the environment it
+  # came from, the index can filter by it, and staging can be kept out of
+  # your pager. Defaults to Rails.env; override when a deploy runs under
+  # RAILS_ENV=production but is really "staging", "uat", "preprod"... names
+  # are free-form, never an enum.
+  # config.environment = ENV.fetch("ERROR_DASHBOARD_ENVIRONMENT", "staging")
+  #
+  # Only notify (Slack, email, Discord, PagerDuty, webhooks, storm and
+  # baseline alerts) for these environments. nil = every environment.
+  # config.notification_environments = %w[production]
+  #
+  # Notification throttling. The per-error cooldown stops one error that keeps
+  # being reopened from paging repeatedly; it is held in the database, so it
+  # applies across every worker. The burst cap is for the deploy that throws
+  # hundreds of DIFFERENT new errors: after N new-error notifications in a
+  # window (per process) one summary message replaces the rest. Every error
+  # is still recorded.
+  # config.notification_cooldown_minutes = 5          # 0 = no cooldown
+  # config.notification_burst_limit = 10              # 0 = no cap
+  # config.notification_burst_window_seconds = 60
 
   # === Custom Authentication (optional) ===
   # Use your app's existing auth instead of HTTP Basic Auth.
@@ -50,7 +74,8 @@ RailsErrorDashboard.configure do |config|
   # User model for error associations
   config.user_model = "User"
 
-  # Error retention policy (days to keep errors before automatic deletion)
+  # Error retention policy: an error is deleted once it has not been seen for
+  # this many days (an error that is still occurring is never deleted)
   # Set to nil to keep errors forever (not recommended for production)
   # Run cleanup manually: rails error_dashboard:retention_cleanup
   # Or schedule the job: RailsErrorDashboard::RetentionCleanupJob.perform_later
@@ -138,9 +163,11 @@ RailsErrorDashboard.configure do |config|
 
 <% if @enable_async_logging -%>
   # Async Error Logging - ENABLED
-  # Errors are logged in background jobs — zero impact on request response time.
-  # Default adapter is :async (Rails built-in, no extra infrastructure needed).
-  # Swap to :sidekiq or :solid_queue when you have a background worker running.
+  # Errors are logged in background jobs, off the request path. The jobs run on
+  # your app's Active Job adapter (config.active_job.queue_adapter), so in
+  # production a worker must process the default and error_notifications queues
+  # (Rails 8: bin/jobs for Solid Queue). async_adapter below is only validated
+  # and shown on the Settings page; it does not choose the backend.
   config.async_logging = true
   config.async_adapter = :async  # Options: :async (built-in), :sidekiq, :solid_queue
   # To disable: Set config.async_logging = false
@@ -409,9 +436,10 @@ RailsErrorDashboard.configure do |config|
   # config.crash_capture_path = "/tmp/my_app_crashes"
 
 <% end -%>
-  # Repository settings (auto-detected from git remote, optional override)
-  # config.repository_url = ENV["REPOSITORY_URL"]  # e.g., "https://github.com/user/repo"
-  # config.repository_branch = ENV.fetch("REPOSITORY_BRANCH", "main")  # Default branch
+  # "View Source" links need config.git_repository_url (set under Enhanced
+  # metrics below); nothing is auto-detected from the git remote.
+  # Which ref the links point at:
+  # config.git_branch_strategy = :commit_sha  # :commit_sha (default), :current_branch, or :main
 
   # ============================================================================
   # INTERNAL LOGGING (Silent by Default)
@@ -423,7 +451,8 @@ RailsErrorDashboard.configure do |config|
   config.enable_internal_logging = false
 
   # Log level (default: :silent)
-  # Options: :debug, :info, :warn, :error, :silent
+  # Options: :debug, :info, :warn, :error, :fatal, :silent
+  # (RED has no fatal-level messages, so :fatal logs nothing, like :silent)
   config.log_level = :silent
 
   # Example: Enable verbose logging for debugging

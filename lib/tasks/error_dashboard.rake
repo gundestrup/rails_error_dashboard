@@ -52,6 +52,30 @@ namespace :error_dashboard do
       checks_failed += 1
     end
 
+    # 3b. MySQL only: named-zone conversion needs the server's time zone
+    # tables; without them groupdate (charts, baselines) raises.
+    begin
+      conn = RailsErrorDashboard::ErrorLogsRecord.connection
+      if conn.adapter_name.match?(/mysql|trilogy/i)
+        print "  MySQL time zone tables... "
+        zone = (Time.zone || ActiveSupport::TimeZone["UTC"]).tzinfo.name
+        converted = conn.select_value("SELECT CONVERT_TZ(NOW(), '+00:00', #{conn.quote(zone)})")
+        if converted.nil?
+          puts "MISSING"
+          puts "    CONVERT_TZ to '#{zone}' returned NULL: the server has no time zone tables,"
+          puts "    so the dashboard's time-bucketed charts and baselines will raise."
+          puts "    Fix (on the MySQL server): mysql_tzinfo_to_sql /usr/share/zoneinfo | mysql -u root mysql"
+          puts "    See docs/guides/DATABASE_OPTIONS.md (MySQL)."
+          warnings += 1
+        else
+          puts "OK (#{zone})"
+          checks_passed += 1
+        end
+      end
+    rescue => e
+      puts "SKIPPED (#{e.message.truncate(60)})"
+    end
+
     # 4. Tables check
     print "  Required tables... "
     required_tables = %w[
@@ -147,17 +171,51 @@ namespace :error_dashboard do
     if config.authenticate_with
       puts "OK (custom authentication)"
       checks_passed += 1
-    elsif config.dashboard_username == "gandalf" && config.dashboard_password == "youshallnotpass"
-      if Rails.env.production?
-        puts "WARNING - using default credentials in production!"
+    elsif (problem = config.credentials_problem)
+      # Same rule and environment allowlist as the boot check in validate!
+      label = problem == :blank ? "blank credentials" : "default credentials"
+      if config.refuse_default_credentials?
+        puts "WARNING - #{label} outside development and test!"
         checks_failed += 1
+      elsif problem == :blank
+        # The login denies everyone on a blank credential, in every environment.
+        puts "WARNING - #{label}: every login is denied"
+        warnings += 1
       else
-        puts "OK (default credentials - change before production)"
+        puts "OK (#{label} - set ERROR_DASHBOARD_USER and ERROR_DASHBOARD_PASSWORD before deploying)"
         warnings += 1
       end
+    elsif config.dashboard_password == RailsErrorDashboard::Configuration::DEFAULT_DASHBOARD_PASSWORD
+      puts "OK (the published default password, set explicitly by ERROR_DASHBOARD_PASSWORD)"
+      warnings += 1
     else
       puts "OK (custom credentials)"
       checks_passed += 1
+    end
+
+    # 9. Solid Queue config. A section with workers and no dispatchers runs no
+    # dispatcher, so no delayed job ever runs, the app's own included; the
+    # retired rails_error_dashboard:solid_queue generator wrote exactly that.
+    # Checked whenever Solid Queue is loaded, not only when it is the current
+    # adapter: Rails 8 sets it in production only, and verify usually runs locally.
+    queue_check = RailsErrorDashboard::Services::SolidQueueConfigCheck
+    queue_config = queue_check.config_path(Rails.root)
+    if defined?(SolidQueue) && queue_config.exist?
+      print "  Solid Queue config... "
+      environments = queue_check.app_environments(Rails.root).presence || [ Rails.env.to_s ]
+      result = queue_check.call(queue_config, environments: environments)
+      if result[:skipped]
+        puts "SKIPPED (#{result[:skipped]})"
+        warnings += 1
+      elsif result[:problems].any?
+        puts "FAILED"
+        result[:problems].each { |problem| puts "    - #{problem}" }
+        queue_check::FIX.each { |line| puts "    #{line}" }
+        checks_failed += 1
+      else
+        puts "OK"
+        checks_passed += 1
+      end
     end
 
     # Summary
@@ -424,7 +482,7 @@ namespace :error_dashboard do
 
     # Confirm before proceeding
     print "\nProceed with deletion? (y/N): "
-    confirmation = $stdin.gets.chomp.downcase
+    confirmation = $stdin.gets.to_s.chomp.downcase
 
     unless confirmation == "y" || confirmation == "yes"
       puts "\n✗ Cleanup cancelled"
@@ -434,7 +492,11 @@ namespace :error_dashboard do
 
     puts "\nDeleting errors..."
     start_time = Time.current
-    deleted = scope.delete_all
+    # Dependents first, in batches: occurrences, comments and cascade patterns
+    # hold foreign keys to the log, so a plain delete_all failed on them.
+    deleted = RailsErrorDashboard::RetentionCleanupJob.delete_with_dependents(scope)
+    # delete_all skips callbacks, and the stat cards are cached.
+    RailsErrorDashboard::Services::AnalyticsCacheManager.clear
     elapsed = (Time.current - start_time).round(2)
 
     puts "\n✓ Cleanup complete!"
@@ -468,7 +530,7 @@ namespace :error_dashboard do
       application_id: app.id,
       dump_data: dump.to_json,
       captured_at: Time.current,
-      note: ENV["NOTE"]
+      note: RailsErrorDashboard::Services::EncodingSanitizer.scrub(ENV["NOTE"])
     )
 
     puts "\n" + JSON.pretty_generate(dump)
@@ -478,7 +540,7 @@ namespace :error_dashboard do
     puts "\n" + "=" * 70 + "\n"
   end
 
-  desc "Run retention cleanup (delete errors older than retention_days)"
+  desc "Run retention cleanup (delete errors not seen for retention_days)"
   task retention_cleanup: :environment do
     config = RailsErrorDashboard.configuration
 
@@ -493,14 +555,15 @@ namespace :error_dashboard do
     end
 
     cutoff = config.retention_days.days.ago
-    count = RailsErrorDashboard::ErrorLog.where("occurred_at < ?", cutoff).count
+    # The job's own selection, so the number shown is the number deleted.
+    count = RailsErrorDashboard::RetentionCleanupJob.expired_scope(cutoff).count
 
     puts "\n  Retention policy: #{config.retention_days} days"
     puts "  Cutoff date: #{cutoff.strftime('%Y-%m-%d %H:%M:%S')}"
     puts "  Errors to delete: #{count}"
 
     if count.zero?
-      puts "\n  No errors older than #{config.retention_days} days"
+      puts "\n  No errors unseen for more than #{config.retention_days} days"
       puts "\n" + "=" * 80 + "\n"
       next
     end
@@ -526,6 +589,53 @@ namespace :error_dashboard do
     puts "\n" + "=" * 80 + "\n"
   end
 
+  desc "Repair rows stored with invalid UTF-8 or NUL bytes (run once after upgrading on SQLite/MySQL)"
+  task scrub_invalid_encoding: :environment do
+    puts "Scanning error logs and occurrences for invalid bytes..."
+    result = RailsErrorDashboard::Commands::ScrubInvalidEncoding.call
+
+    puts "  scanned:    #{result[:scanned]}"
+    puts "  repaired:   #{result[:repaired]}"
+    puts "  unreadable: #{result[:unreadable].size}"
+    result[:unreadable].each { |row| puts "    - #{row}" }
+  end
+
+  desc "Backfill resolved_at for errors resolved through the status workflow (run once after upgrading)"
+  task backfill_resolved_at: :environment do
+    result = RailsErrorDashboard::Commands::BackfillResolvedAt.call
+
+    puts "Backfilled resolved_at on #{result[:updated]} resolved error(s)."
+    puts "MTTR now includes them, so expect the figure to rise to its true value." if result[:updated].positive?
+  end
+
+  desc "Replace raw session IDs stored on occurrences with keyed digests (idempotent)"
+  task digest_session_ids: :environment do
+    filter = RailsErrorDashboard::Services::SensitiveDataFilter
+    prefix = filter::SESSION_DIGEST_PREFIX
+    scope = RailsErrorDashboard::ErrorOccurrence
+      .where.not(session_id: [ nil, "" ])
+      .where("session_id NOT LIKE ? OR LENGTH(session_id) <> 35", "#{prefix}%")
+
+    digested = 0
+    failed = 0
+    scope.in_batches(of: 1000) do |batch|
+      batch.pluck(:id, :session_id).each do |id, raw|
+        digest = filter.digest_session_id(raw)
+        next if digest == raw # already a digest that the SQL prefilter let through
+
+        if digest
+          RailsErrorDashboard::ErrorOccurrence.where(id: id).update_all(session_id: digest)
+          digested += 1
+        else
+          failed += 1
+        end
+      end
+    end
+
+    puts "Session IDs digested: #{digested}"
+    puts "Could not be digested (left unchanged): #{failed}" if failed.positive?
+  end
+
   desc "Send error digest email (PERIOD=daily|weekly, APP_ID=optional)"
   task send_digest: :environment do
     period = ENV.fetch("PERIOD", "daily")
@@ -545,7 +655,11 @@ namespace :error_dashboard do
     end
 
     puts "Sending #{period} error digest to #{recipients.join(', ')}..."
-    RailsErrorDashboard::ScheduledDigestJob.perform_later(period: period, application_id: app_id)
+    RailsErrorDashboard::ScheduledDigestJob.perform_later(
+      period: period,
+      application_id: app_id,
+      locale: RailsErrorDashboard::ApplicationJob.enqueue_locale
+    )
     puts "Digest job enqueued."
   end
 end

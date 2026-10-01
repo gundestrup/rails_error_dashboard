@@ -21,6 +21,18 @@ RSpec.describe RailsErrorDashboard::Queries::AnalyticsStats do
       )
     end
 
+    describe "application-scoped resolution rate" do
+      it "counts resolved errors from the same application only, so the rate stays within 0..100" do
+        target = create(:application, name: "Target scoped app")
+        other = create(:application, name: "Other scoped app")
+        create(:error_log, application: target, resolved: false, occurred_at: 1.day.ago)
+        create_list(:error_log, 3, application: other, resolved: true, status: "resolved", occurred_at: 1.day.ago)
+
+        expect(described_class.call(30, application_id: target.id)[:resolution_rate]).to eq(0)
+        expect(described_class.call(30, application_id: other.id)[:resolution_rate]).to eq(100.0)
+      end
+    end
+
     it "includes the number of days" do
       result = described_class.call(30)
 
@@ -328,6 +340,30 @@ RSpec.describe RailsErrorDashboard::Queries::AnalyticsStats do
         expect(result[:errors_by_platform]).to eq({})
         expect(result[:top_users]).to eq([])
       end
+    end
+  end
+
+  describe "errors_by_environment" do
+    it "counts errors per environment, labelling NULL as unknown" do
+      create(:error_log, occurred_at: 1.day.ago, environment: "production")
+      create(:error_log, occurred_at: 1.day.ago, environment: "production")
+      create(:error_log, occurred_at: 1.day.ago, environment: "staging")
+      create(:error_log, occurred_at: 1.day.ago, environment: nil) # captured before the column existed
+      Rails.cache.clear
+
+      by_env = described_class.call[:errors_by_environment]
+      expect(by_env["production"]).to eq(2)
+      expect(by_env["staging"]).to eq(1)
+      expect(by_env[:unknown]).to eq(1)
+      expect(by_env).not_to have_key(nil)
+    end
+
+    it "returns an empty hash when the column is not migrated yet" do
+      without = RailsErrorDashboard::ErrorLog.column_names - [ "environment" ]
+      allow(RailsErrorDashboard::ErrorLog).to receive(:column_names).and_return(without)
+      Rails.cache.clear
+
+      expect(described_class.call[:errors_by_environment]).to eq({})
     end
   end
 end

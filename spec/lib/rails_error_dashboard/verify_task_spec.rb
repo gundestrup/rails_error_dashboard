@@ -105,6 +105,66 @@ RSpec.describe "error_dashboard:verify rake task" do
     end
   end
 
+  # The task used to compare values against gandalf/youshallnotpass and check
+  # only production?, so a blank password was reported as custom credentials
+  # and staging never failed. It now follows the boot check's rule.
+  describe "with credentials the boot check refuses" do
+    around do |example|
+      config = RailsErrorDashboard.configuration
+      original_user = config.dashboard_username
+      original_pass = config.dashboard_password
+      example.run
+    ensure
+      config.dashboard_username = original_user
+      config.dashboard_password = original_pass
+    end
+
+    it "does not report a blank password as custom credentials" do
+      RailsErrorDashboard.configuration.dashboard_username = "custom_user"
+      RailsErrorDashboard.configuration.dashboard_password = ""
+
+      output = capture_stdout { task.invoke }
+      expect(output).not_to include("custom credentials")
+      expect(output).to include("blank credentials")
+    end
+
+    # It used to say "OK (blank credentials - change before production)" while
+    # every login was being denied.
+    it "warns that a blank credential denies every login in development and test" do
+      RailsErrorDashboard.configuration.dashboard_username = "custom_user"
+      RailsErrorDashboard.configuration.dashboard_password = ""
+
+      output = capture_stdout { task.invoke }
+
+      expect(output).to include("WARNING - blank credentials: every login is denied")
+    end
+
+    it "fails the check on the published password outside development and test" do
+      RailsErrorDashboard.configuration.dashboard_username = "custom_user"
+      RailsErrorDashboard.configuration.dashboard_password = "youshallnotpass"
+      allow(Rails).to receive(:env).and_return(ActiveSupport::EnvironmentInquirer.new("staging"))
+
+      output = capture_stdout { task.invoke }
+      expect(output).to include("WARNING - default credentials outside development and test!")
+    end
+
+    # The boot check allows this (the live demo runs on it), but it is still the
+    # published password, so it must not read as custom credentials either.
+    it "warns, without failing, when ERROR_DASHBOARD_PASSWORD explicitly sets the published password" do
+      saved = ENV.to_h.slice("ERROR_DASHBOARD_PASSWORD")
+      ENV["ERROR_DASHBOARD_PASSWORD"] = "youshallnotpass"
+      RailsErrorDashboard.configuration.dashboard_password = "youshallnotpass"
+      allow(Rails).to receive(:env).and_return(ActiveSupport::EnvironmentInquirer.new("staging"))
+
+      output = capture_stdout { task.invoke }
+      expect(output).to include("OK (the published default password, set explicitly by ERROR_DASHBOARD_PASSWORD)")
+      expect(output).not_to include("custom credentials")
+    ensure
+      ENV.delete("ERROR_DASHBOARD_PASSWORD")
+      saved.each { |k, v| ENV[k] = v }
+    end
+  end
+
   describe "retention policy check" do
     it "shows OK with retention_days when configured" do
       output = capture_stdout { task.invoke }
@@ -184,6 +244,73 @@ RSpec.describe "error_dashboard:verify rake task" do
     end
   end
 
+  # A config/queue.yml with workers and no dispatchers runs no dispatcher, so no
+  # delayed job runs. The retired rails_error_dashboard:solid_queue generator
+  # wrote one, and verify is how existing installs find out. It checks whenever
+  # Solid Queue is loaded, not only when it is the current adapter: Rails 8 sets
+  # :solid_queue in production only, and verify is usually run locally (this
+  # suite's adapter is :test).
+  describe "Solid Queue config check" do
+    let(:fixtures) { File.expand_path("../../fixtures/solid_queue", __dir__) }
+    let(:check) { RailsErrorDashboard::Services::SolidQueueConfigCheck }
+
+    def with_config(name)
+      allow(check).to receive(:config_path).and_return(Pathname(File.join(fixtures, name)))
+    end
+
+    context "when Solid Queue is loaded" do
+      before { stub_const("SolidQueue", Module.new) }
+
+      it "fails the config the old generator wrote, in every environment, whatever the current adapter" do
+        with_config("red_generator_queue.yml")
+        allow(check).to receive(:app_environments).and_return(%w[development production])
+
+        output = capture_stdout { task.invoke }
+
+        expect(output).to include("Solid Queue config... FAILED")
+        expect(output).to match(/development: .*no dispatcher/)
+        expect(output).to match(/production: .*no dispatcher/)
+      end
+
+      # Whoever sees this already uses Solid Queue, and its installer would
+      # rewrite production.rb to use a separate queue database (1.7.0).
+      it "gives a fix that edits the file, not one that re-runs Solid Queue's installer" do
+        with_config("red_generator_queue.yml")
+
+        output = capture_stdout { task.invoke }
+
+        expect(output).not_to include("solid_queue:install")
+        expect(output).to include("dispatchers:")
+        expect(output).to include(check::GUIDE_URL)
+      end
+
+      it "passes Solid Queue's own config" do
+        with_config("solid_queue_install_queue.yml")
+
+        output = capture_stdout { task.invoke }
+
+        expect(output).to include("Solid Queue config... OK")
+      end
+
+      it "says nothing when the app has no config file" do
+        with_config("does_not_exist.yml")
+
+        output = capture_stdout { task.invoke }
+
+        expect(output).not_to include("Solid Queue config")
+      end
+    end
+
+    it "says nothing when Solid Queue is not loaded" do
+      hide_const("SolidQueue") if defined?(SolidQueue)
+      with_config("red_generator_queue.yml")
+
+      output = capture_stdout { task.invoke }
+
+      expect(output).not_to include("Solid Queue config")
+    end
+  end
+
   private
 
   def capture_stdout
@@ -231,7 +358,7 @@ RSpec.describe "error_dashboard:retention_cleanup rake task" do
     context "when no errors to delete" do
       it "shows no errors message" do
         output = capture_stdout { task.invoke }
-        expect(output).to include("No errors older than")
+        expect(output).to include("No errors unseen for more than")
       end
     end
 

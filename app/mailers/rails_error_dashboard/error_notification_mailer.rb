@@ -2,17 +2,41 @@
 
 module RailsErrorDashboard
   class ErrorNotificationMailer < ApplicationMailer
-    def error_alert(error_log, recipients)
+    # @param locale [String] resolved at enqueue time, never read from
+    #   Current — a mailer renders outside the request that set it.
+    def error_alert(error_log, recipients, locale: I18nStore::DEFAULT_LOCALE)
       @error_log = error_log
       @dashboard_url = dashboard_url(error_log)
+      @red_locale = locale
 
       mail(
         to: recipients,
-        subject: "🚨 [#{error_log.application&.name || 'Unknown'}] #{error_log.error_type}: #{truncate_subject(error_log.message)}"
+        subject: subject_for(error_log, locale)
       )
     end
 
     private
+
+    # The subject is assembled from a key rather than interpolated inline, so a
+    # locale can reorder or drop the emoji. error_type and message are verbatim
+    # error content and are never translated.
+    #
+    # An error that carries an environment uses subject_with_environment; a
+    # legacy row keeps the pre-0.11 subject so existing mail filters still match.
+    def subject_for(error_log, locale)
+      environment = error_log.respond_to?(:environment) ? error_log.environment : nil
+      key = environment.present? ? "red.mailers.error_alert.subject_with_environment" : "red.mailers.error_alert.subject"
+
+      I18nStore.translate(
+        key,
+        locale: locale,
+        application: error_log.application&.name ||
+          I18nStore.translate("red.mailers.shared.unknown_application", locale: locale),
+        environment: environment,
+        error_type: error_log.error_type,
+        message: truncate_subject(error_log.message)
+      )
+    end
 
     def dashboard_url(error_log)
       base_url = RailsErrorDashboard.configuration.dashboard_base_url || "http://localhost:3000"

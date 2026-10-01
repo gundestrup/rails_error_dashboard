@@ -17,11 +17,25 @@ If you're using an older version and discover a security issue, please upgrade t
 
 ### How to Report
 
-We use GitHub's built-in Security Advisories for private vulnerability reporting:
+**Use GitHub private vulnerability reporting.** It is the only reporting channel,
+and it is private.
 
-1. Go to the [Security tab](https://github.com/AnjanJ/rails_error_dashboard/security/advisories/new)
-2. Click "Report a vulnerability"
-3. Fill out the form with as much detail as possible
+1. Go to [Report a vulnerability](https://github.com/AnjanJ/rails_error_dashboard/security/advisories/new)
+2. Fill out the form with as much detail as possible
+
+The report is visible only to you and the maintainer. It also gives us a place
+to work through the fix together and to publish an advisory crediting you.
+
+A plain description is fine — do not let formatting slow you down.
+
+There is deliberately no email address here. This project previously listed one
+that silently bounced, which is worse than listing nothing: a report you believe
+was delivered was not. A single channel that demonstrably works is better than a
+second one nobody can verify.
+
+**If the form does not work for you**, open a normal issue saying only that you
+have a security report and need a way to send it — no details — and you will be
+given one. Please do not put vulnerability details in a public issue.
 
 ### What to Include in Your Report
 
@@ -77,7 +91,7 @@ When using Rails Error Dashboard:
 If you have questions about this security policy or need to discuss something that doesn't fit the reporting process above, you can reach out by:
 
 - Creating a [GitHub Discussion](https://github.com/AnjanJ/rails_error_dashboard/discussions) for general security questions
-- Emailing the maintainer directly (for sensitive matters that aren't vulnerabilities)
+- Using the [private reporting form](https://github.com/AnjanJ/rails_error_dashboard/security/advisories/new) for anything that should not be public
 
 ## Thank You
 

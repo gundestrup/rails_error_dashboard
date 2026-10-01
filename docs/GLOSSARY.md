@@ -110,11 +110,15 @@ Error has been fixed. Removed from main list but still searchable. If the error 
 **Valid transitions**: Can reopen to `new` if error recurs.
 
 ### Won't Fix
-Error is intentionally not being fixed. Removed from main list. Can be reopened if needed.
+Error is intentionally not being fixed: the team knows it recurs and has decided not to act on it. Removed from main list.
 
 **Status**: `wont_fix`
 
-**Valid transitions**: Can reopen to `new`.
+**On recurrence**: the status is sticky. Every recurrence is counted on the same row (`occurrence_count`, `last_seen_at`) however long ago the error was first seen. It is **not** reopened, no `reopened_at` is recorded, no notification or baseline alert is sent, and no new error row is created. This is the difference from `resolved`, which reopens on the next occurrence. (Before 0.13.0 a `wont_fix` error was counted silently for 24 hours and then reopened to `new`.)
+
+Because nothing resurfaces it automatically, check the occurrence count of `wont_fix` errors from time to time, and move one back to `new` by hand if it has become worth fixing.
+
+**Valid transitions**: Can be moved back to `new` manually. It never moves there by itself.
 
 ### ActionCable Tracking
 Monitors WebSocket channel activity via ActiveSupport::Notifications events. Captures channel actions (`perform_action`), data transmissions (`transmit`), subscription confirmations, and subscription rejections as breadcrumbs. Requires `enable_breadcrumbs = true` and `enable_actioncable_tracking = true`. Dashboard page at `/errors/actioncable_health_summary`.
@@ -359,7 +363,7 @@ Security vulnerability where unwanted attributes are updated. Rails protects wit
 ## Testing
 
 ### RSpec
-Ruby testing framework. Rails Error Dashboard has 2,600+ tests covering models, controllers, services, and integration.
+Ruby testing framework. Rails Error Dashboard has an RSpec suite covering models, controllers, services, and integration, run in CI on every supported Rails version.
 
 ### Factory Bot
 Test data generation. Creates realistic test records for errors, applications, and users.
@@ -430,7 +434,7 @@ Reverting to a previous version after a failed deployment. Rails Error Dashboard
 Ruby's built-in mechanism for hooking into runtime events. Rails Error Dashboard uses `TracePoint(:raise)` to capture local/instance variables at exception time, and `TracePoint(:rescue)` (Ruby 3.3+) for swallowed exception detection. Production-safe — Sentry ships the same `:raise` event.
 
 ### Local Variable Capture
-Capturing the values of local variables at the exact moment an exception is raised, via `TracePoint(:raise)`. Shows what the code was working with when it failed.
+Capturing the values of local variables when an exception is raised, via `TracePoint(:raise)`. Strings, arrays and hashes are copied one level deep at raise time; nested containers and other objects are retained by reference and therefore show their state at serialization time, not at raise time. Shows what the code was working with when it failed.
 
 ### Instance Variable Capture
 Capturing instance variables from `tp.self` (the receiver object) when an exception is raised. Shows the internal state of the object that failed.

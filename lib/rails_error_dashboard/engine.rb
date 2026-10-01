@@ -71,6 +71,11 @@ module RailsErrorDashboard
         next
       end
 
+      # Resolve the running commit now (three small file reads, memoised, never
+      # raises) so that no capture ever pays for it. Skipped when the SHA is
+      # configured: then it is never consulted.
+      RailsErrorDashboard.detected_git_sha if RailsErrorDashboard.configuration.git_sha.blank?
+
       if RailsErrorDashboard.configuration.enable_error_subscriber
         Rails.error.subscribe(RailsErrorDashboard::ErrorReporter.new)
       end
@@ -80,11 +85,74 @@ module RailsErrorDashboard
         RailsErrorDashboard::Subscribers::BreadcrumbSubscriber.subscribe!
       end
 
+      # Give background jobs a breadcrumb buffer of their own. init_buffer had
+      # exactly one caller -- the Rack middleware -- so a job never entered the
+      # HTTP stack and had no buffer at all; every subscriber early-returns on
+      # `unless current_buffer`, so a failing job's SQL and custom crumbs were
+      # dropped in the one place an error is hardest to reproduce.
+      #
+      # Registered unconditionally and gated at PERFORM time, not here:
+      # enable_breadcrumbs defaults to false, and the ActiveJob callback list
+      # is fixed once the class loads, so a boot-time gate would leave this
+      # permanently unregistered for any host that turns the feature on in an
+      # initializer that runs later. Off, it costs one config read per job.
+      RailsErrorDashboard::Subscribers::BreadcrumbSubscriber.install_job_buffer!
+
       # Subscribe to Rack Attack AS::Notifications events (requires Rack::Attack).
       # Breadcrumbs are NOT required — events persist to their own table (issue #143).
       if RailsErrorDashboard.configuration.enable_rack_attack_tracking &&
          defined?(Rack::Attack)
         RailsErrorDashboard::Subscribers::RackAttackSubscriber.subscribe!
+
+        # Drain buffered counts at the end of every request and job.
+        #
+        # Without this the buffer is only ever drained by a LATER event arriving
+        # on the SAME thread (see RackAttackTracker#flush_if_due!), so a rule that
+        # matches once stays invisible until the process exits, and counts on a
+        # Puma thread that retires are lost outright rather than delayed.
+        #
+        # to_complete fires after the response body is closed, so the client
+        # already has its bytes — this never delays a request (safety rule 2).
+        # It also fires when the app raised, and is re-entrant, so nested
+        # executor blocks do not double-flush.
+        Rails.application.executor.to_complete do
+          RailsErrorDashboard::Services::RackAttackTracker.flush_if_due!
+        end
+
+        # Buffered counts live on the Puma threads that served the requests and
+        # are only written out on the flush interval, which a low-traffic rule
+        # may never reach. Without this, everything still buffered at SIGTERM
+        # (every deploy) is lost. at_exit, not Signal.trap — trapping would
+        # clobber Puma's USR1/USR2 handlers (safety rule 9).
+        at_exit { RailsErrorDashboard::Services::RackAttackTracker.flush_all_threads! }
+      end
+
+      # Drain the storm count buffer at the end of every request and job, and
+      # again at process exit.
+      #
+      # Counted-only events accumulate in this process's memory and were only
+      # ever written out by a LATER admit! reaching the flush interval (see
+      # Gate#maybe_flush!). That makes the drain conditional on the flood
+      # continuing: when the errors stop -- which is exactly when an operator
+      # starts looking -- the tail of the burst stays in memory indefinitely,
+      # and a deploy drops it.
+      #
+      # to_complete fires after the response body is closed, so the client
+      # already has its bytes and this never delays a request (safety rule 2).
+      # It also fires when the app raised, and is re-entrant, so nested
+      # executor blocks do not double-flush. The call is interval-gated, so a
+      # flood costs a clock read per request rather than an enqueue.
+      #
+      # at_exit drains unconditionally and writes synchronously: at shutdown a
+      # job handed to the queue may never be picked up. at_exit, not
+      # Signal.trap -- trapping would clobber Puma's USR1/USR2 handlers
+      # (safety rule 9).
+      if RailsErrorDashboard.configuration.enable_storm_protection
+        Rails.application.executor.to_complete do
+          RailsErrorDashboard::Services::StormProtection::Gate.flush_if_due!
+        end
+
+        at_exit { RailsErrorDashboard::Services::StormProtection::Gate.drain! }
       end
 
       # Subscribe to ActionCable AS::Notifications events (requires breadcrumbs + ActionCable)
@@ -138,6 +206,16 @@ module RailsErrorDashboard
       # Enable TracePoint(:raise) + TracePoint(:rescue) for swallowed exception detection
       if RailsErrorDashboard.configuration.detect_swallowed_exceptions
         RailsErrorDashboard::Services::SwallowedExceptionTracker.enable!
+
+        # Drain buffered counts at the end of every request and job. Without
+        # this the buffer is only ever drained by a LATER rescue on the SAME
+        # thread, so a swallowed exception that happens once stays invisible
+        # until the process exits. to_complete fires after the response body
+        # is closed, so it never delays a request (safety rule 2); the flush is
+        # deadline-gated, so a flood is still one write per interval.
+        Rails.application.executor.to_complete do
+          RailsErrorDashboard::Services::SwallowedExceptionTracker.flush_if_due!
+        end
       end
 
       # Import crash files from previous process death, then register at_exit hook

@@ -2,6 +2,11 @@
 
 module RailsErrorDashboard
   module BacktraceHelper
+    # These helpers translate, so they depend on red_t explicitly rather
+    # than on the controller happening to mix every engine helper into
+    # one view context.
+    include I18nHelper
+
     # Language mapping for syntax highlighting
     LANGUAGE_MAP = {
       ".rb" => "ruby",
@@ -115,19 +120,23 @@ module RailsErrorDashboard
       end
     end
 
-    # Format category name
+    # Format category name.
+    #
+    # This labels where a frame came from, not what it says — the backtrace
+    # itself is diagnostic output and is never translated. "Gem", "Rails" and
+    # "Ruby" inside these labels are product names.
     def frame_category_name(category)
       case category
       when :app
-        "Your Code"
+        red_t("red.common.frame_category.app")
       when :gem
-        "Gem"
+        red_t("red.common.frame_category.gem")
       when :framework
-        "Rails Framework"
+        red_t("red.common.frame_category.framework")
       when :ruby_core
-        "Ruby Core"
+        red_t("red.common.frame_category.ruby_core")
       else
-        "Unknown"
+        red_t("red.common.frame_category.unknown")
       end
     end
 
@@ -166,6 +175,11 @@ module RailsErrorDashboard
           }
         end
       end
+    rescue => e
+      # Source context is a nicety. A cache store that is down must not take
+      # the error page with it -- the same rule read_coverage_for_file follows.
+      Rails.logger.error("[RailsErrorDashboard] read_source_code failed: #{e.class}: #{e.message}")
+      nil
     end
 
     # Read coverage data for a file when coverage tracking is active
@@ -195,6 +209,9 @@ module RailsErrorDashboard
         reader = Services::GitBlameReader.new(frame[:file_path], frame[:line_number])
         reader.read_blame
       end
+    rescue => e
+      Rails.logger.error("[RailsErrorDashboard] read_git_blame failed: #{e.class}: #{e.message}")
+      nil
     end
 
     # Generate GitHub/GitLab/Bitbucket link for a frame

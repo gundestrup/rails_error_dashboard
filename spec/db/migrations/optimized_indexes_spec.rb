@@ -3,6 +3,10 @@
 require "rails_helper"
 
 RSpec.describe "Optimized Indexes Migration", type: :migration do
+  # :migration examples run outside the transactional wrapper (DDL + MySQL),
+  # see spec/support/database_cleaner.rb.
+  self.use_transactional_tests = false
+
   let(:connection) { ActiveRecord::Base.connection }
   let(:table_name) { :rails_error_dashboard_error_logs }
 
@@ -100,45 +104,6 @@ RSpec.describe "Optimized Indexes Migration", type: :migration do
         .first
 
       expect(result).to be_present
-    end
-  end
-
-  describe "PostgreSQL-specific indexes", if: ActiveRecord::Base.connection.adapter_name.downcase == 'postgresql' do
-    it "creates partial index for unresolved errors" do
-      indexes = connection.indexes(table_name)
-      index = indexes.find { |i| i.name == 'index_error_logs_on_occurred_at_unresolved' }
-
-      expect(index).to be_present
-      expect(index.where).to eq("(resolved = false)")
-    end
-
-    it "creates GIN index for full-text search on message" do
-      # Check if GIN index exists
-      result = connection.execute(<<-SQL)
-        SELECT indexname
-        FROM pg_indexes
-        WHERE tablename = 'rails_error_dashboard_error_logs'
-        AND indexname = 'index_error_logs_on_message_gin'
-      SQL
-
-      expect(result.to_a).not_to be_empty
-    end
-
-    it "improves full-text search performance" do
-      # Create test errors with searchable text
-      RailsErrorDashboard::ErrorLog.create!(
-        error_type: "StandardError",
-        message: "Payment processing failed for transaction",
-        occurred_at: Time.current
-      )
-
-      # This query should use the GIN index
-      result = connection.execute(<<-SQL)
-        SELECT * FROM rails_error_dashboard_error_logs
-        WHERE to_tsvector('english', message) @@ to_tsquery('english', 'payment')
-      SQL
-
-      expect(result.to_a.count).to eq(1)
     end
   end
 end

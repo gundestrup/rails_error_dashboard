@@ -11,8 +11,22 @@ module RailsErrorDashboard
     #   # => { event: "error.created", timestamp: "...", error: { ... } }
     class WebhookPayloadBuilder
       # @param error_log [ErrorLog] The error to build a payload for
+      # @param locale [String] accepted so the signature matches its siblings
       # @return [Hash] Webhook payload
-      def self.call(error_log)
+      #
+      # DELIBERATELY NOT LOCALIZED (P4-T3 REQ-2, REQ-6).
+      #
+      # Every key here, and every value, is consumed by a program the operator
+      # wrote — not read by a person. "error.created", the severity string, the
+      # ISO8601 timestamps and the field names are an API contract; translating
+      # any of them silently breaks whatever is parsing the payload. There is
+      # no human-readable chrome in this payload to translate.
+      #
+      # The locale parameter exists so every builder has the same signature and
+      # the dispatcher does not need to special-case this one.
+      def self.call(error_log, locale: I18nStore::DEFAULT_LOCALE)
+        _locale = locale
+
         {
           event: "error.created",
           timestamp: Time.current.iso8601,
@@ -23,6 +37,7 @@ module RailsErrorDashboard
             message: error_log.message,
             severity: error_log.severity.to_s,
             platform: error_log.platform,
+            environment: error_log.environment,
             controller: error_log.controller_name,
             action: error_log.action_name,
             occurrence_count: error_log.occurrence_count,

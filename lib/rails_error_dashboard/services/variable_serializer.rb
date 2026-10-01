@@ -175,18 +175,108 @@ module RailsErrorDashboard
           return { value: label, truncated: false }
         end
 
-        # Fallback: .inspect with truncation
+        # #inspect on an unknown object is arbitrary APPLICATION code, running
+        # on the failure path. Truncating its output bounds what is STORED,
+        # not what it COSTS: an inspect that sleeps or builds a megabyte pays
+        # that in full before a single character is discarded. So the default
+        # is a safe structural summary, and inspect runs only for types the
+        # host app opted in to -- under a wall-clock budget even then.
         max_len = config.local_variable_max_string_length || 200
+
+        # A Struct is serialized MEMBER-WISE, never through its own #inspect.
+        #
+        # Struct was allowlisted because it prints its attributes cheaply --
+        # true of the container, false of what it holds. Struct#inspect calls
+        # each member's #inspect, so a Struct wrapping an unknown object ran
+        # that object's arbitrary code in full. Walking the members instead
+        # gives every one of them the same safe-summary default an unknown
+        # object already gets, so the guarantee holds by construction rather
+        # than by measuring afterwards.
+        return serialize_struct(value, config, depth, max_depth) if struct?(value)
+
+        return { value: safe_summary(value), truncated: false } unless inspectable?(value, config)
+
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         inspected = value.inspect
+        elapsed_ms = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000
+
+        # An OUTPUT-selection threshold, not an execution budget: the inspect
+        # above has already run to completion by the time this is measured.
+        # Only reachable for a type the host app explicitly opted in to, and
+        # that opt-in is documented as accepting unbounded execution -- the
+        # only way to interrupt arbitrary Ruby mid-call is Timeout, which is
+        # not safe on the capture path (safety rule 1).
+        budget = config.local_variable_inspect_budget_ms || 5
+        if elapsed_ms > budget
+          RailsErrorDashboard::Logger.debug(
+            "[RailsErrorDashboard] #{value.class}#inspect took #{elapsed_ms.round(1)}ms " \
+            "(budget #{budget}ms) — storing a summary instead"
+          )
+          return { value: safe_summary(value), truncated: true }
+        end
+
         if inspected.length > max_len
           { value: inspected[0, max_len], truncated: true }
         else
           { value: inspected, truncated: false }
         end
       rescue
-        { value: "#<#{value.class.name rescue "Object"}>", truncated: false }
+        { value: safe_summary(value), truncated: false }
       end
       private_class_method :serialize_object
+
+      def self.struct?(value)
+        value.is_a?(Struct)
+      rescue StandardError
+        false
+      end
+      private_class_method :struct?
+
+      # Serialize a Struct's members through the ordinary bounded path.
+      #
+      # Bounded twice over: member count is capped, and each member recurses
+      # with depth + 1, so a Struct of Structs cannot reintroduce unbounded
+      # work through recursion instead of through #inspect.
+      def self.serialize_struct(value, config, depth, max_depth)
+        max_members = config.local_variable_max_array_items || 10
+        members = value.members.first(max_members)
+        truncated = value.members.size > members.size
+
+        pairs = members.map do |member|
+          serialized = serialize_value(value[member], config, depth + 1, max_depth)
+          truncated ||= serialized[:truncated]
+          "#{member}=#{serialized[:value]}"
+        end
+
+        # An anonymous Struct has no class name; label it by shape rather than
+        # rendering "#<struct  a=1>" with a hole in it.
+        label = value.class.name.presence || "struct"
+        { value: "#<#{label} #{pairs.join(', ')}>", truncated: truncated }
+      rescue StandardError
+        { value: safe_summary(value), truncated: false }
+      end
+      private_class_method :serialize_struct
+
+      # What an object is, without asking the object. Costs one class-name read.
+      def self.safe_summary(value)
+        "#<#{value.class.name}>"
+      rescue StandardError
+        "#<Object>"
+      end
+      private_class_method :safe_summary
+
+      # True when this object's class (or an ancestor) is on the allowlist, so
+      # the host app has accepted the cost of its #inspect.
+      def self.inspectable?(value, config)
+        allowlist = Array(config.local_variable_inspect_allowlist)
+        return false if allowlist.empty?
+
+        ancestors = value.class.ancestors.map { |mod| mod.name }.compact
+        (ancestors & allowlist).any?
+      rescue StandardError
+        false
+      end
+      private_class_method :inspectable?
 
       # --- Sensitive data filtering (post-serialization) ---
       # Reuses SensitiveDataFilter.parameter_filter — same pattern as BreadcrumbCollector.
@@ -215,14 +305,39 @@ module RailsErrorDashboard
             info[:value] = SensitiveDataFilter.send(:filter_message, filter, info[:value])
           end
 
-          # Filter nested hash keys recursively
-          if info[:value].is_a?(Hash)
-            info[:value] = filter_hash_recursive(filter, info[:value])
-          end
+          # Path-aware filtering, in ONE call for every container type.
+          #
+          # The value is wrapped back under its own variable name so the filter
+          # sees the SAME key path Rails sees for request params. A dotted
+          # pattern like "profile.private_note" is a path, not a name: dropping
+          # the "profile" segment means the value Rails redacts in params stays
+          # readable here. Unwrapping afterwards leaves the stored shape
+          # unchanged.
+          #
+          # This must NOT ask "what shape is this?" first. Wrapping only Hashes
+          # and sending Arrays straight to the recursive walker is exactly how
+          # `profile = [{ private_note: ... }]` leaked while the identical
+          # request params were redacted: ParameterFilter already traverses
+          # arbitrary nesting of Hash and Array, so one wrap covers every shape
+          # and a new container type cannot reintroduce the gap.
+          #
+          # Parity with Rails is the contract in both directions -- a pattern
+          # that Rails does NOT match (profile.list.private_note, or a bare
+          # scalar) must survive here too. Over-redaction silently destroys
+          # data a developer needs to debug.
+          if info[:value].is_a?(Hash) || info[:value].is_a?(Array)
+            scoped = filter.filter(var_name => info[:value])[var_name]
 
-          # Filter nested array items
-          if info[:value].is_a?(Array)
-            info[:value] = filter_array_recursive(filter, info[:value])
+            # The recursive pass stays, and runs AFTER the path-aware filter:
+            # it scrubs sensitive CONTENT inside strings (credit-card and
+            # key=value patterns), which ParameterFilter does not do -- it only
+            # matches keys.
+            info[:value] =
+              case scoped
+              when Hash  then filter_hash_recursive(filter, scoped)
+              when Array then filter_array_recursive(filter, scoped)
+              else scoped
+              end
           end
         end
 

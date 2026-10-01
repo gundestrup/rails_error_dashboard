@@ -12,6 +12,8 @@ module RailsErrorDashboard
     #   result[:success]   # => true
     #   result[:issue_url] # => "https://github.com/user/repo/issues/42"
     class CreateIssue
+      include RailsErrorDashboard::Translation
+
       def self.call(error_id, dashboard_url: nil)
         new(error_id, dashboard_url: dashboard_url).call
       end
@@ -26,11 +28,11 @@ module RailsErrorDashboard
 
         # Don't create duplicate issues
         if error.external_issue_url.present?
-          return { success: false, error: "Error already has a linked issue: #{error.external_issue_url}" }
+          return { success: false, error: red_t("red.commands.issue.already_linked", url: error.external_issue_url) }
         end
 
         client = Services::IssueTrackerClient.from_config
-        return { success: false, error: "Issue tracking is not configured" } unless client
+        return { success: false, error: red_t("red.commands.issue.not_configured") } unless client
 
         config = RailsErrorDashboard.configuration
         title = "[#{error.error_type}] #{error.message.to_s.truncate(100)}"
@@ -40,17 +42,25 @@ module RailsErrorDashboard
         result = client.create_issue(title: title, body: body, labels: labels)
 
         if result[:success]
-          error.update!(
+          attrs = {
             external_issue_url: result[:url],
             external_issue_number: result[:number],
             external_issue_provider: config.effective_issue_tracker_provider.to_s
-          )
+          }
+          # Record WHICH repository (or Linear team) this issue was opened in,
+          # so a later webhook, comment or close targets that one rather than
+          # whatever the global configuration happens to say at the time.
+          if ErrorLog.column_names.include?("external_issue_repo")
+            attrs[:external_issue_repo] = config.effective_issue_tracker_repo
+          end
+
+          error.update!(attrs)
           { success: true, issue_url: result[:url], issue_number: result[:number] }
         else
           { success: false, error: result[:error] }
         end
       rescue ActiveRecord::RecordNotFound
-        { success: false, error: "Error not found: #{@error_id}" }
+        { success: false, error: red_t("red.commands.error_not_found", id: @error_id) }
       rescue => e
         { success: false, error: "#{e.class}: #{e.message}" }
       end

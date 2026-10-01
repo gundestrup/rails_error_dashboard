@@ -11,6 +11,8 @@ module RailsErrorDashboard
     #   result = LinkExistingIssue.call(error_id, issue_url: "https://github.com/user/repo/issues/42")
     #   result[:success] # => true
     class LinkExistingIssue
+      include RailsErrorDashboard::Translation
+
       PROVIDER_PATTERNS = {
         github: %r{github\.com/([^/]+/[^/]+)/issues/(\d+)}i,
         gitlab: %r{gitlab\.com/([^/]+/[^/]+)/-/issues/(\d+)}i,
@@ -29,25 +31,44 @@ module RailsErrorDashboard
       end
 
       def call
-        return { success: false, error: "Issue URL is required" } if @issue_url.blank?
+        return { success: false, error: red_t("red.commands.issue.url_required") } if @issue_url.blank?
+        return { success: false, error: red_t("red.commands.issue.url_invalid") } unless Services::UrlSafety.http_url?(@issue_url)
 
         error = ErrorLog.find(@error_id)
         parsed = parse_issue_url(@issue_url)
 
-        error.update!(
+        attrs = {
           external_issue_url: @issue_url,
           external_issue_number: parsed[:number],
           external_issue_provider: parsed[:provider]&.to_s
-        )
+        }
+        # The repository is half the issue's identity: issue 42 in acme/api and
+        # issue 42 in acme/web are different issues. It was parsed here and
+        # thrown away, so a webhook from either repository resolved whichever
+        # error happened to match on provider + number alone.
+        if ErrorLog.column_names.include?("external_issue_repo")
+          attrs[:external_issue_repo] = normalize_repo(parsed[:provider], parsed[:repo])
+        end
+
+        error.update!(attrs)
 
         { success: true, issue_url: @issue_url, provider: parsed[:provider] }
       rescue ActiveRecord::RecordNotFound
-        { success: false, error: "Error not found: #{@error_id}" }
+        { success: false, error: red_t("red.commands.error_not_found", id: @error_id) }
       rescue => e
         { success: false, error: "#{e.class}: #{e.message}" }
       end
 
       private
+
+      # Linear has no repository -- `repo` is the team key, and Linear renders
+      # it upper-case ("ENG-123"), so it is stored upper-case to match what a
+      # webhook reports. Git forge paths are case-sensitive and kept verbatim.
+      def normalize_repo(provider, repo)
+        return nil if repo.blank?
+
+        provider.to_s == "linear" ? repo.to_s.upcase : repo.to_s
+      end
 
       def parse_issue_url(url)
         PROVIDER_PATTERNS.each do |provider, pattern|

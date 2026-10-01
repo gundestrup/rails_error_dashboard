@@ -8,88 +8,365 @@ module RailsErrorDashboard
     # Runs in a background job (DB allowed). For each counted fingerprint:
     #   1. Recompute the canonical error_hash from the stored identity parts
     #      (the gate's key deliberately omits application_id — resolved here)
-    #   2. Unresolved match  → single UPDATE: occurrence_count += N
+    #   2. Unresolved match  → the ONE row FindOrIncrementError would pick
+    #      (24 h window, exact environment first): occurrence_count += N
     #   3. Resolved match    → reopen (mirrors FindOrIncrementError semantics)
     #   4. No match          → create a minimal ErrorLog from the exemplar
     #
     # Counts are exact. Notifications are NOT dispatched from here — during a
     # storm they're suppressed by design; the storm notification covers it.
     class FlushStormCounts
-      def self.call(entries:, overflow: 0, episode: nil)
-        new(entries: entries, overflow: overflow, episode: episode).call
+      # A bucket write failed in a way that may succeed on retry. Raised so the
+      # per-entry rescue in #call classifies it exactly as it classifies a
+      # transient COUNT failure: roll the batch back, leave the ledger
+      # unclaimed, let the job retry the whole batch intact.
+      class EventCountWriteFailed < StandardError; end
+
+      def self.call(entries:, overflow: 0, episode: nil, batch_id: nil)
+        new(entries: entries, overflow: overflow, episode: episode, batch_id: batch_id).call
       end
 
-      def initialize(entries:, overflow: 0, episode: nil)
-        @entries = Array(entries)
+      def initialize(entries:, overflow: 0, episode: nil, batch_id: nil)
+        # The gate scrubs what it buffers, so this is normally a no-op scan. It
+        # covers entries buffered by an older release and direct callers: the
+        # exemplar becomes an ErrorLog row, and its message is matched by regex.
+        @entries = Array(Services::EncodingSanitizer.scrub_deep(entries))
         @overflow = overflow.to_i
+        # Set when a bucket write was permanently unavailable. The counts are
+        # still correct; only their placement in TIME is missing, and a caller
+        # reading a time window deserves to know that.
+        @buckets_incomplete = false
         @episode = episode
+        @batch_id = batch_id
       end
 
       def call
         application = resolve_application
         counted = 0
+        failed = 0
+        aborted = false
 
-        @entries.each do |entry|
-          entry = entry.with_indifferent_access if entry.respond_to?(:with_indifferent_access)
-          counted += reconcile_entry(entry, application)
-        rescue => e
-          # A corrupt (non-Hash) entry must not abort the whole batch — and the
-          # log line itself must not assume `entry` is subscriptable (an Integer
-          # from a broken serializer would raise again here, escaping this rescue).
-          error_class = entry.is_a?(Hash) ? entry["error_class"] : entry.class
-          RailsErrorDashboard::Logger.error(
-            "[RailsErrorDashboard] Storm count reconcile failed for #{error_class}: #{e.class} - #{e.message}"
-          )
+        # Counts are applied additively (occurrence_count + N), which is not
+        # idempotent: delivering the same snapshot twice counted it twice. The
+        # realistic replay is this job's own retry -- StormFlushJob raises when
+        # a batch reconciles nothing, and ApplicationJob retries it three times
+        # with the identical payload -- and a queue that redelivers does the
+        # same.
+        #
+        # The batch digest is inserted in the SAME transaction as the
+        # increments, so either both land or neither does. A replay violates
+        # the unique index and is reported as already applied rather than
+        # counted again.
+        ledger = batch_ledger_entry
+        return already_applied_result if ledger == :already_applied
+
+        ErrorLog.transaction do
+          claim_batch!(ledger)
+
+          @entries.each do |entry|
+            entry = entry.with_indifferent_access if entry.respond_to?(:with_indifferent_access)
+            counted += reconcile_entry(entry, application)
+          rescue EventCountWriteFailed, *Commands::LogError::RETRYABLE_STORE_ERRORS => e
+            # A transient store failure is NOT a bad entry. Claiming the batch
+            # here would commit the ledger row and strand every entry not yet
+            # applied: the retry is then suppressed as a replay and those events
+            # are lost for good. Re-raise so the whole transaction rolls back --
+            # nothing was committed, so nothing can double -- and let the job
+            # retry the batch intact. The generic rescue below still keeps a
+            # permanently malformed entry from poisoning its batch.
+            failed += 1
+            aborted = true
+            RailsErrorDashboard::Logger.error(
+              "[RailsErrorDashboard] Storm batch aborted by a transient store failure: #{e.class} - #{e.message}"
+            )
+            raise
+          rescue => e
+            # A corrupt (non-Hash) entry must not abort the whole batch — and the
+            # log line itself must not assume `entry` is subscriptable (an Integer
+            # from a broken serializer would raise again here, escaping this rescue).
+            failed += 1
+            error_class = entry.is_a?(Hash) ? entry["error_class"] : entry.class
+            RailsErrorDashboard::Logger.error(
+              "[RailsErrorDashboard] Storm count reconcile failed for #{error_class}: #{e.class} - #{e.message}"
+            )
+          end
+
+          # Nothing was written, so there is nothing to protect from a replay:
+          # roll the claim back and let the job retry the whole batch.
+          raise ActiveRecord::Rollback if failed.positive? && counted.zero?
+
+          # INSIDE the transaction, deliberately.
+          #
+          # The counts and the record that their timing is unreliable have to
+          # land together or not at all. Writing this after the commit (as the
+          # storm-episode marker did) meant a transient failure lost the
+          # marker while the ledger had already recorded the batch as applied
+          # -- the replay was then suppressed and the gap was never recorded,
+          # so the dashboard reported completeness it could not vouch for.
+          #
+          # If this write fails, the whole batch rolls back and stays
+          # replayable. Counts whose unreliability we cannot record are worth
+          # retrying, not committing silently.
+          record_timing_gap!(counted) if @buckets_incomplete && counted.positive?
+
+          finalize_batch!(ledger, counted)
+        end
+
+        # Every entry failed and none was written. Reporting success with
+        # reconciled: 0 made a total loss indistinguishable from an empty
+        # batch, so the job acknowledged counts that never reached the
+        # database.
+        #
+        # Reaching here means every failure was PERMANENT -- a transient store
+        # failure re-raises above and rolls the whole batch back. Partial
+        # success over permanent failures stays successful: the entries that
+        # were written are written, replaying would double them, and retrying a
+        # corrupt payload only loops forever.
+        if failed.positive? && counted.zero?
+          return { success: false, retryable: false, reconciled: 0, failed: failed, overflow: @overflow,
+                   buckets_incomplete: @buckets_incomplete,
+                   error: "all #{failed} entries failed to reconcile" }
         end
 
         upsert_storm_event(counted)
-        { success: true, reconciled: counted, overflow: @overflow }
+        result = { success: true, reconciled: counted, failed: failed, overflow: @overflow }
+        result[:buckets_incomplete] = true if @buckets_incomplete
+        result
       rescue => e
         RailsErrorDashboard::Logger.error(
           "[RailsErrorDashboard] FlushStormCounts failed: #{e.class} - #{e.message}"
         )
-        { success: false, error: "#{e.class}: #{e.message}" }
+        # retryable: true says "the batch is intact, replay it" -- nothing was
+        # committed, so the job can retry without doubling. A permanent failure
+        # carries no such promise.
+        retryable = Commands::LogError::RETRYABLE_STORE_ERRORS.any? { |klass| e.is_a?(klass) }
+        result = { success: false, retryable: retryable, error: "#{e.class}: #{e.message}" }
+        # reconciled: 0 because the transaction rolled back -- whatever this
+        # batch had counted in memory never reached the database.
+        result.merge!(reconciled: 0, failed: failed, overflow: @overflow) if aborted
+        result
       end
 
       private
 
+      # nil when the ledger is unavailable (table not migrated yet -- the
+      # command then behaves exactly as it did before), :already_applied when
+      # this exact batch is already recorded, otherwise the digest to claim.
+      def batch_ledger_entry
+        return nil unless ledger_available?
+
+        digest = StormFlushBatch.digest_for(
+          entries: @entries, overflow: @overflow, episode: @episode, batch_id: @batch_id
+        )
+        return :already_applied if StormFlushBatch.exists?(digest: digest)
+
+        digest
+      rescue => e
+        # The ledger is a safety net, not a gate: if it cannot be consulted,
+        # reconcile anyway rather than dropping counts that exist nowhere else.
+        RailsErrorDashboard::Logger.debug(
+          "[RailsErrorDashboard] Storm batch ledger unavailable: #{e.class} - #{e.message}"
+        )
+        nil
+      end
+
+      def claim_batch!(digest)
+        return unless digest.is_a?(String)
+
+        StormFlushBatch.create!(
+          digest: digest,
+          entry_count: @entries.size,
+          occurrences_applied: 0,
+          applied_at: Time.current
+        )
+      end
+
+      # Record what the batch actually applied, for an operator reading the
+      # ledger. The row already exists; this only fills in the total.
+      def finalize_batch!(digest, counted)
+        return unless digest.is_a?(String)
+
+        StormFlushBatch.where(digest: digest).update_all(occurrences_applied: counted)
+      end
+
+      def already_applied_result
+        RailsErrorDashboard::Logger.info(
+          "[RailsErrorDashboard] Storm flush batch already applied — skipping replay"
+        )
+        { success: true, reconciled: 0, failed: 0, overflow: @overflow, already_applied: true }
+      end
+
+      def ledger_available?
+        defined?(StormFlushBatch) && StormFlushBatch.table_exists?
+      rescue StandardError
+        false
+      end
+
+
+      # Reconcile one buffered entry and, on every path that adds counts, give
+      # those shed events a TIME BUCKET as well as a total.
+      #
+      # occurrence_count alone is a lifetime counter: it says how many events
+      # there were but not when, so no window query can place them. Ordinary
+      # captures carry their own ErrorOccurrence row; shed events write none by
+      # design, which is what made them invisible to "errors today". The bucket
+      # written here is what Queries::EventVolume adds to the occurrence rows.
       def reconcile_entry(entry, application)
+        error_log_id = nil
+        count = reconcile_entry_count(entry, application) { |id| error_log_id = id }
+        write_event_buckets(entry, error_log_id, count) if count.positive? && error_log_id
+        count
+      end
+
+      # Write one row per BUCKET the producer recorded, not one row for the
+      # whole entry.
+      #
+      # The buffer tallies events per 15-minute bucket precisely so this does
+      # not have to guess: assigning the entry's whole total to last_seen_at's
+      # bucket put an event from 23:59:59 and one from 00:00:01 on the same
+      # day. A payload from an older release carries no buckets, so it falls
+      # back to the old behaviour rather than losing the count.
+      def write_event_buckets(entry, error_log_id, count)
+        buckets = entry["buckets"]
+        buckets = nil unless buckets.is_a?(Hash) && buckets.any?
+
+        pairs =
+          if buckets
+            buckets.map { |at, n| [ Time.zone.at(at.to_i), n.to_i ] }
+          else
+            [ [ parse_time(entry["last_seen_at"]) || Time.current, count ] ]
+          end
+
+        pairs.each do |bucket_at, n|
+          next unless n.positive?
+
+          # Three outcomes, three responses.
+          #
+          # :written     -- done.
+          # raises       -- TRANSIENT. Handled by the caller's rescue, which
+          #                 aborts and replays the batch intact. Swallowing it
+          #                 finalized the ledger with the bucket missing, so
+          #                 the replay was suppressed as already-applied and
+          #                 the time window lost those events permanently
+          #                 while the lifetime count stayed correct.
+          # :unavailable -- PERMANENT. Degrade: the rollup is simply not
+          #                 usable on this host (never migrated, adapter
+          #                 refuses the statement). Raising here rolled back
+          #                 the surrounding transaction and destroyed the
+          #                 authoritative lifetime count along with it --
+          #                 turning a missing time bucket into a lost count,
+          #                 which is strictly worse. Record it instead, so the
+          #                 result can say the timing evidence is incomplete.
+          case EventCount.accumulate(error_log_id: error_log_id, bucket_at: bucket_at, count: n)
+          when :written then next
+          else @buckets_incomplete = true
+          end
+        end
+      end
+
+      def reconcile_entry_count(entry, application)
         count = entry["count"].to_i
         return 0 if count <= 0
 
         error_hash = canonical_hash(entry, application)
         last_seen = parse_time(entry["last_seen_at"]) || Time.current
+        # An explicit environment captured at the gate wins over the worker's
+        # own, mirroring LogError#resolve_environment for full captures.
+        env = current_environment && (entry["environment"].presence || current_environment)
 
-        # Priority 1: unresolved match — one UPDATE, no row instantiation
-        updated = ErrorLog.unresolved
-          .where(error_hash: error_hash, application_id: application.id)
-          .update_all([ "occurrence_count = occurrence_count + ?, last_seen_at = ?", count, last_seen ])
-        return count if updated.positive?
+        # Priority 1: unresolved match — ONE row, chosen exactly as
+        # FindOrIncrementError chooses it (same hash + application, occurred
+        # within 24 h, exact environment before a legacy NULL row, most
+        # recently seen first), then a single atomic UPDATE on that id.
+        #
+        # It must be one row: the normal path opens a fresh group once the
+        # previous one's occurred_at falls outside the 24 h window, so a
+        # long-running unresolved error legitimately owns several unresolved
+        # rows. An update_all across the whole hash would add N to every one
+        # of them — seven real events becoming twelve counted occurrences.
+        #
+        # Priority 0, tried first: a wont_fix row absorbs its recurrences at any
+        # age and keeps its status (FindOrIncrementError#find_wont_fix). Same
+        # atomic increment, so it shares the branch below.
+        target = wont_fix_target(error_hash, application, env) ||
+                 unresolved_target(error_hash, application, env)
+        if target
+          if env && target.environment.blank?
+            ErrorLog.where(id: target.id).update_all([
+              "occurrence_count = occurrence_count + ?, last_seen_at = ?, environment = ?",
+              count, last_seen, env
+            ])
+          else
+            ErrorLog.where(id: target.id).update_all([
+              "occurrence_count = occurrence_count + ?, last_seen_at = ?", count, last_seen
+            ])
+          end
+          yield target.id if block_given?
+          return count
+        end
 
-        # Priority 2: resolved/wont_fix match — reopen, mirroring
+        # Priority 2: resolved match — reopen, mirroring
         # FindOrIncrementError so storm recurrences don't stay buried
-        resolved = ErrorLog
+        resolved_scope = ErrorLog
           .where(error_hash: error_hash, application_id: application.id)
-          .where(status: %w[resolved wont_fix])
-          .order(last_seen_at: :desc)
-          .first
+          .where(status: "resolved")
+        if env
+          resolved_scope = resolved_scope.where(environment: [ env, nil ])
+            .order(Arel.sql("CASE WHEN environment IS NULL THEN 1 ELSE 0 END"))
+        end
+        # .lock (SELECT ... FOR UPDATE) held to commit by the transaction opened
+        # in #call, exactly as FindOrIncrementError does for the same reopen.
+        # Without it this branch read occurrence_count into Ruby and wrote an
+        # ABSOLUTE value back, so two concurrent batches both read N and both
+        # wrote N+count -- one batch's events vanished while both reported
+        # success. The unresolved branch above is safe because it increments in
+        # SQL; this branch cannot use update_all because reopening is a state
+        # transition the dashboard must see, and update_all skips the
+        # after_update_commit broadcast.
+        resolved = resolved_scope.lock.order(last_seen_at: :desc).first
         if resolved
+          # The count is incremented in SQL, never read into Ruby and written
+          # back. This branch used to compute `resolved.occurrence_count + count`
+          # and write that ABSOLUTE value, so two concurrent batches both read N
+          # and both wrote N+count -- one batch's events vanished while both
+          # reported success. The .lock above serializes the pair on
+          # PostgreSQL/MySQL; the atomic increment below conserves the count on
+          # every adapter, including SQLite where FOR UPDATE is a no-op.
+          ErrorLog.where(id: resolved.id).update_all([
+            "occurrence_count = occurrence_count + ?", count
+          ])
+
+          # The reopen is a state transition the dashboard must see, so it stays
+          # an update! -- update_all would skip the after_update_commit
+          # broadcast. Reload first so this write does not clobber the increment
+          # just made with a stale in-memory occurrence_count.
+          resolved.reload
           attrs = {
             resolved: false,
             status: "new",
             resolved_at: nil,
-            occurrence_count: resolved.occurrence_count + count,
             last_seen_at: last_seen
           }
           attrs[:reopened_at] = Time.current if ErrorLog.column_names.include?("reopened_at")
+          attrs[:environment] = env if env && resolved.environment.blank?
           resolved.update!(attrs)
+          yield resolved.id if block_given?
           return count
         end
 
         # Priority 3: first seen during count-only mode — minimal ErrorLog
         # from the exemplar (no backtrace/context was captured; the next
-        # occurrence after the storm fills in detail via the normal path)
-        ErrorLog.create!(
+        # occurrence after the storm fills in detail via the normal path).
+        #
+        # The exemplar message arrives ALREADY REDACTED: the gate filters it
+        # before buffering, because the buffer is shipped to StormFlushJob over
+        # a durable queue. Grouping does not depend on the raw text -- the gate
+        # hashed the identity from it and sent the digest along
+        # (opaque_identity) -- so this row still lands where the full capture
+        # path would put it. The filter below stays as a second line of
+        # defence for entries from an older release still in flight.
+        create_attrs = {
+          environment: env,
           application_id: application.id,
           error_type: entry["error_class"],
           message: entry["message"],
@@ -101,26 +378,123 @@ module RailsErrorDashboard
           occurrence_count: count,
           error_hash: error_hash,
           resolved: false
-        )
+        }.compact
+
+        # This row is reconstructed from a counted-only exemplar: there is no
+        # backtrace beyond the first app frame and no context at all. Saying so
+        # is what lets the dashboard distinguish "nothing was captured" from
+        # "nothing happened", and what lets the next full capture upgrade the
+        # backtrace instead of leaving a bare path forever.
+        if ErrorLog.column_names.include?("context_fidelity")
+          create_attrs[:context_fidelity] = "minimal"
+        end
+        if ErrorLog.column_names.include?("context_captured_at")
+          create_attrs[:context_captured_at] = create_attrs[:occurred_at]
+        end
+        begin
+          # requires_new opens a SAVEPOINT: on PostgreSQL a failed INSERT aborts
+          # its transaction, and every later statement -- including the recovery
+          # lookup below -- fails with InFailedSqlTransaction. The savepoint
+          # confines the damage to this INSERT so the batch can continue.
+          ErrorLog.transaction(requires_new: true) do
+            created = ErrorLog.create!(**ErrorLog.clamp_string_attributes(Services::SensitiveDataFilter.filter_attributes(create_attrs)))
+            yield created.id if block_given?
+          end
+        rescue ActiveRecord::RecordNotUnique
+          # Another flush created this group between our lookups and this
+          # INSERT -- the group-identity index objected. Two concurrent batches
+          # for the same fingerprint is the NORMAL storm shape (every process
+          # flushes its own batch), so this must not fail the entry: the counts
+          # exist nowhere but in this payload. Re-run the same lookups and add
+          # to the row that now exists, exactly as FindOrIncrementError does.
+          #
+          # Nested in its own transaction because the failed INSERT poisons the
+          # surrounding one on PostgreSQL.
+          raise unless (target = existing_target(error_hash, application, env))
+
+          ErrorLog.where(id: target.id).update_all([
+            "occurrence_count = occurrence_count + ?, last_seen_at = ?", count, last_seen
+          ])
+          # Yield on the RECOVERY path too: these counts are as real as the ones
+          # the winning INSERT wrote, so they need a time bucket as well, or a
+          # raced create silently loses its volume from every window query.
+          yield target.id if block_given?
+        end
         count
       end
 
-      # Mirrors ErrorHashGenerator.call exactly: same fields, same order,
-      # same normalization — so counts land on the same ErrorLog the full
-      # capture path would have used.
+      # The row a retried INSERT should add to: any row holding this group
+      # identity, whatever its status. Deliberately wider than the
+      # priority-ordered lookups above -- the index has already proved a row
+      # with this identity exists, so refusing to match a resolved or wont_fix
+      # one would drop the counts instead.
+      def existing_target(error_hash, application, env)
+        scope = ErrorLog.where(error_hash: error_hash, application_id: application.id)
+        scope = scope.where(environment: [ env, nil ]) if env
+        scope.order(last_seen_at: :desc).select(:id).first
+      end
+
+      # The unresolved row the full capture path would increment right now.
+      # No time window: "won't fix" holds for as long as the row keeps the status.
+      def wont_fix_target(error_hash, application, env)
+        scope = ErrorLog
+          .where(error_hash: error_hash, application_id: application.id)
+          .where(status: "wont_fix")
+        if env
+          scope = scope.where(environment: [ env, nil ])
+            .order(Arel.sql("CASE WHEN environment IS NULL THEN 1 ELSE 0 END"))
+        end
+        scope.order(last_seen_at: :desc).select(:id, :environment).first
+      end
+
+      def unresolved_target(error_hash, application, env)
+        # Disjoint from wont_fix_target. Not where.not(...): that would also
+        # drop rows whose status is NULL.
+        scope = ErrorLog.unresolved
+          .where("status IS NULL OR status <> ?", "wont_fix")
+          .where(error_hash: error_hash, application_id: application.id)
+          .where("occurred_at >= ?", 24.hours.ago)
+        if env
+          scope = scope.where(environment: [ env, nil ])
+            .order(Arel.sql("CASE WHEN environment IS NULL THEN 1 ELSE 0 END"))
+        end
+        scope.order(last_seen_at: :desc).select(:id, :environment).first
+      end
+
+      # The redaction LogError applies to a message, for exemplars that reach
+      # the database by any other route (first-seen rows, the storm ledger).
+      def redact_message(message)
+        return message if message.blank?
+
+        Services::SensitiveDataFilter.filter_attributes({ message: message.to_s })[:message]
+      end
+
+      # Finishes the same two-stage fingerprint the full capture path uses, so
+      # counts land on the ErrorLog that path would have chosen.
       def canonical_hash(entry, application)
         return entry["custom_hash"] if entry["custom_hash"].present?
 
-        digest_input = [
-          entry["error_class"],
-          Services::ErrorHashGenerator.normalize_message(entry["message"]),
-          entry["first_app_frame"],
-          entry["controller_name"],
-          entry["action_name"],
-          application.id.to_s
-        ].compact.join("|")
+        # The gate hashed the identity from the RAW message and buffered only
+        # the digest; the buffered "message" is redacted, so recomputing from
+        # it here would produce a DIFFERENT fingerprint and storm counts would
+        # land on a different row than the full capture path.
+        opaque = entry["opaque_identity"].presence || Services::ErrorHashGenerator.opaque_identity(
+          error_class: entry["error_class"],
+          normalized_message: Services::ErrorHashGenerator.normalize_message(entry["message"]),
+          frames: entry["first_app_frame"],
+          controller_name: entry["controller_name"],
+          action_name: entry["action_name"]
+        )
 
-        Digest::SHA256.hexdigest(digest_input)[0..15]
+        Services::ErrorHashGenerator.complete(opaque, application.id)
+      end
+
+      # nil when the column is not migrated yet, so every environment clause
+      # above disappears and the command behaves exactly as before.
+      def current_environment
+        return nil unless ErrorLog.column_names.include?("environment")
+
+        RailsErrorDashboard.configuration.current_environment
       end
 
       def resolve_application
@@ -130,6 +504,36 @@ module RailsErrorDashboard
                    (defined?(Rails) && Rails.application.class.module_parent_name) ||
                    "Rails Application"
         Application.find_or_create_by_name(app_name)
+      end
+
+      # Record the interval whose per-event timing was lost.
+      #
+      # Keyed by the interval, NOT by a storm episode: the gate can shed events
+      # with its breaker closed and pass episode: nil, and a marker on the
+      # episode vanished in exactly that case. The events are just as
+      # untimed whether or not an episode object happens to exist.
+      #
+      # Bounds come from the entries themselves, so the gap describes when the
+      # events actually happened rather than when the worker got to them.
+      def record_timing_gap!(counted)
+        return unless EventTimingGap.table_exists?
+
+        times = @entries.filter_map do |entry|
+          entry = entry.with_indifferent_access if entry.respond_to?(:with_indifferent_access)
+          parse_time(entry["last_seen_at"]) || parse_time(entry["first_seen_at"])
+        end
+        first_seen = @entries.filter_map do |entry|
+          entry = entry.with_indifferent_access if entry.respond_to?(:with_indifferent_access)
+          parse_time(entry["first_seen_at"])
+        end
+
+        now = Time.current
+        EventTimingGap.create!(
+          application_id: resolve_application&.id,
+          covered_from: (first_seen + times).min || now,
+          covered_until: times.max || now,
+          events_affected: counted
+        )
       end
 
       def upsert_storm_event(counted)
@@ -152,6 +556,13 @@ module RailsErrorDashboard
         event.fingerprints_affected = [ event.fingerprints_affected.to_i, @entries.size ].max
         event.peak_rate_per_minute = [ event.peak_rate_per_minute.to_i, @episode["peak_rate_per_minute"].to_i ].max
         event.reached_open ||= @episode["reached_open"] == true
+        # Sticky, like reached_open: once an episode has lost bucket timing it
+        # has lost it, and a later flush that happens to succeed does not make
+        # the earlier gap reappear. Guarded on the column so a host that has
+        # not run the migration yet keeps flushing normally.
+        if @buckets_incomplete && event.respond_to?(:buckets_incomplete)
+          event.buckets_incomplete = true
+        end
         event.top_fingerprints = top_fingerprints_json(event)
         event.ended_at = parse_time(@episode["ended_at"]) if @episode["ended_at"]
         event.save!
@@ -165,7 +576,7 @@ module RailsErrorDashboard
         existing = event.top_fingerprints_list
         fresh = @entries.map { |e|
           e = e.with_indifferent_access if e.respond_to?(:with_indifferent_access)
-          { "class" => e["error_class"], "message" => e["message"].to_s[0, 120], "count" => e["count"].to_i }
+          { "class" => e["error_class"], "message" => redact_message(e["message"]).to_s[0, 120], "count" => e["count"].to_i }
         }
 
         merged = (existing + fresh)

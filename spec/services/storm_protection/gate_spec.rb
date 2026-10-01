@@ -14,6 +14,81 @@ RSpec.describe RailsErrorDashboard::Services::StormProtection::Gate do
     error
   end
 
+  describe ".maybe_flush! when the queue is unavailable" do
+    before { gate.reset! }
+    after { gate.reset! }
+
+    it "retains the batch when perform_later returns false instead of raising" do
+      gate.count_buffer.record("key", gate.send(:gate_parts, boom, {}))
+      gate.instance_variable_set(:@last_flush, 0)
+      allow(RailsErrorDashboard::StormFlushJob).to receive(:perform_later).and_return(false)
+
+      gate.send(:maybe_flush!)
+
+      expect(gate.count_buffer.any?).to be(true)
+    end
+
+    it "retains the batch when the real queue adapter raises ActiveJob::EnqueueError" do
+      # Rails 7.2+ swallows EnqueueError inside perform_later and returns
+      # false; 7.0/7.1 let it propagate. The gate must retain the batch
+      # either way, so no assumption about perform_later's return here.
+      adapter = Object.new
+      adapter.define_singleton_method(:enqueue) { |_job| raise ActiveJob::EnqueueError, "queue store down" }
+      adapter.define_singleton_method(:enqueue_at) { |*_| raise ActiveJob::EnqueueError, "queue store down" }
+      # Rails 7.x asks the adapter this before enqueuing; Rails 8 does not.
+      adapter.define_singleton_method(:enqueue_after_transaction_commit?) { false }
+      job_class = RailsErrorDashboard::StormFlushJob
+      original = job_class.queue_adapter
+      # Rails 7.0/7.1 keep answering with the test adapter while one is
+      # enabled, whatever queue_adapter= was given; 7.2+ honour the
+      # assignment. Disable it for the duration so the fake is really used.
+      test_adapter = job_class.respond_to?(:_test_adapter) ? job_class._test_adapter : nil
+      begin
+        job_class.disable_test_adapter if job_class.respond_to?(:disable_test_adapter)
+        job_class.queue_adapter = adapter
+
+        gate.count_buffer.record("key", gate.send(:gate_parts, boom, {}))
+        gate.instance_variable_set(:@last_flush, 0)
+        gate.send(:maybe_flush!)
+
+        expect(gate.count_buffer.any?).to be(true)
+      ensure
+        job_class.queue_adapter = original
+        job_class.enable_test_adapter(test_adapter) if test_adapter && job_class.respond_to?(:enable_test_adapter)
+      end
+    end
+
+    it "retains the batch and the episode, then hands both off on the next interval" do
+      gate.count_buffer.record("key", gate.send(:gate_parts, boom, {}))
+      gate.instance_variable_set(:@last_flush, 0)
+      allow(RailsErrorDashboard::StormFlushJob).to receive(:perform_later).and_raise(IOError, "queue unavailable")
+
+      expect { gate.send(:maybe_flush!) }.not_to raise_error
+      expect(RailsErrorDashboard::StormFlushJob).to have_received(:perform_later).once
+      expect(gate.count_buffer.any?).to be(true)
+
+      handed_off = nil
+      allow(RailsErrorDashboard::StormFlushJob).to receive(:perform_later) { |**kwargs| handed_off = kwargs }
+      gate.instance_variable_set(:@last_flush, 0)
+      gate.send(:maybe_flush!)
+
+      expect(handed_off[:entries].sum { |e| e["count"] }).to eq(1)
+      expect(gate.count_buffer.any?).to be(false)
+    end
+  end
+
+  describe ".gate_key" do
+    it "separates the same error in different environments so they reconcile onto their own rows" do
+      staging = gate.send(:gate_parts, boom, { environment: "staging" })
+      production = gate.send(:gate_parts, boom, { environment: "production" })
+      implicit = gate.send(:gate_parts, boom, {})
+
+      expect(gate.send(:gate_key, staging)).not_to eq(gate.send(:gate_key, production))
+      expect(gate.send(:gate_key, implicit)).not_to eq(gate.send(:gate_key, staging))
+      expect(implicit[:environment]).to be_nil
+    end
+  end
+
   describe ".admit!" do
     it "returns :full when storm protection is disabled" do
       RailsErrorDashboard.configuration.enable_storm_protection = false
@@ -61,6 +136,94 @@ RSpec.describe RailsErrorDashboard::Services::StormProtection::Gate do
       snapshot = gate.count_buffer.snapshot!
       expect(snapshot[:entries].size).to eq(1)
       expect(snapshot[:entries].first["count"]).to eq(2)
+    end
+  end
+
+  # The breaker only used to move when an error arrived. With a fake clock in
+  # the real breaker these prove the gate notices that a storm has ENDED.
+  describe "recovery driven by time" do
+    let(:clock) do
+      Class.new {
+        def initialize = @now = 1000.0
+        def call = @now
+        def advance(seconds) = @now += seconds
+      }.new
+    end
+    let(:breaker) { RailsErrorDashboard::Services::StormProtection::CircuitBreaker.new(clock: clock) }
+
+    before do
+      gate.reset!
+      gate.instance_variable_set(:@breaker, breaker)
+      allow(RailsErrorDashboard::StormNotificationJob).to receive(:perform_later)
+    end
+    after { gate.reset! }
+
+    def open_the_breaker
+      500.times { gate.admit!(boom) }
+      expect(breaker.state).to eq(:open)
+    end
+
+    it "stops suppressing notifications an hour after the storm, with no further errors" do
+      open_the_breaker
+      expect(gate.notifications_suppressed?).to be true
+
+      clock.advance(3600)
+
+      expect(gate.notifications_suppressed?).to be false
+      expect(gate.state).to eq(:closed)
+    end
+
+    it "flush_if_due! ticks the breaker even when the count buffer is empty" do
+      expect(breaker).to receive(:tick!).at_least(:once).and_call_original
+
+      gate.flush_if_due!
+    end
+
+    it "flush_if_due! closes the episode after a quiet period and hands it to the flush job" do
+      open_the_breaker
+      clock.advance(3600)
+      gate.instance_variable_set(:@last_flush, 0)
+      allow(RailsErrorDashboard::StormFlushJob).to receive(:perform_later).and_call_original
+
+      gate.flush_if_due!
+
+      expect(RailsErrorDashboard::StormFlushJob).to have_received(:perform_later)
+        .with(hash_including(episode: hash_including("ended_at" => a_string_matching(/\d{4}-\d{2}-\d{2}T/))))
+    end
+
+    # The probe exists to find out whether the storm is over. Admitting the
+    # TENTH half-open event first meant a recovering app with a slow trickle of
+    # errors told us nothing for nine events.
+    it "admits the first half_open event as the probe, then every tenth after it" do
+      open_the_breaker
+      clock.advance(70) # past the 60s cooldown: :half_open
+      expect(breaker.state).to eq(:half_open)
+
+      decisions = Array.new(21) { gate.admit!(boom) }
+
+      expect(decisions.each_index.select { |i| decisions[i] == :lite }).to eq([ 0, 10, 20 ])
+      expect(decisions.count(:count_only)).to eq(18)
+    end
+
+    it "probes with the first event again on each new half_open entry" do
+      open_the_breaker
+      clock.advance(70)
+      4.times { gate.admit!(boom) } # probe spent, counter at 4
+      clock.advance(10) # roll the bucket so the probe count and the bucket count diverge
+
+      500.times { gate.admit!(boom) } # storm resumes: back to :open
+      expect(breaker.state).to eq(:open)
+      clock.advance(70)
+      expect(breaker.state).to eq(:half_open)
+
+      expect(gate.admit!(boom)).to eq(:lite)
+    end
+
+    it "admits the first error after a quiet hour at full fidelity" do
+      open_the_breaker
+      clock.advance(3600)
+
+      expect(gate.admit!(boom("a different error entirely"))).to eq(:full)
     end
   end
 
@@ -193,6 +356,30 @@ RSpec.describe RailsErrorDashboard::Services::StormProtection::Gate do
       expect {
         5.times { gate.admit!(boom) }
       }.not_to have_enqueued_job(RailsErrorDashboard::StormFlushJob)
+    end
+  end
+
+  describe "storm notification environment allowlist" do
+    before do
+      gate.reset!
+      allow(gate.breaker).to receive(:record!).and_return(:open)
+      allow(gate.breaker).to receive(:episode_snapshot).and_return(
+        { started_at: Time.current, ended_at: nil, peak_rate_per_minute: 600, reached_open: true }
+      )
+    end
+
+    it "does not enqueue when the process environment is not allowlisted" do
+      RailsErrorDashboard.configuration.notification_environments = %w[production]
+      RailsErrorDashboard.configuration.environment = "staging"
+
+      expect { gate.admit!(boom) }.not_to have_enqueued_job(RailsErrorDashboard::StormNotificationJob)
+    end
+
+    it "enqueues when the process environment is allowlisted" do
+      RailsErrorDashboard.configuration.notification_environments = %w[production]
+      RailsErrorDashboard.configuration.environment = "production"
+
+      expect { gate.admit!(boom) }.to have_enqueued_job(RailsErrorDashboard::StormNotificationJob).exactly(:once)
     end
   end
 end

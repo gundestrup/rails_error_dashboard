@@ -1,14 +1,21 @@
 # Rails Error Dashboard — Roadmap
 
-> Last updated: May 31, 2026 | Current version: v0.7.0
-> Deep introspection analysis: [DEEP_INTROSPECTION_ANALYSIS.md](DEEP_INTROSPECTION_ANALYSIS.md)
-> Faultline comparison: [FAULTLINE_COMPARISON.md](FAULTLINE_COMPARISON.md)
-> Time-series strategy: [TIMESERIES_ANALYSIS.md](TIMESERIES_ANALYSIS.md)
-> **Host app safety: [HOST_APP_SAFETY.md](HOST_APP_SAFETY.md)** — MUST READ before implementing any feature
+> Last updated: September 25, 2026 | Current version: v0.14.0 | Next: nothing scheduled — see "Open, uncommitted"
+>
+> **Working analysis docs are local-only, by design.** Earlier revisions of this file linked to
+> `DEEP_INTROSPECTION_ANALYSIS.md`, `FAULTLINE_COMPARISON.md`, `TIMESERIES_ANALYSIS.md` and
+> `HOST_APP_SAFETY.md`. All four exist on the maintainer's machine but are listed in `.gitignore`
+> (lines 55-59) and have never been committed, so the links were dead for every reader of the
+> public repo. The links are removed here rather than repaired.
+>
+> **The safety knowledge itself is committed and current** — `HOST_APP_SAFETY.md` was distilled
+> into `.claude/skills/host-app-safety/SKILL.md`, which carries its rules (7 expanded to 10),
+> performance budgets, incident post-mortems and code-review checklist. `CLAUDE.md` rule 1 is the
+> one-line form. Nothing load-bearing depends on the uncommitted originals.
 
 ## The Big Picture
 
-The gem sits in a **sweet spot**: more capable than Solid Errors (475 stars, minimal by design) and Faultline (64 stars, brand new), but infinitely simpler to run than self-hosted Sentry (12+ Docker services). The positioning is clear:
+The gem sits in a **sweet spot**: more capable than Solid Errors (488 stars, minimal by design) and Faultline (87 stars, young), but infinitely simpler to run than self-hosted Sentry (12+ Docker services). The positioning is clear:
 
 > **"It's just a gem."** No Docker Compose, no separate services, no DevOps team. `bundle install`, migrate, mount, done.
 
@@ -16,23 +23,29 @@ The gem sits in a **sweet spot**: more capable than Solid Errors (475 stars, min
 
 | Metric | rails_error_dashboard | solid_errors | faultline | findbug | exception_notification |
 |--------|-----------------------|-------------|-----------|---------|----------------------|
-| Total Downloads | 11,000+ | 276,761 | N/A (git-only) | 1,447 | 22,144,698 |
-| GitHub Stars | 70+ | 481 | 72 | 25 | 2,185 |
-| Last Commit | 2026-03-27 (active) | 2025-11-24 (stale) | 2026-03-06 (active) | 2026-02-25 (active) | 2021-12-28 (dead) |
+| Total Downloads | 47,992 | 377,820 | N/A (git-only) | 2,542 | 23,958,401 |
+| GitHub Stars | 92 | 488 | 87 | 25 | 2,173 |
+| Last Commit | 2026-09-25 (active) | 2025-11-24 (stale) | 2026-05-14 (slowing) | 2026-02-25 (active) | 2025-03-22 (dormant) |
 | Dashboard UI | Yes (Bootstrap 5) | Yes (minimal) | Yes (Tailwind) | Yes | No |
 | Notifications | Slack, Email, Discord, PagerDuty, Webhooks | Email | Telegram, Slack, Email, Webhooks | Slack, Email, Discord, Webhooks | Email, Slack, many more |
+| Issue Trackers | GitHub, GitLab, Codeberg, Linear | No | No | No | No |
+| i18n | 11 locales (v0.9.0) | No | No | No | No |
+| OpenTelemetry | Exports its own spans; consumes GenAI spans (v0.7.0/v0.8.0) | No | No | No | No |
+| LLM Observability | Yes (v0.7.0) | No | No | No | No |
 | Rails Versions | 7.0 - 8.1 | 7.1+ | 8.0+ | 7.0+ | 7.1+ |
-| Dependencies | 2 required + optional | 0 extra | 0 extra | 7 (incl. Redis) | 2 |
+| Dependencies | 3 required (pagy, groupdate, concurrent-ruby) + optional | 0 extra | 0 extra | 7 (incl. Redis) | 2 |
 | Local Variables | Yes (TracePoint) | No | Yes (TracePoint) | No | No |
 | Auth | HTTP Basic + Custom Lambda | N/A | Devise/Warden/Lambda | ? | N/A |
 | Error Model | Single record + count | Single record | Group + Occurrences | Single record | N/A |
-| GitHub Issues | Yes (GitHub, GitLab, Codeberg) | No | Yes | No | No |
+| GitHub Issues | Yes (GitHub, GitLab, Codeberg, Linear) | No | Yes | No | No |
 | Auto-Reopen | Yes | No | Yes | No | N/A |
 | Copy for LLM | Yes (v0.5.3+) | No | No | No | No |
-| Telegram | Not yet | No | Yes | No | No |
-| Performance Monitoring | Planned (v0.6) | No | No | Yes (Redis-based) | No |
+| Telegram | Not yet (7a, open) | No | Yes | No | No |
+| Performance Monitoring | Deferred, see (Z) | No | No | Yes (Redis-based) | No |
 
-> **Detailed comparison:** See [FAULTLINE_COMPARISON.md](FAULTLINE_COMPARISON.md) for full feature-by-feature analysis.
+> RED's downloads, stars and last commit re-verified against RubyGems and the GitHub API on 2026-09-25.
+> Every other project's figures are as of 2026-08-25 and were not re-checked. `faultline` is
+> git-only, so its RubyGems row stays N/A; its star count is the `dlt/faultline` repo.
 
 ### vs SaaS (Sentry, Honeybadger, Rollbar, Bugsnag, Airbrake)
 
@@ -73,7 +86,7 @@ Plus direct access to:
 
 ## Tier 0 — Insider Advantage Features (only possible because we're inside the process)
 
-These features are impossible or impractical for SaaS error trackers. They represent the gem's unique competitive moat.
+These features depend on running inside the process. Not all of them are unique — SaaS agents also ship breadcrumbs, `at_exit` capture and N+1 detection (see the verified ledger in `.shipkit/research/`) — but attaching runtime state to the error record is found nowhere else.
 
 ### A. Breadcrumbs via ActiveSupport::Notifications (zero config) — DONE
 - **What:** Subscribe to Rails instrumentation events, keep a rolling buffer per-request (last 25-50 events). When an error fires, attach the buffer as a timeline. The developer sees every SQL query, cache hit/miss, partial render, and job enqueue that happened before the crash
@@ -87,15 +100,30 @@ These features are impossible or impractical for SaaS error trackers. They repre
 - **What:** Subscribe to `sql.active_record`, count queries per request, detect repeated query patterns. When an error fires, attach: total query count, total DB time, and flagged N+1 patterns (same query fingerprint executed 3+ times)
 - **Why:** N+1 queries are the #1 Rails performance problem. The Bullet gem only works in development. Prosopite is typically disabled in production. We can do lightweight N+1 detection on every request that errors, for free
 - **Effort:** 1-2 days
-- **Impact:** Differentiation +++ (no error tracker does this)
+- **Impact:** Differentiation ++ (Sentry, AppSignal, Scout and Skylight detect N+1 with tracing on; RED does it on the errored request without tracing, self-hosted)
 - **Implemented:** Per-error N+1 detection card (display-time analysis, zero request overhead), smart SQL normalization, configurable threshold (default 3). v0.3.0 added: aggregate N+1 Queries page (`/errors/n_plus_one_summary`) grouped by SQL fingerprint across all errors, eager loading tips with extracted table names
 
 ### C. System Health Snapshot at Error Time — DONE
 - **What:** At the moment an error is captured, snapshot: process RSS (memory), `GC.stat` (heap pressure, GC count), `Thread.list.count`, `ActiveRecord::Base.connection_pool.stat` (pool exhaustion), and `Puma.stats` if available (server capacity)
-- **Why:** Developers always ask "was the server under pressure when this happened?" Memory leaks, connection pool exhaustion, and thread starvation all cause errors that are impossible to diagnose without this context. No SaaS error tracker can capture in-process GC and connection pool stats
+- **Why:** Developers always ask "was the server under pressure when this happened?" Memory leaks, connection pool exhaustion, and thread starvation all cause errors that are impossible to diagnose without this context. Every APM has GC, pool and Puma metrics as time-series graphs; none attaches them to the error record
 - **Effort:** 1 day
-- **Impact:** Differentiation ++ (unique to in-process gems)
+- **Impact:** Differentiation ++ (unique: stored on the error, not a graph beside it)
 - **Implemented:** Sub-millisecond capture, every metric individually rescue-wrapped, no ObjectSpace, no Thread backtraces, no subprocess. Displays GC stats, process memory, thread count, connection pool, and Puma stats on error detail page
+
+### C2. Refresh or version the runtime snapshot on recurrence — DONE (v0.11.1)
+- **What:** `FindOrIncrementError#increment_existing` (and `reopen_existing`) update only `occurrence_count`, `last_seen_at`, user/request fields and environment. `system_health`, local/instance variables and breadcrumbs are written once, when the grouped error row is created, and `error_occurrences` stores only user/request/session ids. For a 21-occurrence error the health snapshot is from occurrence #1
+- **Why:** The headline claim is "the state of the process at the moment of failure"; today that is true only for the first failure in a 24 h dedup window. Either overwrite the snapshot on each recurrence (cheap, keeps the row small, loses history) or persist it per occurrence (honest version of the claim, needs a column on `error_occurrences` and a UI to browse them)
+- **Effort:** Half a day (overwrite) / 2 days (per-occurrence + UI)
+- **Impact:** Credibility +++ — found 2026-08-27 while verifying README copy
+- **Implemented:** the overwrite option. `FindOrIncrementError::REFRESHED_CONTEXT` (breadcrumbs, system_health, local/instance variables, http_method, hostname, content_type, request_duration_ms) is copied onto the row on every increment, reopen and race-retry; keys the occurrence did not capture (storm :lite, feature off, column missing) leave the stored payload untouched, and app_version/git_sha/occurred_at are never refreshed because release tracking depends on first-seen. Per-occurrence history remains a follow-up
+
+### C3. Per-occurrence context history — OPEN (not scheduled)
+- **Status (2026-09-25):** not built. This was pencilled in for v0.12, but 0.12.0–0.14.0 went to correctness and evidence-integrity fixes instead, and no release has added the side table or `config.occurrence_context_limit`. The design below still stands
+- **What:** Keep the moment-of-failure context for the last N occurrences of an error, not only the latest (C2). A 1:1 side table `rails_error_dashboard_error_occurrence_contexts` (`error_occurrence_id`, `payload`, `created_at`) written after the `ErrorOccurrence` insert whenever `FindOrIncrementError#latest_context` is non-empty; trimmed to `config.occurrence_context_limit` (default 25, matching the calm-weather sampling threshold) per error; retention cascades through the existing occurrence cleanup. The History tab links each occurrence that has a context row to `?occurrence=ID`, and the detail page renders the existing system-health, breadcrumb and variable cards from that payload instead of the row's latest
+- **Why:** C2 makes the error row show the *latest* failure; this is the honest long form of "the state of the process at the moment of failure" — every captured failure, browsable. A separate table (not a column on `error_occurrences`) keeps `CoOccurringErrors` and the cascade queries, which load occurrence rows with `SELECT *`, from paying for multi-KB blobs; a storm-shed capture simply has no row
+- **Constraints:** storage is bounded by the same storm ladder that limits full-context captures today; needs an incremental migration, so it is a minor release (feat), with the installer/upgrade-path test and the demo repo's schema dumps updated in step
+- **Effort:** 1–2 days incl. specs (command, model, request, one system spec)
+- **Impact:** Credibility +++ — completes C2; deferred from 0.11.1 on 2026-08-27
 
 ### D. Auto-Enriched User Context via CurrentAttributes — DONE
 - **What:** At error time, check `ActiveSupport::CurrentAttributes.subclasses` for the host app's `Current` class. If `Current.user` exists, auto-capture user email/name/id without requiring configuration
@@ -105,16 +133,16 @@ These features are impossible or impractical for SaaS error trackers. They repre
 
 ### E. Error Replay — "Copy as curl" / "Copy as RSpec" — DONE
 - **What:** Capture HTTP method, path, headers (filtered), params, and body at error time. Generate a one-click "Copy as curl" command and "Copy as RSpec request spec" on the error detail page
-- **Why:** The hardest part of fixing a production error is reproducing it. Handing the developer a ready-to-run curl command or test gets them from "I see the error" to "I can reproduce it" in seconds. **No competitor does this**
+- **Why:** The hardest part of fixing a production error is reproducing it. Handing the developer a ready-to-run curl command or test gets them from "I see the error" to "I can reproduce it" in seconds. **Sentry offers a curl view of the request; no competitor generates a runnable test**
 - **Effort:** 1-2 days
-- **Impact:** Novel +++ (genuinely unique differentiator)
+- **Impact:** Novel +++ (the RSpec generator is unique; curl is shared with Sentry)
 - **Implemented:** `CurlGenerator` service + "Copy as curl" button, `RspecGenerator` service + "Copy as RSpec" button. Both in Request Context card on error detail page. Shell-escaped, fail-safe, handles all HTTP methods and edge cases. 14 test cases for RSpec generator
 
 ### F. Deprecation Warning Tracker — DONE
 - **What:** Subscribe to `deprecation.rails` notifications. Capture deprecation warnings with their callstack and display on a dedicated "Deprecations" tab. Group by warning type, show frequency, and flag which code paths trigger them
-- **Why:** Deprecation warnings are "future errors" — things that will break on the next Rails upgrade. No error tracker captures these. This turns the dashboard into a Rails upgrade planning tool
+- **Why:** Deprecation warnings are "future errors" — things that will break on the next Rails upgrade. No error tracker integrates these (deprecation_collector does it as a standalone gem). This turns the dashboard into a Rails upgrade planning tool. Needs the host's deprecation behaviour to include `:notify`, and only sees requests that later raised
 - **Effort:** 1 day
-- **Impact:** Unique ++ (no competitor has this)
+- **Impact:** Unique among error trackers ++ (no error tracker integrates this; deprecation_collector does it standalone)
 - **Implemented:** Per-error red summary card with warning message and caller location. v0.3.0 added: aggregate Deprecations page (`/errors/deprecations`) grouped by message+source across all errors, with occurrence counts, affected error links, and 7/30/90 day filtering. Rails Upgrade Guide link
 
 ### G. Background Job Health Panel — DONE
@@ -133,7 +161,7 @@ These features are impossible or impractical for SaaS error trackers. They repre
 
 ### I. Cache Health Monitoring — DONE
 - **What:** Subscribe to `cache_read.active_support`, track hit/miss ratio over time. Show cache effectiveness on the dashboard. Alert when hit rate drops below threshold
-- **Why:** A sudden cache hit rate drop often **precedes** error spikes (Redis went down, cache keys changed after deploy). Correlating cache health with error rate is unique context only an in-process gem can provide
+- **Why:** A sudden cache hit rate drop often **precedes** error spikes (Redis went down, cache keys changed after deploy). Sentry's Caches module reports miss rate and throughput with tracing; RED's aggregate is computed only from cache operations inside errored requests, without tracing
 - **Effort:** 1 day
 - **Impact:** Operational value + (useful correlation)
 - **Implemented:** Per-error cache card with reads, writes, hit rate (color-coded), total time, slowest operation. Hit rate advisories when below 80%. v0.3.0 added: aggregate Cache Health page (`/errors/cache_health_summary`) sorted worst-first across all errors. Rails Caching Guide link
@@ -157,9 +185,9 @@ These features are impossible or impractical for SaaS error trackers. They repre
 
 ## Deep Introspection — Ruby VM-Level Capabilities
 
-> **Full analysis**: See [DEEP_INTROSPECTION_ANALYSIS.md](DEEP_INTROSPECTION_ANALYSIS.md) for complete research including competitive analysis, implementation architecture, benchmarks, and sources.
+> The research behind this section — competitive analysis, implementation architecture, benchmarks and sources — lived in an uncommitted working doc. The conclusions that survived it are stated inline below, including the performance budget table at the end of this section.
 
-These features use Ruby's VM-level APIs and TracePoint to capture context that **no other error tracker** provides. The research validates that these are production-safe — Sentry ships TracePoint(:raise) globally, and all system health APIs are read-only with <1ms overhead.
+These features use Ruby's VM-level APIs and TracePoint to capture context that, taken together, **no other error tracker** provides (local variables alone are table stakes — Sentry, Honeybadger and Rollbar all capture them; instance variables of `self`, the runtime snapshot on the error and the swallowed-exception aggregate are the parts nobody else has). The research validates that these are production-safe — Sentry ships TracePoint(:raise) globally, and all system health APIs are read-only with <1ms overhead.
 
 ### The Killer Combination (Our Unique Differentiator)
 
@@ -243,7 +271,7 @@ Environment:
 
 ### N. Swallowed Exception Detection (TracePoint :rescue, Ruby 3.3+) — DONE (v0.4.0)
 - **What:** Subscribe to `:rescue` TracePoint to track silently rescued exceptions. Build a "Swallowed Exceptions" dashboard showing exceptions raised frequently but never reaching the error handler
-- **Why:** **No competitor detects this.** Silent `rescue => e; nil; end` hides real problems. Example output: "NoMethodError raised 500/hr, 497 silently rescued at `payment_processor.rb:89`"
+- **Why:** **Only Datadog's paid APM detects rescued exceptions** (dd-trace-rb ≥ 2.16, Ruby 3.3+, needs an active span) and it keeps no raise-vs-rescue aggregate; no free or self-hosted tracker does it at all. Silent `rescue => e; nil; end` hides real problems. Example output: "NoMethodError raised 500/hr, 497 silently rescued at `payment_processor.rb:89`"
 - **Implementation:**
   - `TracePoint.new(:rescue)` stores rescue location on exception via `@_red_rescues` instance variable
   - Compare raise vs rescue counts per exception class per location
@@ -251,7 +279,7 @@ Environment:
   - Requires Ruby 3.3+ (version gate with `RUBY_VERSION >= "3.3"`)
   - Note: Ruby uses `tp.raised_exception` (not `tp.rescued_exception`) for both events
 - **Effort:** 2-3 days (including dashboard UI)
-- **Impact:** Novel +++ (genuinely unique — no competitor has this)
+- **Impact:** Novel +++ (the per-location aggregate is unique; detection itself is shared with Datadog)
 
 ### O. Process Crash Capture (at_exit hook) — DONE (v0.4.0)
 - **What:** Register `at_exit` hook to capture fatal exception (`$!`), GC state, thread state. Write to disk synchronously (DB may be unavailable during crash). Import on next boot
@@ -261,9 +289,9 @@ Environment:
 - **Impact:** Reliability ++
 
 ### P. On-Demand Diagnostic Dump — DONE (v0.4.0)
-- **What:** `Signal.trap("USR1")` generates full diagnostic snapshot (threads, GC, memory, pools, recent errors) to `/tmp/`. Zero overhead until triggered
+- **What:** A dashboard button (`POST /errors/create_diagnostic_dump`) or `rake error_dashboard:diagnostic_dump` generates a full diagnostic snapshot (threads, GC, memory, pools, breadcrumbs) into the `diagnostic_dumps` table. Zero overhead until triggered. No `Signal.trap` — host-app safety rule #9
 - **Why:** Standard Unix practice (Puma, Sidekiq, Unicorn all do this). Operators send `kill -USR1 <pid>` during incidents
-- **Implementation:** Signal handler sets a flag, background thread collects and writes JSON. Dashboard can display the dump
+- **Implementation:** `DiagnosticDumpGenerator` composes the system-health snapshot, `Thread.list` (names and status only), `GC.stat` and `ObjectSpace.count_objects`; the dashboard lists and displays dumps
 - **Effort:** Half day
 - **Impact:** Operational value ++
 
@@ -280,6 +308,7 @@ Environment:
 - **Implementation:** `ActiveSupport::Notifications.subscribe("throttle.rack_attack")`, guard with `defined?(Rack::Attack)`, store as breadcrumbs or dedicated counter
 - **Effort:** Half day
 - **Impact:** Operational + (useful if Rack Attack is installed)
+- **Reworked three times since.** v0.8.3 (#143) made events persist independently of error capture — they were previously lost unless an error happened to fire. v0.8.4 (#150) surfaced a missing `rack-attack` gem instead of failing silently. **v0.10.0 (#177, shipped 2026-08-25)** fixes the remaining three defects found via issue [#170](https://github.com/AnjanJ/rails_error_dashboard/issues/170): `track` events never set a discriminator (so "Unique IPs" always read 0 next to a real count), counts were silently lost on LRU eviction, and there was no flush on shutdown. It also adds AI-agent classification from the User-Agent header
 
 ### S. ActionCable Connection Monitoring -- DONE (v0.5.0)
 - **What:** Track WebSocket connection counts, channel actions, transmissions, subscription confirmations/rejections. Surface ActionCable health alongside errors
@@ -307,7 +336,7 @@ Environment:
 - **Why:** Knowing exactly which lines ran before a crash narrows debugging scope dramatically. `oneshot_lines` mode fires each line callback only once, making it practical for production
 - **Implementation:** Enable in diagnostic mode only. Suspend/resume around error capture. Store as compact bitset per file. **Caveat:** Coverage is process-global (not thread-local), so results may blend in multi-threaded Puma. Best for diagnostic/single-threaded use
 - **Effort:** 2-3 days
-- **Impact:** Debugging ++ (unique, no competitor has this)
+- **Impact:** Debugging ++ (no error tracker integrates production coverage; Coverband does it standalone, with persistence)
 - **Implemented:** Diagnostic mode — `CoverageTracker` service wraps Ruby Coverage API. Enable/disable via dashboard button on error detail page. Source code viewer overlays green checkmarks (executed) / gray dots (not executed). Zero overhead when off. SimpleCov-compatible. No migration (live in-memory `Coverage.peek_result`). 19 service specs + 7 request specs
 
 ### W. YJIT Runtime Stats — DONE (v0.4.0)
@@ -320,7 +349,7 @@ Environment:
 ### X. RubyVM Cache Health — DONE (v0.4.0)
 - **What:** Capture `RubyVM.stat` — `global_method_state`, `global_constant_state`, `class_serial`. Detect rapidly incrementing counters that indicate hot-path monkey-patching invalidating all method/constant caches
 - **Why:** Method cache invalidation is a subtle performance killer. If `global_method_state` jumps rapidly, something is redefining methods in a hot path — this causes all cached method lookups to be re-resolved
-- **Implementation:** Read `RubyVM.stat` in system health snapshot. Track delta between captures to detect rapid invalidation
+- **Implementation:** Read `RubyVM.stat` in the system health snapshot (shipped). Delta tracking between captures is **not** implemented
 - **Effort:** Half day
 - **Impact:** Debugging + (niche but diagnostic)
 
@@ -330,6 +359,17 @@ Environment:
 - **Why it's plausible:** We already subscribe to `ActiveSupport::Notifications` for breadcrumbs (SQL, controller, cache events), so the instrumentation surface largely exists. The natural correlation would be linking performance data to errors that occur inside slow requests — a debugging angle, not standalone APM
 - **Why it's deliberately deferred:** Shipping shallow APM invites comparison to mature tools and dilutes our core strength. Our real edge is *depth of debugging context from inside the process* (locals, cause chains, breadcrumbs, swallowed-exception detection, health panels) — that advantage compounds the further we push it, and APM doesn't draw on it. If we ever build this, it must be excellent and Redis-free, with a strict host-app-safety budget (opt-in, sampled, async, ring-buffer pattern, never blocks the request), not a checkbox
 - **Effort / Impact:** Not estimated — out of scope until core excellence is achieved
+
+### AA. Dashboard Internationalization — DONE (v0.9.0)
+- **Status:** Shipped 2026-08-24 in v0.9.0. All 7 phases of `tasks/i18n-sprint-plan.md` are complete and merged (#155)
+- **What shipped:** A private I18n backend isolated from the host app, request-scoped locale state, the `red_t` helper family, plural/relative-time/date-format helpers, a dynamic `<html lang>`, the full ~1,500-key extraction across views, inline JS, mailers and notification payloads, a JS translation payload, a session-persisted language picker, and `bin/i18n-check` to verify locale files mechanically. **Eleven locales ship** — `en` (source) plus `de`, `es`, `fr`, `pt-BR`, `ja`, `ru`, `uk`, `pl`, `it` and `zh-CN`
+- **Translation quality is explicitly unreviewed outside French.** Every non-English locale shipped machine-translated, because the maintainer reads only English; French has since been reviewed by a native speaker (v0.11.5, #201, closing #158), leaving nine of the ten unreviewed. `bin/i18n-check` enforces what a script can verify — key parity, interpolation variables, CLDR plural categories — and the English fallback means a wrong translation degrades to English rather than a broken page. Wording, register and idiom are labelled unreviewed rather than pretended away
+- **Open follow-up:** issues [#156–#165](https://github.com/AnjanJ/rails_error_dashboard/issues/156) — one per locale, tagged `good first issue` / `translation:needs-review`, inviting native speakers to correct wording. #158 (French) is closed, reviewed in v0.11.5 via #201; the remaining nine stay open by design; they are the contribution path, not a backlog
+- **That path has already paid for itself.** The first reviewer to take one up (@gmarziou, French, #158) reported not a wording problem but two real bugs: chart date axes rendering in English in every locale, and inverted axis titles on the horizontal bar chart — plus a latent third (issue #178, fixed in #179, shipped in v0.10.0). Worth stating plainly, because `bin/i18n-check` could not have caught any of it: it verifies key structure, interpolation variables and plural categories, not what reaches a `<canvas>`. **A locale can pass every mechanical check and still render English on every chart.** When auditing i18n coverage, grep for `strftime` and `to_json` in views, not only for missing `red_t` calls — data serialized to JS is the blind spot
+- **Two follow-up fixes landed after the release:** pagination rendering in the dashboard's own locale (v0.8.4, #152) and authenticating every dashboard controller rather than only `ErrorsController` (v0.9.0, #167)
+- **Demand signal:** still no user request and zero i18n issues filed before the work started. It proceeded because the foundation made it incremental, not because demand appeared
+- **Effort (actual):** foundation 2-3 days · extraction + tooling ~14 days · locales ~4 days · verification and release ~2 days
+- **Impact:** Reach ++ (adoption in non-English-speaking teams)
 
 ### Y. Lazy Backtrace via Thread.each_caller_location (Ruby 3.2+)
 - **What:** Use `Thread.each_caller_location` (Ruby 3.2+) as a more efficient alternative to `caller_locations`. Stops iterating after finding the first app-code frame instead of generating the full backtrace
@@ -428,7 +468,7 @@ All overhead numbers validated against Sentry's production benchmarks and Ruby d
 - **What:** Add conditional migration that uses BRIN index on `occurred_at` for PostgreSQL (72KB vs 676MB for B-tree, near-identical time-range query performance). Add functional index on `date_trunc('day', occurred_at)` to speed up Groupdate queries by up to 70x
 - **Why:** Error logs are insert-heavy, naturally time-ordered data — the exact use case BRIN indexes are designed for. Our DashboardStats makes 7+ COUNT queries per page load; AnalyticsStats does `group_by_day` over 30 days. These indexes make both instant. Zero runtime dependency, just smarter indexing
 - **Community impact:** Dashboard stays responsive at 100K+ rows without any user configuration
-- **Learned from:** Time-series database research. See [TIMESERIES_ANALYSIS.md](TIMESERIES_ANALYSIS.md)
+- **Learned from:** Time-series database research (working doc, not committed)
 - **Effort:** Half day
 - **Implemented:** Migration adds BRIN index on `occurred_at` + functional index for Groupdate (PostgreSQL only, graceful SQLite fallback)
 
@@ -455,17 +495,19 @@ All overhead numbers validated against Sentry's production benchmarks and Ruby d
 - **Effort:** Half day
 - **Impact:** Adoption ++ (closes gap with faultline, reaches new developer communities)
 
-### 8. GitHub/GitLab Issue Creation
+### 8. GitHub/GitLab Issue Creation — DONE (v0.5.8, extended v0.8.1)
 - **What:** One-click "Create GitHub Issue" from the error detail page. Pre-fill with error details, backtrace, context. Link back to the error in the dashboard. Track issue status
 - **Why:** Faultline (a direct competitor) already has this and it's likely contributing to their faster star growth (64 vs 28). This bridges the gap between "I see the error" and "I'm working on it"
 - **Community impact:** Most-requested integration across all error tracking tools. Natural next step after "see error -> assign error"
 - **Effort:** 1-2 days
+- **Implemented:** Four providers — GitHub, GitLab and Codeberg in v0.5.8, Linear added in v0.8.1 (#133). Manual creation, auto-create, lifecycle sync and inbound webhooks
 
-### 9. Environment/Stage Awareness
+### 9. Environment/Stage Awareness — DONE (v0.11.0)
 - **What:** Track which environment errors come from (development/staging/production). Filter by environment. Show environment badge on errors. Separate notification rules per environment
 - **Why:** Currently there's no concept of environment — all errors are treated equally. In practice, a staging error is very different from a production error. Every SaaS competitor separates these
 - **Community impact:** Any team with staging + production environments needs this
 - **Effort:** 1 day
+- **Implemented (#187, 2026-08-26):** every error records its environment — a free-form name defaulting to `Rails.env`, overridable with `config.environment` / `ERROR_DASHBOARD_ENVIRONMENT`, never an enum (the v0.9.1 advisory was a check that knew one environment name). Index filter + chip, row and sidebar badges, an Errors-by-Environment chart, all shown only when more than one environment exists. **Environment is a match dimension in dedup, not a fingerprint input**: the same error in staging and production is two rows with independent status, hashes are unchanged, and rows captured before the column existed are adopted by their next occurrence (`rails_error_dashboard:backfill_environments` for history). `config.notification_environments` is one allowlist checked at the notification choke point plus storm and baseline alerts; every payload names the environment and the email subject becomes `[App · env] …`. Spec and three decision records in `.shipkit/specs/environment-awareness/`. This feature existed in v0.1.x and was removed wholesale in `a69e77b` — the roadmap should not lose it a second time
 
 ### 10. Reduce Runtime Dependencies — DONE
 - **What:** Make `turbo-rails`, `browser`, `httparty`, and `chartkick` optional. Core gem should only require `pagy` and `groupdate`. Load optional features only if the dependency is available
@@ -513,6 +555,12 @@ All overhead numbers validated against Sentry's production benchmarks and Ruby d
 
 ## Tier 4 — Differentiators (stand out from the crowd)
 
+### 15a. Ruby 4.0 in the CI test matrix — OPEN
+- **What:** `.github/workflows/test.yml` runs Ruby 3.2, 3.3 and 3.4 against Rails 7.0–8.1 (re-checked 2026-09-25: the matrix is still `['3.2', '3.3', '3.4']`). Add Ruby 4.0 (and future 4.x) so every version the README and gemspec claim ("Ruby 3.2–4.0") is exercised in CI rather than only on the maintainer's machine
+- **Why:** The README beta note currently has to say "CI runs Ruby 3.2–3.4; Ruby 4.0 is verified by the maintainer" — an honest caveat, but one that should not need to exist. Known blockers to check first: `ostruct` is no longer a default gem on 4.0 and sqlite3 2.8.1 does not compile on macOS (see CLAUDE.md gotchas); the Linux runner may not hit the second
+- **Effort:** Half a day
+- **Impact:** Credibility ++ — found 2026-08-27 while verifying README compatibility claims
+
 ### 16. AI-Powered Error Summaries
 - **What:** Optional integration with OpenAI/Anthropic API to generate plain-English summaries of errors: "This NoMethodError on line 42 of users_controller.rb is likely caused by a nil user object when the session expires"
 - **Why:** Sentry launched "Seer" for AI-assisted grouping and it's their most talked-about feature. For a self-hosted gem, even a simple "summarize this error" button using the user's own API key would be genuinely useful and highly shareable
@@ -521,8 +569,8 @@ All overhead numbers validated against Sentry's production benchmarks and Ruby d
 
 ### 17. Error Replay (Request Reproduction) — DONE
 - **What:** Capture enough request context (method, path, headers, params, body) to generate a reproducible curl command or RSpec request spec. One-click "Copy as curl" or "Copy as test"
-- **Why:** The hardest part of fixing an error is reproducing it. If the dashboard can hand you a ready-to-run curl command, that's a massive time-saver. No competitor does this well
-- **Community impact:** Genuinely novel feature that would differentiate from every competitor
+- **Why:** The hardest part of fixing an error is reproducing it. If the dashboard can hand you a ready-to-run curl command, that's a massive time-saver. Sentry offers a curl view; no competitor generates a runnable test
+- **Community impact:** The RSpec half is genuinely novel; curl is shared with Sentry
 - **Effort:** 2 days
 - **Status:** Fully implemented — `CurlGenerator` + `RspecGenerator` services with copy-to-clipboard buttons on error detail page
 
@@ -548,14 +596,16 @@ All overhead numbers validated against Sentry's production benchmarks and Ruby d
 
 ## Tier 5 — Community & Growth (not code, but critical)
 
-### 21. Submit to awesome-ruby
+### 21. Submit to awesome-ruby — DONE (merged 2026-08-13)
 - The [awesome-ruby](https://github.com/markets/awesome-ruby) list is the most-referenced curated list for Ruby gems
 - Not being on it means most developers will never discover the gem
 - **Single highest-leverage action for visibility**
+- **Done.** The list requires 30K+ downloads; earlier revisions recorded us at ~11K and therefore ineligible. At 37,381 the bar was cleared, and [markets/awesome-ruby#1246](https://github.com/markets/awesome-ruby/pull/1246) **merged upstream on 2026-08-13**. This roadmap went on saying "not yet submitted" for eighteen days afterwards — verify a listing upstream before repeating a status line here
 
-### 22. Submit to Ruby Toolbox
+### 22. Submit to Ruby Toolbox — SUBMITTED, AWAITING MERGE
 - Ruby Toolbox categorizes gems and shows comparative stats
 - Being listed under "Exception Notification" alongside exception_notification, solid_errors, and airbrake would immediately surface the gem
+- **Status:** [rubytoolbox/catalog#1033](https://github.com/rubytoolbox/catalog/pull/1033) is still open and unmerged as of 2026-09-25; its last activity was 2026-08-27. Nothing further to do on our side
 
 ### 23. Write a Launch Blog Post
 - "Why I built a self-hosted error dashboard for Rails" on dev.to or Medium
@@ -563,146 +613,141 @@ All overhead numbers validated against Sentry's production benchmarks and Ruby d
 - Show screenshots, link to live demo
 - This is how gems get their first 100 stars
 
-### 24. Fix Default Credentials Warning
+### 24. Fix Default Credentials Warning — DONE (hardened in v0.9.1)
 - Raise an error on startup if `dashboard_username` is still "gandalf" and `dashboard_password` is still "youshallnotpass" in production
 - Users will ship with demo credentials — this is a security issue that will come up in every code review
+- **Implemented, then found insufficient.** The original guard asked `Rails.env.production?`, which tests one literal string — an internet-facing app deployed as `staging`, `uat`, `demo`, `preprod` or `qa` booted fine on credentials this project publishes in its own README. Reported by [@rajnisht7](https://github.com/rajnisht7) as [GHSA-qhgm-3pxf-mvc6](https://github.com/AnjanJ/rails_error_dashboard/security/advisories/GHSA-qhgm-3pxf-mvc6) (high). v0.9.1 replaces the check with an **allowlist**: only `development` and `test` may run on built-in credentials; every other environment name — including ones that do not exist yet — is refused. This is a breaking boot-time change and is called out in the changelog
+- **Loop closed:** the advisory now carries **CVE-2026-94549** (on the advisory since 2026-09-22), and the maintainer has notified the reporter
 
 ---
 
 ## Priority Matrix & Release Plan
 
-### Implementation Phases
+### Where we actually are
 
-Each phase builds on the previous. Phase 1 features are quick wins (hours each). Phase 3-4 are the game-changers that differentiate us from every competitor.
+Nine months, 721 commits, 94 published versions, currently **v0.14.0**. The version-by-version
+table that used to live here had gone stale in a way that made it actively misleading — it still
+targeted i18n at "v1.1+" months after it shipped in v0.9.0, and listed features at v0.5/v0.6 that
+had been done since spring. It has been replaced by the shipped history below plus a short,
+honest forward list.
 
-| Priority | Feature | Effort | Impact | Phase |
-|----------|---------|--------|--------|-------|
-| **NOW** | Submit to awesome-ruby & Ruby Toolbox | 1 hour | Visibility +++ | Community |
-| **NOW** | Fix default credentials warning | 1 hour | Trust +++ | Community |
-| **NOW** | Write launch blog post | 4 hours | Awareness +++ | Community |
-| | | | | |
-| ~~**v0.2**~~ | ~~Exception cause chain (L)~~ | ~~2-3 hours~~ | ~~Debugging ++~~ | ~~Phase 1: Quick Wins~~ **DONE** |
-| ~~**v0.2**~~ | ~~Enriched error context (J) — method, headers, hostname, timing~~ | ~~4-6 hours~~ | ~~Parity +++~~ | ~~Phase 1~~ **DONE** |
-| ~~**v0.2**~~ | ~~Structured backtrace (use `backtrace_locations`)~~ | ~~2-3 hours~~ | ~~Quality ++~~ | ~~Phase 1~~ **DONE** |
-| ~~**v0.2**~~ | ~~Environment info — Ruby, Rails, gem versions at boot~~ | ~~2-3 hours~~ | ~~Context ++~~ | ~~Phase 1~~ **DONE** |
-| ~~**v0.2**~~ | ~~Auto user context via CurrentAttributes (D)~~ | ~~3-4 hours~~ | ~~Zero-config ++~~ | ~~Phase 1~~ **DONE** |
-| ~~**v0.2**~~ | ~~Sensitive data filtering (use `filter_parameters`)~~ | ~~4-6 hours~~ | ~~Safety +++~~ | ~~Phase 1~~ **DONE** |
-| ~~**v0.2**~~ | ~~Notification rules & throttling (with per-error cooldown)~~ | ~~1-2 days~~ | ~~Production-readiness +++~~ | ~~Phase 1~~ **DONE** |
-| ~~**v0.2**~~ | ~~Auto-reopen resolved errors on recurrence~~ | ~~Half day~~ | ~~Correctness +++~~ | ~~Phase 1~~ **DONE** |
-| ~~**v0.2**~~ | ~~Custom fingerprint lambda~~ | ~~Half day~~ | ~~Extensibility ++~~ | ~~Phase 1~~ **DONE** |
-| **v0.2** | Data retention enforcement (background job, batch delete) | 1 day | Production-readiness ++ | Phase 1 |
-| ~~**v0.2**~~ | ~~BRIN index + functional index for PostgreSQL~~ | ~~Half day~~ | ~~Performance +++~~ | ~~Phase 1~~ **DONE** |
-| ~~**v0.2**~~ | ~~Reduce dependencies (make optional)~~ | ~~1 day~~ | ~~Adoption barrier --~~ | ~~Phase 1~~ **DONE** |
-| ~~**v0.2**~~ | ~~Backtrace line numbers in error detail view~~ | ~~PR #69~~ | ~~UX ++~~ | ~~Community contribution~~ **DONE** |
-| ~~**v0.2**~~ | ~~Loading states & skeleton screens (Stimulus)~~ | ~~PR #71~~ | ~~UX +++~~ | ~~Community contribution~~ **DONE** |
-| | | | | |
-| **ICEBOX** | JSON API | 2-3 days | Extensibility +++ | Deferred |
-| ~~**ICEBOX**~~ | ~~Flexible auth (Devise/Warden/custom lambda)~~ | ~~1 day~~ | ~~Adoption +++~~ | ~~Deferred~~ **DONE (v0.3.0)** |
-| | | | | |
-| **v0.3** | Rollup/summary tables (optional `rollup` gem) | 1-2 days | Performance +++ | Phase 2: System Health |
-| ~~**v0.3**~~ | ~~System health snapshot as JSONB column (C)~~ | ~~2-3 days~~ | ~~Differentiation ++~~ | ~~Phase 2~~ **DONE** |
-| ~~**v0.3**~~ | ~~System health UI (display in error detail)~~ | ~~1-2 days~~ | ~~UX ++~~ | ~~Phase 2~~ **DONE** |
-| | | | | |
-| ~~**v0.4**~~ | ~~Breadcrumb collector — ring buffer, thread-local (A)~~ | ~~1-2 days~~ | ~~Foundation +++~~ | ~~Phase 3: Breadcrumbs~~ **DONE** |
-| ~~**v0.4**~~ | ~~AS::Notifications subscriber — SQL, controller, cache, jobs~~ | ~~2-3 days~~ | ~~Differentiation +++~~ | ~~Phase 3~~ **DONE** |
-| ~~**v0.4**~~ | ~~Logger breadcrumbs~~ | ~~Half day~~ | ~~Context ++~~ | ~~Phase 3~~ **DONE** |
-| ~~**v0.4**~~ | ~~Manual breadcrumb API (`RailsErrorDashboard.add_breadcrumb`)~~ | ~~Half day~~ | ~~Extensibility ++~~ | ~~Phase 3~~ **DONE** |
-| ~~**v0.4**~~ | ~~Breadcrumb persistence (text column on error_logs)~~ | ~~1 day~~ | ~~Storage ++~~ | ~~Phase 3~~ **DONE** |
-| ~~**v0.4**~~ | ~~Breadcrumb timeline UI~~ | ~~2-3 days~~ | ~~UX +++~~ | ~~Phase 3~~ **DONE** |
-| ~~**v0.4**~~ | ~~N+1 detection from SQL breadcrumbs (B)~~ | ~~1 day~~ | ~~Differentiation +++~~ | ~~Phase 3~~ **DONE** |
-| | | | | |
-| ~~**v0.5**~~ | ~~Local variable capture — TracePoint `:raise` (K)~~ | ~~2-3 days~~ | ~~Game-changer +++~~ | ~~Phase 4: TracePoint~~ **DONE (v0.4.0)** |
-| ~~**v0.5**~~ | ~~Variable serializer (circular detection, depth limits, sensitive names)~~ | ~~1 day~~ | ~~Safety +++~~ | ~~Phase 4~~ **DONE (v0.4.0)** |
-| ~~**v0.5**~~ | ~~Instance variable capture on self (M)~~ | ~~1 day~~ | ~~Debugging ++~~ | ~~Phase 4~~ **DONE (v0.4.0)** |
-| **v0.5** | Debugger Inspector UI (side-by-side source + variables) | 1-2 days | UX +++ | Phase 4 |
-| ~~**v0.5**~~ | ~~Swallowed exception detection — TracePoint :rescue (N)~~ | ~~2-3 days~~ | ~~Novel +++~~ | ~~Phase 4~~ **DONE (v0.4.0)** |
-| ~~**v0.5**~~ | ~~Swallowed exception dashboard UI~~ | ~~2-3 days~~ | ~~UX ++~~ | ~~Phase 4~~ **DONE (v0.4.0)** |
-| | | | | |
-| ~~**v0.5**~~ | ~~Deploy/release tracking~~ | ~~2 days~~ | ~~Workflow +++~~ | ~~Phase 5: Workflow~~ **DONE (v0.5.10)** |
-| ~~**v0.5**~~ | ~~Error replay — copy as curl/RSpec (E)~~ | ~~1-2 days~~ | ~~Novel +++~~ | ~~Phase 5~~ **DONE (v0.4.0)** |
-| ~~**v0.6**~~ | ~~GitHub/GitLab/Codeberg issue creation (Tier 1: manual, Tier 2: auto-create + lifecycle sync, Tier 3: webhooks)~~ | ~~3-5 days~~ | ~~Workflow +++~~ | ~~Phase 5~~ **DONE (v0.5.8)** |
-| **v0.5** | Telegram notifications (7a) | Half day | Adoption ++ | Phase 5 |
-| **v0.5** | Optional PostgreSQL partitioning generator | 1-2 days | Scale ++ | Phase 5 |
-| ~~**v0.5**~~ | ~~User impact scoring~~ | ~~1 day~~ | ~~Prioritization ++~~ | ~~Phase 5~~ **DONE (v0.5.11)** |
-| ~~**v0.6**~~ | ~~Process crash capture — at_exit hook (O)~~ | ~~Half day~~ | ~~Reliability ++~~ | ~~Phase 5~~ **DONE (v0.4.0)** |
-| ~~**v0.6**~~ | ~~On-demand diagnostic dump (P)~~ | ~~Half day~~ | ~~Operational ++~~ | ~~Phase 5~~ **DONE (v0.4.0)** |
-| | | | | |
-| ~~**v0.7**~~ | ~~Deprecation warning tracker (F)~~ | ~~1 day~~ | ~~Unique ++~~ | ~~Phase 6: Health Panels~~ **DONE (v0.3.0)** |
-| **v0.6** | Missing translation tracking (I18n silent errors) | Half day | Unique ++ | Phase 6 |
-| **v0.6** | Validation failure pattern tracking (ActiveModel) | 1 day | Insight ++ | Phase 6 |
-| ~~**v0.7**~~ | ~~Background job health panel (G)~~ | ~~1-2 days~~ | ~~Operational ++~~ | ~~Phase 6~~ **DONE (v0.3.1)** |
-| ~~**v0.7**~~ | ~~Database health panel (H)~~ | ~~1-2 days~~ | ~~Operational ++~~ | ~~Phase 6~~ **DONE (v0.3.1)** |
-| ~~**v0.7**~~ | ~~Cache health monitoring (I)~~ | ~~1 day~~ | ~~Operational +~~ | ~~Phase 6~~ **DONE (v0.3.0)** |
-| **v0.6** | Environment awareness | 1 day | Team workflow ++ | Phase 6 |
-| ~~**v0.7**~~ | ~~Rack Attack event tracking (R)~~ | ~~Half day~~ | ~~Operational +~~ | ~~Phase 6~~ **DONE (v0.4.0)** |
-| **v0.6** | Performance monitoring — request timing, slow queries (Z) | 3-4 days | Differentiation +++ | Phase 6 |
-| ~~**v0.6**~~ | ~~ActionCable connection monitoring (S)~~ | ~~Half day~~ | ~~Operational +~~ | ~~Phase 6~~ **DONE (v0.5.0)** |
-| **v0.6** | Zeitwerk loading error capture (T) | Half day | Reliability + | Phase 6 |
-| **v0.6** | ActiveStorage service health (U) | Half day | Operational + | Phase 6 |
-| ~~**v0.7**~~ | ~~YJIT runtime stats (W)~~ | ~~Half day~~ | ~~Operational +~~ | ~~Phase 6~~ **DONE (v0.4.0)** |
-| ~~**v0.7**~~ | ~~RubyVM cache health (X)~~ | ~~Half day~~ | ~~Debugging +~~ | ~~Phase 6~~ **DONE (v0.4.0)** |
-| | | | | |
-| **v0.8** | RBAC | 2-3 days | Enterprise ++ | Phase 7: Enterprise |
-| **v0.8** | Audit logging | 1 day | Enterprise ++ | Phase 7 |
-| ~~**v0.8**~~ | ~~Scheduled digests~~ | ~~1-2 days~~ | ~~Engagement ++~~ | ~~Phase 7~~ **DONE (v0.5.11)** |
-| **v0.8** | Adaptive sampling (auto-reduce on spike) | 2-3 days | Resilience ++ | Phase 7 |
-| **v0.8** | Optional TimescaleDB generator (hypertables, compression, continuous aggregates) | 2-3 days | Scale +++ | Phase 7 |
-| | | | | |
-| **v1.0** | Full Context Error Report (unified view) | 3-5 days | Flagship +++ | Phase 8: 1.0 |
-| **v1.0** | Error-environment correlation | 3-5 days | Analytics ++ | Phase 8 |
-| **v1.0** | AI error summaries | 2-3 days | Buzz +++ | Phase 8 |
-| **v1.0** | Comparison mode | 1-2 days | Analytics ++ | Phase 8 |
-| ~~**v1.0**~~ | ~~Production code path coverage — Coverage oneshot_lines (V)~~ | ~~2-3 days~~ | ~~Debugging ++~~ | ~~Phase 8~~ **DONE (v0.5.11)** |
-| **v1.0** | Lazy backtrace — Thread.each_caller_location (Y) | Half day | Performance + | Phase 8 |
-| | | | | |
-| ~~**v0.7**~~ | ~~LLM call breadcrumbs — capture model, provider, tokens, duration, tool calls as breadcrumbs when errors occur during LLM requests. Support RubyLLM (via OTel spans if `opentelemetry-instrumentation-ruby_llm` present), langchain.rb, OpenAI SDK, Anthropic SDK. Content capture opt-in (PII risk). No monkey-patching — subscribe to existing instrumentation. Fields: `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `gen_ai.request.temperature`, tool call name/arguments. Ref: [thoughtbot/opentelemetry-instrumentation-ruby_llm](https://github.com/thoughtbot/opentelemetry-instrumentation-ruby_llm)~~ | ~~2-3 days~~ | ~~Novel +++~~ | ~~Phase 9: AI Observability~~ **DONE (v0.7.0)** |
-| ~~**v0.7**~~ | ~~LLM tool call tracking — capture tool executions (name, arguments, result) nested within LLM calls. When an error occurs during a tool call, the breadcrumb shows which tool failed and why~~ | ~~1 day~~ | ~~Debugging +++~~ | ~~Phase 9~~ **DONE (v0.7.0)** |
-| ~~**v0.7**~~ | ~~LLM health dashboard page — `/errors/llm_health_summary` showing per-model breakdown: call count, avg tokens, avg latency, error rate, cost estimate. Sorted by error correlation (models with most errors first)~~ | ~~2-3 days~~ | ~~Unique +++~~ | ~~Phase 9~~ **DONE (commit 9c1be38 on fix/llm-observability-filter-and-css)** |
-| ~~**v0.8**~~ | ~~OpenTelemetry span export (outbound) — emit error capture operations as OTel spans for Datadog/Honeycomb/Jaeger. Error logged → span with error type, severity, capture latency. Integrates with existing OTel collector if present. Note: v0.7.0 ships the inbound direction (OTel spans → RED breadcrumbs via LlmSpanProcessor); this item is the symmetric outbound direction~~ | ~~2-3 days~~ | ~~Ecosystem +++~~ | ~~Phase 9~~ **DONE (feat/otel-export branch)** — `Integrations::Tracer` façade wraps LogError, BreadcrumbCollector, SystemHealthSnapshot, ErrorNotificationDispatcher. Per-span opt-in via `config.otel_spans`. |
-| ~~**v0.7**~~ | ~~Copy for LLM — include LLM call context when available (model, tokens, tool calls, prompt if opt-in). The LLM debugging an error can see the LLM call that preceded it~~ | ~~1 day~~ | ~~Meta +++~~ | ~~Phase 9~~ **DONE (v0.7.0)** — `MarkdownErrorFormatter#llm_calls_section` |
-| ~~**v0.8**~~ | ~~Self-instrumentation — measure gem overhead as OTel spans (error capture latency, breadcrumb collection, system health snapshot). Users can verify <5ms budget in their own observability dashboards. Depends on outbound OTel span export above~~ | ~~1 day~~ | ~~Trust ++~~ | ~~Phase 9~~ **DONE (feat/otel-export branch)** — shipped together with outbound export. The four spans (capture/breadcrumbs/health/notifications) emit timing for every gem operation in the capture path. |
-| **ICEBOX** | Method complexity analysis (Q) | 1 day | Unique + | Deferred |
-| **ICEBOX** | GitHub App with check runs (requires OAuth flow) | 3-5 days | Enterprise + | Deferred |
-| **ICEBOX** | PR comments warning about errors (requires GitHub App) | 2-3 days | DX ++ | Deferred |
-| **ICEBOX** | CODEOWNERS-based auto-assignment | 1-2 days | Workflow + | Deferred |
-| **ICEBOX** | Bidirectional comment sync (complex, fragile) | 3-5 days | Workflow + | Deferred |
+### Shipped, by release
 
----
+| Release | Date | Headline |
+|---------|------|----------|
+| v0.2–v0.3 | Dec 2025 – Feb 2026 | Capture, dedup, notifications, health panels, flexible auth, dependency reduction (9 → 2) |
+| v0.4.0 | Mar 2026 | TracePoint era — local variables, instance variables, swallowed-exception detection, crash capture, diagnostic dump, Rack Attack, YJIT/RubyVM stats |
+| v0.5.x | Mar – Apr 2026 | ActionCable monitoring, issue trackers (GitHub/GitLab/Codeberg), release tracking, user impact scoring, scheduled digests, production code-path coverage |
+| v0.6.x | Apr – May 2026 | Stored-XSS fix ([GHSA-4rwp-83g9-78gv](https://github.com/AnjanJ/rails_error_dashboard/security/advisories/GHSA-4rwp-83g9-78gv)), hardening |
+| v0.7.x | May – Jun 2026 | LLM observability — call breadcrumbs, tool-call tracking, per-model health page, LLM context in Copy-for-LLM |
+| v0.8.0–v0.8.2 | Jun 2026 | Outbound OpenTelemetry export + self-instrumentation, Linear issue tracker, storm protection (circuit breaker + adaptive sampling) |
+| v0.8.3–v0.8.4 | Jul – Aug 2026 | Rack Attack persistence independent of error capture, missing-gem diagnostics, pagination locale isolation |
+| v0.9.0 | Aug 23 2026 | **Internationalization — eleven locales**, plus authenticating every dashboard controller |
+| v0.9.1 | Aug 24 2026 | Default-credential allowlist ([GHSA-qhgm-3pxf-mvc6](https://github.com/AnjanJ/rails_error_dashboard/security/advisories/GHSA-qhgm-3pxf-mvc6)) |
+| v0.10.0 | Aug 25 2026 | Rack::Attack `track` discriminator, count loss on eviction, shutdown flush, AI-agent classification (#177, closes #170); localized chart date axes and corrected horizontal bar chart axis titles (#179, closes #178) |
+| v0.11.0 | Aug 26 2026 | **Environment awareness** (#187, item 9) — filter, badges, chart, per-environment notification allowlist, migration; plus the mobile sideways-scroll fix and offline system specs (#184) |
+| v0.11.1 | Aug 27 2026 | Runtime snapshot, local/instance variables and breadcrumbs refreshed on every recurrence, not just the first (#190, item C2) |
+| v0.11.2 | Aug 29 2026 | Rack::Attack buffered events drained at the end of each request, so one throttled request is visible without waiting for a second (#195) |
+| v0.11.3 | Aug 29 2026 | GitHub Copilot classified as an AI agent; RubyGems description rendered as RDoc sections (#197) |
+| v0.11.4 | Aug 30 2026 | Chart date axes repaired and reordered, and chart plural rules matched to the server (#199, closes #178) |
+| v0.11.5 | Sep 7 2026 | French translation reviewed by a native speaker, @gmarziou (#201, issue #158) |
+| v0.11.6 | Sep 7 2026 | 0.11.5 review findings — storm counts, redaction, row lock, async capture, release and baseline analytics (#204) |
+| v0.11.7–v0.11.8 | Sep 8 2026 | PostgreSQL indexes fresh installs never got, and the search index PostgreSQL actually uses; CI rows on PostgreSQL and MySQL built from the migrations (#206, #209) |
+| v0.11.9 | Sep 14 2026 | Active Job retry backoff that Rails 7.2+ accepts (#211, @BarnabeD); source links only for http(s) repository URLs (#214) |
+| v0.12.0 | Sep 15 2026 | Nine correctness findings from an independent review of 0.11.9 — capture, event counting, storm accounting, group identity, redaction before enqueue; four migrations and a one-time fingerprint regrouping (#215) |
+| v0.12.1 | Sep 16 2026 | Analytics page counts events, not groups (#218) |
+| v0.13.0 | Sep 18 2026 | Deep-QA hardening of 0.12.1 (tracking issue #223) — capture of invalid bytes, sticky "won't fix", storm breaker, capture cost; advisory [GHSA-xmv7-mg68-3v2f](https://github.com/AnjanJ/rails_error_dashboard/security/advisories/GHSA-xmv7-mg68-3v2f); one migration |
+| v0.14.0 | Sep 20 2026 | Evidence integrity — events counted in their own reporting window, storm counts in 15-minute buckets, bounded variable serialization, job breadcrumbs; three migrations |
+
+Note the shape: the first three quarters were feature build-out (156 commits in March alone), the
+last two months are hardening and correctness (37 commits and nine releases in August, with a
+security advisory; 50 commits and nine more releases in September to date, with a second). That
+shift is deliberate. Depth before breadth.
+
+### Next up
+
+| When | Item | State |
+|------|------|-------|
+| **Verifying** | Chart locale fixes for #178 | #170 confirmed and closed. #178 fixed again in v0.11.4 (#199) and left open for @gmarziou to confirm and close. Still open on 2026-09-25, with no reply since the maintainer's 2026-08-30 comment announcing the fix |
+| **Demo** | Live demo tracks each gem release | On v0.14.0 (checked 2026-09-25). A scheduled workflow in the demo repo (`update-demo-release.yml` in `AnjanJ/rails_error_dashboard_demo_app`) moves it to each newly published version |
+| **Done** | Submit to awesome-ruby (21) | Merged upstream 2026-08-13 ([markets/awesome-ruby#1246](https://github.com/markets/awesome-ruby/pull/1246)). Ruby Toolbox ([rubytoolbox/catalog#1033](https://github.com/rubytoolbox/catalog/pull/1033)) still open and unmerged as of 2026-09-25 |
+| **Done** | CVE ID for GHSA-qhgm-3pxf-mvc6 | Assigned: CVE-2026-94549 (on the advisory since 2026-09-22). The maintainer has notified the reporter |
+| **Community-owned** | Native-speaker review of the remaining 9 locales (#156–#165 less #158) | Open by design — the contribution path, not a backlog. First one landed: @gmarziou on French (#201, shipped in v0.11.5, closing #158) |
+
+### Open, uncommitted
+
+Nothing below is scheduled. These are the genuine remaining candidates, in rough order of appeal:
+
+| Item | Effort | Impact | Note |
+|------|--------|--------|------|
+| Telegram notifications (7a) | Half day | Adoption ++ | Only competitive gap vs Faultline that still stands |
+| Per-occurrence context history (C3) | 1–2 days | Credibility +++ | Completes C2. Was pencilled in for v0.12, which went to correctness fixes instead |
+| Health check endpoint (14) | Half day | Maturity signal + | "Who watches the watchmen" |
+| Webhook HMAC signatures (20) | Half day | Security + | Standard practice for outbound webhooks |
+| Zeitwerk boot-error capture (T) | Half day | Reliability + | |
+| ActiveStorage service health (U) | Half day | Operational + | |
+| Missing-translation tracking | Half day | Unique ++ | Newly relevant — we now ship 11 locales and have a private I18n backend to hook |
+| Lazy backtrace via `Thread.each_caller_location` (Y) | Half day | Performance + | |
+| Smarter grouping controls (7) | 2-3 days | Power users ++ | Custom fingerprint lambda done; merge/split UI is not |
+| RBAC (11) | 2-3 days | Enterprise ++ | |
+| Audit logging (12) | 1 day | Enterprise ++ | |
+| Comparison mode (19) | 1-2 days | Analytics ++ | |
+| AI error summaries (16) | 2-3 days | Buzz +++ | |
+| Inline fix suggestions (18) | 2-3 days | DX ++ | |
+| Full Context Error Report — unified view | 3-5 days | Flagship +++ | The v1.0 anchor |
+| PostgreSQL partitioning / TimescaleDB generator | 1-3 days | Scale ++ | |
+| Rollup/summary tables | 1-2 days | Performance +++ | |
+
+### Icebox
+
+JSON API · method complexity analysis (Q) · performance monitoring / APM (Z) · GitHub App with
+check runs · PR comments warning about errors · CODEOWNERS auto-assignment · bidirectional comment
+sync. All deferred for want of demand, not feasibility — except (Z), which is deferred on
+principle (see its entry above).
 
 ## Internal Audit Summary (Current Strengths & Weaknesses)
+
+> Scores are the maintainer's own judgement, not a benchmark. The Testing, Community and
+> Dependencies figures were re-verified on 2026-09-25; every other figure is as of 2026-08-25.
 
 ### What's Strong Today
 - Error capture & deduplication (9/10) — SHA256 hashing, smart normalization, custom fingerprint, auto-reopen, cause chain
 - Error context (9.5/10) — request (HTTP method, hostname, duration, params), job, platform, user (CurrentAttributes), git SHA, environment info, sensitive data filtering, local/instance variables (TracePoint), breadcrumbs, system health snapshot
-- Configuration (9/10) — 100+ options, sensible defaults, env var support, comprehensive validation, default credentials protection
+- Configuration (9/10) — 127 options, sensible defaults, env var support, comprehensive validation, default-credential allowlist
 - Error lifecycle (8.5/10) — 5 states, assignment, priority, snooze, mute/unmute, comments, batch ops, auto-reopen on recurrence
 - Notifications (8.5/10) — 5 channels (Slack, Email, Discord, PagerDuty, Webhooks), severity filter, per-error cooldown, threshold milestones, mute suppression, plugin callbacks
 - Analytics (8/10) — baseline alerts, similar errors, cascades, correlation, patterns
 - Deep debugging (9/10) — local variable capture, instance variable capture, swallowed exception detection, process crash capture, diagnostic dump, Rack Attack tracking, ActionCable monitoring
 - System health (9/10) — GC stats + context, process memory (RSS/peak/swap), file descriptors, system load, system memory, TCP connections, DB pool, Puma, job queue, RubyVM, YJIT
 - Copy for LLM (9/10) — source code snippets, filtered variables omitted, conditional sections, signal-to-noise optimized for AI debugging
+- LLM observability (9/10) — call breadcrumbs, tool-call tracking, per-model health page, OTel span ingestion
+- OpenTelemetry (9/10) — inbound (spans → breadcrumbs) and outbound (gem operations → spans), plus self-instrumentation so users can verify the overhead budget themselves
+- Storm protection (9/10) — circuit breaker + adaptive sampling for error floods (v0.8.2)
+- Internationalization (7.5/10) — eleven locales, isolated private backend, mechanical verification via `bin/i18n-check`. Held back from higher only because nine of the eleven are machine-translated and unreviewed
 - Search & filtering (8/10) — 11 filters, PostgreSQL full-text search, pagination
 - Source code integration (8/10) — source reader, git blame, GitHub links
 - Multi-tenancy (8/10) — per-app isolation, auto-detection, shared DB
 - Deployment (8/10) — 3-step install, works with Thruster, API-only mode, MySQL + PostgreSQL + SQLite supported
-- Dependencies (9/10) — only 2 required (pagy, groupdate), 4 optional with graceful degradation
-- Community (growing) — 5 contributors, 11 merged PRs, 11K+ downloads, 70+ stars
+- Dependencies (9/10) — only 3 required besides Rails (pagy, groupdate, concurrent-ruby), 4 optional with graceful degradation (browser, chartkick, httparty, turbo-rails)
+- Testing (9.5/10) — 5,300+ RSpec examples across 315 spec files (5,338 in CI on 2026-09-25); a pre-release chaos suite that ran 1,483 assertions in production mode on 2026-09-25; CI runs Ruby 3.2–3.4 × Rails 7.0–8.1, PostgreSQL and MySQL rows built from the migrations, plus system, schema-parity, integration and upgrade-path jobs (22 checks per pull request)
+- Community (growing) — 9 contributors, 121 merged PRs, 47,992 downloads, 92 stars
 
 ### What Needs Work
 - API (3/10) — no JSON endpoints at all (ICEBOX)
 - User management (7/10) — HTTP Basic Auth + custom lambda (Devise/Warden/session), no RBAC yet
-- ~~Local variables (0/10)~~ — **DONE (v0.4.0)** — TracePoint(:raise) locals + instance vars + swallowed detection
-- Integrations (8/10) — GitHub/GitLab/Codeberg issue tracking (manual + auto-create + lifecycle sync + webhooks), no Telegram (Faultline has this), sketch-level plugins
-- Performance monitoring (0/10) — no request timing or slow query tracking (findbug has this, planned v0.6)
-- Dashboard performance (7.5/10) — no rollup tables, no partitioning guidance. BRIN indexes added. See [TIMESERIES_ANALYSIS.md](TIMESERIES_ANALYSIS.md)
-- Testing (9.5/10) — 2800+ unit specs, 7 system tests, 1264+ chaos test assertions
-- Community growth — Ruby Toolbox PR submitted ([rubytoolbox/catalog#1033](https://github.com/rubytoolbox/catalog/pull/1033), awaiting merge). awesome-ruby requires 30K+ downloads (we're at ~11K) — not eligible yet
+- Integrations (8.5/10) — four issue trackers (GitHub/GitLab/Codeberg/Linear) with manual + auto-create + lifecycle sync + webhooks. **No Telegram** — the one competitive gap vs Faultline that still stands
+- Translation quality (unscored) — nine locales are machine-translated and unreviewed. Mechanically verified, honestly labelled, but a native speaker has reviewed only French (v0.11.5, #201). Issues #156–#165, less the closed #158, are the open invitation
+- Performance monitoring (0/10) — no request timing or slow query tracking. Deferred on principle, not backlog (see Z)
+- Dashboard performance (7.5/10) — no rollup tables, no partitioning guidance. BRIN + functional indexes added
+- Environment awareness (9/10) — shipped in v0.11.0: first-class column, filter, badges, chart and a notification allowlist. What is left is per-channel routing (Slack everywhere, PagerDuty production-only), which today needs a callback lambda
+- Community growth — awesome-ruby **merged 2026-08-13** ([markets/awesome-ruby#1246](https://github.com/markets/awesome-ruby/pull/1246)). Ruby Toolbox PR still open ([rubytoolbox/catalog#1033](https://github.com/rubytoolbox/catalog/pull/1033))
 
-### What Was Fixed (v0.2 Quick Wins)
-- ~~Auto-reopen (0/10)~~ — Now auto-reopens resolved/wont_fix errors on recurrence
-- ~~Notifications (7.5/10)~~ — Now has severity filter, per-error cooldown, threshold milestones
-- ~~Request context (7/10)~~ — Now captures HTTP method, hostname, content type, request duration
-- ~~Dependencies (6/10)~~ — Reduced from 9 required to 2 (pagy, groupdate) + optional
-- ~~Sensitive data~~ — Filters passwords, tokens, credit cards, SSNs by default (24 built-in patterns)
-- ~~Error context~~ — Exception cause chain, environment info, CurrentAttributes, custom fingerprint, structured backtrace
-- ~~UX~~ — Backtrace line numbers (PR #69), loading states & skeleton screens with Stimulus controller (PR #71)
+### Security Track Record
+Three advisories published. One was reported by an outside researcher and two were found
+internally; each was published on the same day as the release that fixed it:
+- [GHSA-4rwp-83g9-78gv](https://github.com/AnjanJ/rails_error_dashboard/security/advisories/GHSA-4rwp-83g9-78gv) (2026-05-04, high) — stored XSS in `resolution_comment` rendering. Found by an internal security audit; patched in 0.6.4
+- [GHSA-qhgm-3pxf-mvc6](https://github.com/AnjanJ/rails_error_dashboard/security/advisories/GHSA-qhgm-3pxf-mvc6) (2026-08-24, high) — default credentials accepted outside production. Reported by [@rajnisht7](https://github.com/rajnisht7); patched in 0.9.1; **CVE-2026-94549**
+- [GHSA-xmv7-mg68-3v2f](https://github.com/AnjanJ/rails_error_dashboard/security/advisories/GHSA-xmv7-mg68-3v2f) (2026-09-18, medium) — stored XSS through a linked issue URL, and an unauthenticated 500 (instead of 401) on a malformed Basic auth header. Found by the maintainer during a deep QA pass over 0.12.1; patched in 0.13.0
+
+Another hardening fix, authenticating every dashboard controller rather than only `ErrorsController`
+(#167), shipped in v0.9.0 without an advisory — it was found internally before disclosure.

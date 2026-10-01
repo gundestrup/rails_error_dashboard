@@ -1,77 +1,104 @@
-<% content_for :page_title, "Rate Limit Events" %>
+<% content_for :page_title, red_t("red.errors.rack_attack_page.title") %>
 
 <div>
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 style="font-size: 20px; font-weight: 700; margin: 0;">
       <i class="bi bi-shield-exclamation me-2"></i>
-      Rate Limit Events
+      <%= red_t("red.errors.rack_attack_page.title") %>
     </h1>
 
     <div class="btn-group" role="group">
       <%= link_to rack_attack_summary_errors_path(days: 7), class: "btn btn-sm #{@days == 7 ? 'btn-primary' : 'btn-outline-primary'}" do %>
-        7 Days
+        <%= red_t("red.common.days_filter.7") %>
       <% end %>
       <%= link_to rack_attack_summary_errors_path(days: 30), class: "btn btn-sm #{@days == 30 ? 'btn-primary' : 'btn-outline-primary'}" do %>
-        30 Days
+        <%= red_t("red.common.days_filter.30") %>
       <% end %>
       <%= link_to rack_attack_summary_errors_path(days: 90), class: "btn btn-sm #{@days == 90 ? 'btn-primary' : 'btn-outline-primary'}" do %>
-        90 Days
+        <%= red_t("red.common.days_filter.90") %>
       <% end %>
     </div>
   </div>
 
   <% if @unique_rules == 0 %>
     <div class="red-empty-state">
-      <i class="bi bi-shield-check display-1 text-success mb-3"></i>
-      <div class="red-empty-state-title">No Rate Limit Events Found</div>
-      <p class="text-muted">
-        No Rack Attack throttle, blocklist, or track events were recorded over the last <%= @days %> days.
-      </p>
+      <% if @rack_attack_missing %>
+        <i class="bi bi-exclamation-triangle display-1 text-warning mb-3"></i>
+        <div class="red-empty-state-title"><%= red_t("red.errors.rack_attack_page.missing_title") %></div>
+        <p class="text-muted">
+          <%= red_t("red.errors.rack_attack_page.missing_body_html", gem: content_tag(:code, "rack-attack")) %>
+        </p>
+      <% else %>
+        <i class="bi bi-shield-check display-1 text-success mb-3"></i>
+        <div class="red-empty-state-title"><%= red_t("red.errors.rack_attack_page.empty_title") %></div>
+        <p class="text-muted">
+          <%= red_t("red.errors.rack_attack_page.empty_body", days: @days) %>
+        </p>
+      <% end %>
       <div class="card mx-auto" style="max-width: 500px;">
         <div class="card-body text-start">
-          <h6>How Rack Attack tracking works:</h6>
+          <h6><%= red_t("red.errors.rack_attack_page.how_title") %></h6>
           <ul class="mb-0">
-            <li>Rack Attack tracking must be enabled (<code>enable_rack_attack_tracking = true</code>)</li>
-            <li>Rack Attack must be installed and configured in your app</li>
-            <li>Throttle, blocklist, and track events are recorded whenever a rule matches — no error required</li>
-            <li>Events are buffered and written every <%= RailsErrorDashboard.configuration.rack_attack_flush_interval %>s, so allow a short delay before they appear</li>
+            <li><%= red_t("red.errors.rack_attack_page.how_enabled_html", option: content_tag(:code, "enable_rack_attack_tracking = true")) %></li>
+            <li><%= red_t("red.errors.rack_attack_page.how_installed") %></li>
+            <li><%= red_t("red.errors.rack_attack_page.how_recorded") %></li>
+            <li><%= red_t("red.errors.rack_attack_page.how_buffered", seconds: RailsErrorDashboard.configuration.rack_attack_flush_interval) %></li>
           </ul>
         </div>
       </div>
     </div>
   <% else %>
     <div class="row mb-4">
-      <div class="col-md-4">
+      <div class="col-md-3">
         <div class="card text-center">
           <div class="card-body">
             <div class="display-6 text-warning"><%= @unique_rules %></div>
-            <small class="text-muted">Unique Rules</small>
+            <small class="text-muted"><%= red_t("red.errors.rack_attack_page.unique_rules") %></small>
           </div>
         </div>
       </div>
-      <div class="col-md-4">
+      <div class="col-md-3">
         <div class="card text-center">
           <div class="card-body">
             <div class="display-6 text-danger"><%= @total_events %></div>
-            <small class="text-muted">Total Events</small>
+            <small class="text-muted"><%= red_t("red.errors.rack_attack_page.total_events") %></small>
           </div>
         </div>
       </div>
-      <div class="col-md-4">
+      <div class="col-md-3">
         <div class="card text-center">
           <div class="card-body">
             <div class="display-6 text-info"><%= @unique_ips %></div>
-            <small class="text-muted">Unique IPs</small>
+            <small class="text-muted"><%= red_t("red.errors.rack_attack_page.unique_ips") %></small>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card text-center">
+          <div class="card-body">
+            <div class="display-6 text-primary"><%= @ai_events %></div>
+            <small class="text-muted"><%= red_t("red.errors.rack_attack_page.ai_events") %></small>
           </div>
         </div>
       </div>
     </div>
 
+    <% if @overflow_count.to_i.positive? %>
+      <div class="alert alert-warning d-flex align-items-start" role="alert">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        <div>
+          <%= red_t("red.errors.rack_attack_page.overflow_notice_html",
+                    count: @overflow_count,
+                    option: content_tag(:code, "rack_attack_max_cache_size")) %>
+        </div>
+      </div>
+    <% end %>
+
     <div class="card mb-4">
       <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0">
           <i class="bi bi-shield-exclamation text-warning me-2"></i>
-          Rate Limit Events by Rule
+          <%= red_t("red.errors.rack_attack_page.all_title") %>
           <span class="badge bg-warning text-dark"><%= @unique_rules %></span>
         </h5>
         <small class="text-muted"><%== @pagy.info_tag %></small>
@@ -81,12 +108,13 @@
           <table class="table table-hover mb-0">
             <thead class="table-light">
               <tr>
-                <th>Rule</th>
-                <th width="100">Type</th>
-                <th width="80">Count</th>
-                <th width="80">IPs</th>
-                <th>Top Path</th>
-                <th width="140">Last Seen</th>
+                <th><%= red_t("red.errors.rack_attack_page.column_rule") %></th>
+                <th width="100"><%= red_t("red.errors.rack_attack_page.column_type") %></th>
+                <th width="80"><%= red_t("red.errors.rack_attack_page.column_count") %></th>
+                <th width="80"><%= red_t("red.errors.rack_attack_page.column_ips") %></th>
+                <th><%= red_t("red.errors.rack_attack_page.column_top_path") %></th>
+                <th width="160"><%= red_t("red.errors.rack_attack_page.column_top_agent") %></th>
+                <th width="140"><%= red_t("red.errors.pages.column_last_seen") %></th>
               </tr>
             </thead>
             <tbody>
@@ -99,11 +127,27 @@
                        when "throttle" then "warning"
                        else "secondary"
                        end %>
-                    <span class="badge bg-<%= type_color %>"><%= event[:match_type] %></span>
+                    <%# The match type is a machine value the case above compares
+                        by string equality, so the comparison keeps the English
+                        literal and only the display goes through a key. %>
+                    <span class="badge bg-<%= type_color %>"><%= red_t("red.errors.rack_attack_page.match_type.#{event[:match_type]}") %></span>
                   </td>
                   <td><strong><%= event[:count] %></strong></td>
                   <td><%= event[:unique_ips] %></td>
                   <td><code><%= event[:top_path] %></code></td>
+                  <td>
+                    <% if event[:top_agent].present? %>
+                      <%# AI agents are highlighted because "which agent" is the
+                          question IP counts cannot answer — one agent is a fleet. %>
+                      <span class="badge <%= event[:ai_count].to_i.positive? ? "bg-primary" : "bg-light text-dark" %>"
+                            title="<%= event[:top_agent] %>"><%= truncate(event[:top_agent], length: 22) %></span>
+                      <% if event[:unique_agents].to_i > 1 %>
+                        <small class="text-muted">+<%= event[:unique_agents].to_i - 1 %></small>
+                      <% end %>
+                    <% else %>
+                      <span class="text-muted">&mdash;</span>
+                    <% end %>
+                  </td>
                   <td><%= local_time_ago(event[:last_seen]) %></td>
                 </tr>
               <% end %>
@@ -114,11 +158,11 @@
       <div class="card-footer border-top d-flex justify-content-between align-items-center">
         <div>
           <small class="text-muted">
-            <i class="bi bi-lightbulb text-warning"></i> High counts may indicate abuse or misconfigured rules.
+            <i class="bi bi-lightbulb text-warning"></i> <%= red_t("red.errors.rack_attack_page.footer_tip") %>
           </small>
           <small class="ms-3">
             <a href="https://github.com/rack/rack-attack" target="_blank" rel="noopener" class="text-decoration-none">
-              <i class="bi bi-book"></i> Rack Attack Docs <i class="bi bi-box-arrow-up-right" style="font-size: 0.7em;"></i>
+              <i class="bi bi-book"></i> <%= red_t("red.errors.rack_attack_page.docs") %> <i class="bi bi-box-arrow-up-right" style="font-size: 0.7em;"></i>
             </a>
           </small>
         </div>

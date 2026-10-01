@@ -37,7 +37,39 @@ module RailsErrorDashboard
       value.to_json.gsub("</", '<\/').html_safe
     end
 
-    # Returns Bootstrap color class for error severity
+    # Returns the value only when it is an absolute http(s) URL, otherwise nil.
+    # Every URL that comes from a stored column or a third-party API goes
+    # through this before it becomes an href, an img src or a window.open
+    # target. ERB escaping and link_to stop attribute breakout; neither rejects
+    # a scheme such as "javascript:". Same rule as the write path
+    # (Commands::LinkExistingIssue), so a row stored before that check existed
+    # is still inert when rendered.
+    def safe_external_url(value)
+      value if Services::UrlSafety.http_url?(value)
+    end
+
+    DEFAULT_LABEL_COLOR = "#6c757d"
+
+    # A forge label colour, safe to put in a style attribute. Anything that is
+    # not 3 or 6 hex digits becomes neutral grey: ERB escaping keeps a value
+    # inside the attribute but does not stop it being CSS ("fff;position:fixed").
+    def safe_label_color(raw)
+      return DEFAULT_LABEL_COLOR unless raw.is_a?(String)
+
+      hex = raw.delete_prefix("#")
+      hex.match?(/\A(?:\h{6}|\h{3})\z/) ? "##{hex}" : DEFAULT_LABEL_COLOR
+    end
+
+    # Black or white, whichever reads on the given background. Takes the output
+    # of safe_label_color, never the raw label value.
+    def label_text_color(background)
+      hex = background.to_s.delete_prefix("#")
+      return "#fff" unless hex.match?(/\A(?:\h{6}|\h{3})\z/)
+
+      hex = hex.chars.map { |c| c * 2 }.join if hex.length == 3
+      hex.scan(/../).sum { |pair| pair.to_i(16) } > 382 ? "#000" : "#fff"
+    end
+
     # Uses Catppuccin Mocha colors in dark theme via CSS variables
     # @param severity [Symbol] The severity level (:critical, :high, :medium, :low, :info)
     # @return [String] Bootstrap color class (danger, warning, info, secondary)
@@ -183,7 +215,8 @@ module RailsErrorDashboard
     # @param format [Symbol] Format preset (:full, :short, :date_only, :time_only, :datetime)
     # @param fallback [String] Text to show if time is nil
     # @return [String] HTML safe span with data attributes for JS conversion
-    def local_time(time, format: :full, fallback: "N/A")
+    def local_time(time, format: :full, fallback: nil)
+      fallback ||= red_t("red.common.not_available")
       return fallback if time.nil?
 
       # Convert to UTC if not already
@@ -192,18 +225,13 @@ module RailsErrorDashboard
       # ISO 8601 format for JavaScript parsing
       iso_time = utc_time.iso8601
 
-      # Format presets for data-format attribute
+      # Format presets come from the locale, not from literals here: "%B %d, %Y"
+      # is a US ordering as much as it is English words, and other locales want
+      # a different one (German: "%d. %B %Y"). An unrecognised format is still
+      # treated as a caller-supplied strftime pattern, as before.
       format_string = case format
-      when :full
-        "%B %d, %Y %I:%M:%S %p"  # December 31, 2024 11:59:59 PM
-      when :short
-        "%m/%d %I:%M%p"          # 12/31 11:59PM
-      when :date_only
-        "%B %d, %Y"              # December 31, 2024
-      when :time_only
-        "%I:%M:%S %p"            # 11:59:59 PM
-      when :datetime
-        "%b %d, %Y %H:%M"        # Dec 31, 2024 23:59
+      when :full, :short, :date_only, :time_only, :datetime
+        red_time_format(format)
       else
         format.to_s
       end
@@ -230,11 +258,25 @@ module RailsErrorDashboard
       nil
     end
 
+    # Parses a timestamp that came from somewhere RED does not control (an issue
+    # tracker's API). nil for anything that is not a date: a blank, free text, a
+    # number, a nested value. Never raises -- one odd comment must not take the
+    # error page down with it.
+    def safe_parse_time(value)
+      return value if value.is_a?(Time) || value.is_a?(DateTime)
+      return nil unless value.is_a?(String) && value.present?
+
+      (Time.zone || Time).parse(value)
+    rescue ArgumentError, TypeError, RangeError
+      nil
+    end
+
     # Renders a relative time ("3 hours ago") that updates automatically
     # @param time [Time, DateTime, nil] The timestamp to display
     # @param fallback [String] Text to show if time is nil
     # @return [String] HTML safe span with data attributes for JS conversion
-    def local_time_ago(time, fallback: "N/A")
+    def local_time_ago(time, fallback: nil)
+      fallback ||= red_t("red.common.not_available")
       return fallback if time.nil?
 
       # Convert to UTC if not already
@@ -243,7 +285,16 @@ module RailsErrorDashboard
 
       content_tag(
         :span,
-        time_ago_in_words(time) + " ago",  # Fallback for non-JS browsers
+        # Interpolated, not concatenated: several languages put the equivalent
+        # of "ago" before the duration, and some inflect it.
+        #
+        # NOTE: time_ago_in_words is Rails' own helper and translates through
+        # the HOST app's I18n, not RED's. In practice the browser replaces this
+        # text immediately (see formatRelativeTime in the layout) and it only
+        # shows for non-JS clients, so a host/dashboard locale mismatch here is
+        # cosmetic and brief. Phase 3 localizes the JS side, which is what
+        # users actually see.
+        red_t("red.time.ago", duration: time_ago_in_words(time)),  # Fallback for non-JS browsers
         class: "local-time-ago",
         data: {
           utc: iso_time

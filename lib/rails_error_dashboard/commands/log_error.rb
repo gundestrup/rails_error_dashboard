@@ -5,6 +5,28 @@ module RailsErrorDashboard
     # Command: Log an error to the database
     # This is a write operation that creates an ErrorLog record
     class LogError
+      # Raised internally when perform_later did not reach the queue, so the
+      # one rescue below covers both failure shapes. Never escapes this class.
+      class EnqueueFailed < StandardError; end
+
+      # The error store is down right now and may be up in a moment. Worth
+      # another attempt from a background worker; indistinguishable from any
+      # other failure on a user's request, where nothing is ever re-raised.
+      RETRYABLE_STORE_ERRORS = [
+        ActiveRecord::ConnectionNotEstablished,
+        ActiveRecord::StatementInvalid,
+        ActiveRecord::LockWaitTimeout,
+        ActiveRecord::Deadlocked
+      ].freeze
+
+      # Context keys whose Hash value ErrorContext#extract_params folds into the
+      # stored request_params. Each one must be redacted before the payload
+      # crosses the queue, or the queue and the database drift apart.
+      # :job/:job_class carry live objects rather than Hashes and are skipped by
+      # the is_a?(Hash) guard; their arguments reach the payload through
+      # :params, which is covered here.
+      CONTEXT_PARAM_KEYS = %i[params additional_context metadata].freeze
+
       def self.call(exception, context = {})
         # Filter FIRST (ignore list + static sampling) so ignored exceptions
         # never count toward storm state. _pre_filtered prevents the sync path
@@ -65,7 +87,14 @@ module RailsErrorDashboard
       # Kept as a module-level helper so both sync and async paths can call it.
       # @return [Hash<String, Object>]
       def self.build_capture_span_attributes(exception, was_async:)
-        msg = exception.message.to_s
+        # Redact BEFORE truncating. The span leaves the process for a collector
+        # the host app may not control, so it is an export boundary and gets the
+        # same policy as storage -- otherwise enabling tracing silently widened
+        # what counts as safe to emit. filter_attributes returns its input
+        # unchanged when filter_sensitive_data is off and rescues internally.
+        msg = Services::SensitiveDataFilter.filter_attributes(
+          message: exception.message.to_s
+        )[:message].to_s
         {
           "error.type" => exception.class.name,
           "error.message" => msg.length > 200 ? "#{msg[0, 200]}…" : msg,
@@ -79,12 +108,57 @@ module RailsErrorDashboard
       # Queue error logging as a background job
       def self.call_async(exception, context = {})
         # Serialize exception data for the job
-        exception_data = {
+        # Grouping identity is computed from the RAW message, BEFORE redaction
+        # below. ErrorHashGenerator hashes a 500-char prefix of the unredacted
+        # message, so redacting first would silently re-group every error whose
+        # message contains a filtered key: "password=hunter2" and
+        # "password=[FILTERED]" are different fingerprints.
+        #
+        # application_id is deliberately absent. Resolving it means
+        # Application.find_or_create_by_name -- a DB write -- and this runs on
+        # the request thread, where the gem promises no I/O. The worker
+        # completes the hash with the application resolved, exactly as
+        # FlushStormCounts#canonical_hash does for storm counts.
+        identity_parts = capture_identity_parts(exception, context)
+
+        # Scrub BEFORE anything is serialized: ActiveJob JSON-encodes the
+        # payload on this (the request) thread, and an invalid byte in the
+        # message, a backtrace line or the context would raise right here. The
+        # identity above is still taken from the raw exception, exactly as the
+        # sync path takes it, so grouping is unchanged.
+        context = Services::EncodingSanitizer.scrub_deep(context)
+        exception_data = Services::EncodingSanitizer.scrub_deep(
           class_name: exception.class.name,
           message: exception.message,
           backtrace: exception.backtrace,
           cause_chain: serialize_cause_chain(exception)
-        }
+        )
+
+        # Redact BEFORE the payload crosses the queue boundary. Until now the
+        # filter ran only just before the INSERT, so a durable adapter
+        # (Sidekiq/Redis, Solid Queue) persisted the raw secret in its own
+        # store, its backups, and any job-argument logging -- even though the
+        # error row itself was correctly redacted.
+        #
+        # Breadcrumbs, locals and instance variables are already filtered by
+        # their own collectors (BreadcrumbCollector.filter_sensitive,
+        # VariableSerializer.filter_serialized) before they are put in the
+        # context above, so this covers the rest: message, cause chain, request
+        # params and request URL -- the four keys filter_attributes touches.
+        exception_data, context = redact_async_payload(exception_data, context)
+        context = context.merge(_identity: identity_parts) if identity_parts
+
+        # Stamp WHEN and WHAT RELEASE this event was captured under, before it
+        # crosses the queue. Both used to be resolved by the worker from
+        # Time.current and its own process configuration, so a queue backed up
+        # across a deploy gave the event the drain time and the new release --
+        # an error captured at 12:00 under v1 and drained at 14:00 under v2 was
+        # stored as 14:00/v2, and release comparison blamed the wrong build.
+        # The row's created_at still records when the worker wrote it, so queue
+        # lag stays observable.
+        context = context.merge(_captured_at: (normalized_occurred_at(context) || Time.current).iso8601(6))
+        context = context.merge(_app_version: capture_app_version) unless context.key?(:_app_version)
+        context = context.merge(_git_sha: capture_git_sha) unless context.key?(:_git_sha)
 
         # Storm shedding: :lite captures skip ALL pre-enqueue context harvest —
         # this is request-thread CPU, the most valuable thing to shed.
@@ -92,7 +166,15 @@ module RailsErrorDashboard
 
         # Harvest breadcrumbs NOW (before job dispatch — different thread won't have them)
         if !lite && RailsErrorDashboard.configuration.enable_breadcrumbs
-          context = context.merge(_serialized_breadcrumbs: Services::BreadcrumbCollector.harvest)
+          # A failing job's snapshot rides the envelope: the worker that runs
+          # the capture is a different thread (and often a different process),
+          # so a thread-local left here would never be seen again. Prefer it
+          # over the live buffer, which the job's ensure has already cleared.
+          job_trail = Thread.current[Subscribers::BreadcrumbSubscriber::JOB_TRAIL_KEY]
+          Thread.current[Subscribers::BreadcrumbSubscriber::JOB_TRAIL_KEY] = nil
+          harvested = Services::BreadcrumbCollector.harvest
+          trail = job_trail.is_a?(Array) && job_trail.any? ? job_trail : harvested
+          context = context.merge(_serialized_breadcrumbs: trail)
         end
 
         # Capture system health NOW (metrics are time-sensitive, different thread = different state)
@@ -140,18 +222,120 @@ module RailsErrorDashboard
             kind: :capture,
             attributes: build_capture_span_attributes(exception, was_async: true)
           ) do |_span|
-            AsyncErrorLoggingJob.perform_later(exception_data, context)
+            job = AsyncErrorLoggingJob.perform_later(exception_data, context)
+
+            # A raise is not the only way a handoff fails. From Rails 7.2
+            # perform_later swallows ActiveJob::EnqueueError and returns false
+            # (an aborting enqueue callback does the same), so without this
+            # check the capture is dropped silently: no queued job, no row.
+            # The storm gate has always checked this; ordinary capture did not.
+            unless ApplicationJob.enqueued?(job)
+              raise EnqueueFailed, ApplicationJob.enqueue_failure_reason(job)
+            end
           end
         rescue => e
-          # Queue adapter failed (e.g., Redis down for Sidekiq). Fall back to
-          # sync logging so the error is still captured. Without this rescue,
-          # the exception propagates back to ErrorReporter, which re-reports it
-          # via Rails.error.report → infinite recursion (issue #114).
+          # Queue adapter failed (e.g., Redis down for Sidekiq), or the job
+          # never reached the queue. Fall back to sync logging so the error is
+          # still captured. Without this rescue, the exception propagates back
+          # to ErrorReporter, which re-reports it via Rails.error.report →
+          # infinite recursion (issue #114).
           RailsErrorDashboard::Logger.error(
             "[RailsErrorDashboard] Async enqueue failed (#{e.class}: #{e.message}), falling back to sync logging"
           )
           new(exception, context).call
         end
+      end
+
+      # The opaque half of the canonical fingerprint, computed from the RAW
+      # exception before the payload is redacted for the queue.
+      #
+      # This is a digest, not the identity parts themselves: an earlier version
+      # shipped `normalized_message` and put the very secret the redaction had
+      # just removed straight back on the queue. normalize_message replaces
+      # hex, digits and quoted strings -- it has no notion of secrets.
+      #
+      # A custom fingerprint lambda already yields a complete, message-free
+      # value, so it is passed through unchanged.
+      def self.capture_identity_parts(exception, context)
+        custom = Services::ErrorHashGenerator.send(:try_custom_fingerprint, exception, context)
+        return custom if custom
+
+        Services::ErrorHashGenerator.opaque_identity(
+          error_class: exception.class.name,
+          normalized_message: Services::ErrorHashGenerator.normalize_message(exception.message),
+          frames: Services::ErrorHashGenerator.extract_app_frame_from_locations(exception) ||
+                  Services::ErrorHashGenerator.extract_app_frame(exception.backtrace),
+          controller_name: context[:controller_name]&.to_s,
+          action_name: context[:action_name]&.to_s
+        )
+      rescue => e
+        # No identity parts simply means the worker recomputes the hash from
+        # the (redacted) payload, which is the pre-existing behaviour.
+        RailsErrorDashboard::Logger.debug(
+          "[RailsErrorDashboard] capture_identity_parts failed: #{e.class} - #{e.message}"
+        )
+        nil
+      end
+
+      # Apply the storage filter to everything secret-bearing that crosses the
+      # queue, reusing SensitiveDataFilter so the queue and the database are
+      # redacted by ONE policy rather than two that can drift.
+      def self.redact_async_payload(exception_data, context)
+        return [ exception_data, context ] unless RailsErrorDashboard.configuration.filter_sensitive_data
+
+        filtered = Services::SensitiveDataFilter.filter_attributes(
+          message: exception_data[:message],
+          request_params: context[:request_params],
+          request_url: context[:request_url],
+          exception_cause: exception_data[:cause_chain]&.to_json
+        )
+
+        exception_data = exception_data.merge(message: filtered[:message])
+        if exception_data[:cause_chain] && filtered[:exception_cause]
+          begin
+            exception_data = exception_data.merge(
+              cause_chain: JSON.parse(filtered[:exception_cause], symbolize_names: true)
+            )
+          rescue JSON::ParserError
+            # Keep the filtered-but-unparsed chain out of the payload entirely
+            # rather than shipping the raw one.
+            exception_data = exception_data.merge(cause_chain: nil)
+          end
+        end
+
+        context = context.merge(request_params: filtered[:request_params]) if context.key?(:request_params)
+        context = context.merge(request_url: filtered[:request_url]) if context.key?(:request_url)
+
+        # request_params is only one of the shapes that becomes the stored
+        # params: ErrorContext#extract_params also folds in :params,
+        # :additional_context, :metadata and the job/sidekiq keys. Those crossed
+        # the queue raw, so the row was redacted while the secret sat in the
+        # queue's backing store -- exactly the drift this method exists to
+        # prevent. ParameterFilter takes a Hash directly; filter_json_string is
+        # no use here because these are Hashes, not JSON strings.
+        param_filter = Services::SensitiveDataFilter.parameter_filter
+        if param_filter
+          CONTEXT_PARAM_KEYS.each do |key|
+            value = context[key]
+            next unless value.is_a?(Hash)
+
+            context = context.merge(key => param_filter.filter(value))
+          end
+        end
+
+        # The raw session ID must not sit in Redis / Solid Queue either.
+        if context[:session_id]
+          context = context.merge(session_id: Services::SensitiveDataFilter.digest_session_id(context[:session_id]))
+        end
+
+        [ exception_data, context ]
+      rescue => e
+        # Never fail a capture over redaction. Fall back to the previous
+        # behaviour: the row itself is still filtered before the INSERT.
+        RailsErrorDashboard::Logger.error(
+          "[RailsErrorDashboard] Async payload redaction failed: #{e.class} - #{e.message}"
+        )
+        [ exception_data, context ]
       end
 
       # Serialize cause chain for async job serialization
@@ -171,7 +355,7 @@ module RailsErrorDashboard
           chain << {
             class_name: current.class.name,
             message: current.message&.to_s,
-            backtrace: current.backtrace&.first(20)&.map { |line| Services::BacktraceProcessor.shorten_gem_path(line) }
+            backtrace: current.backtrace&.first(20)&.map { |line| Services::BacktraceProcessor.shorten_gem_path(Services::EncodingSanitizer.scrub(line)) }
           }
 
           current = current.respond_to?(:cause) ? current.cause : nil
@@ -185,9 +369,22 @@ module RailsErrorDashboard
       end
       private_class_method :serialize_cause_chain
 
-      def initialize(exception, context = {})
+      # @param exception [Exception] the exception to capture
+      # @param context [Hash] request/job context
+      # @param worker [Boolean] true when a background job is the caller.
+      #   The capture path's blanket rescue exists so a failing capture can
+      #   never break a user's request (safety rule 1). A worker has the
+      #   opposite obligation: if the error store was unreachable, the job did
+      #   NOT deliver the capture, and saying otherwise discards the payload.
+      #   In worker mode an unreachable-store failure is re-raised so Active
+      #   Job can retry it; every other failure is still swallowed.
+      def initialize(exception, context = {}, worker: false)
         @exception = exception
-        @context = context
+        # Invalid bytes anywhere in the context would raise as soon as it is
+        # JSON-encoded (ErrorContext does that in its constructor). A clean
+        # context costs one scan and its strings come back as the same objects.
+        @context = Services::EncodingSanitizer.scrub_deep(context)
+        @worker = worker
       end
 
       def call
@@ -196,10 +393,11 @@ module RailsErrorDashboard
         # tracing pipeline. Child spans (breadcrumbs, health, notifications)
         # nest under this one automatically via OTel context propagation.
         #
-        # The span lives INSIDE the rescue clause — if the span itself raises
-        # somehow, the outer rescue still catches it and returns nil. Defense
-        # in depth. When the block raises, the Tracer façade records the
-        # exception on the span and re-raises so the rescue can swallow it.
+        # The span lives INSIDE the rescue clause — if span setup itself fails,
+        # the Tracer runs this block once with a no-op span, and anything that
+        # still escapes is caught by the outer rescue below. Defense in depth.
+        # When this block raises, the façade records the exception on the span
+        # and re-raises it exactly once; it never re-runs the block.
         Integrations::Tracer.in_span(
           "capture_error",
           kind: :capture,
@@ -228,7 +426,11 @@ module RailsErrorDashboard
         truncated_backtrace = Services::BacktraceProcessor.truncate(@exception.backtrace)
         attributes = {
           application_id: application.id,
-          error_type: @exception.class.name,
+          # The reported type wins over the reconstructed class: an async
+          # capture of a type with no Ruby class here (a frontend error) is
+          # rebuilt as StandardError, and that name must not become the group
+          # identity. Falls back to the real class for every ordinary capture.
+          error_type: reported_error_type || @exception.class.name,
           message: @exception.message,
           backtrace: truncated_backtrace,
           user_id: error_context.user_id,
@@ -239,7 +441,12 @@ module RailsErrorDashboard
           platform: error_context.platform,
           controller_name: error_context.controller_name,
           action_name: error_context.action_name,
-          occurred_at: Time.current
+          # Three sources, most specific first. A caller-supplied event time
+          # (ManualErrorReporter documents it, already clamped to not-future by
+          # ErrorContext) beats the capture-time stamp carried across the queue
+          # (see call_async), which in turn beats this worker's clock. Ordinary
+          # synchronous captures supply neither and fall through to now.
+          occurred_at: error_context.occurred_at || captured_at_from_context || Time.current
         }
 
         # Enriched request context (if columns exist)
@@ -254,13 +461,19 @@ module RailsErrorDashboard
         end
 
         # Generate error hash for deduplication (including controller/action context and application)
-        error_hash = Services::ErrorHashGenerator.call(
-          @exception,
-          controller_name: error_context.controller_name,
-          action_name: error_context.action_name,
-          application_id: application.id,
-          context: @context
-        )
+        #
+        # On the async path the identity was captured from the RAW exception
+        # before the payload was redacted for the queue; completing it here
+        # with application_id keeps grouping identical to the sync path, where
+        # the hash is taken before filter_attributes runs.
+        error_hash = canonical_hash_from_identity(application) ||
+                     Services::ErrorHashGenerator.call(
+                       @exception,
+                       controller_name: error_context.controller_name,
+                       action_name: error_context.action_name,
+                       application_id: application.id,
+                       context: @context
+                     )
 
         #  Calculate backtrace signature for fuzzy matching (if column exists)
         if ErrorLog.column_names.include?("backtrace_signature")
@@ -272,17 +485,21 @@ module RailsErrorDashboard
 
         #  Add git/release info if columns exist
         if ErrorLog.column_names.include?("git_sha")
-          attributes[:git_sha] = RailsErrorDashboard.configuration.git_sha ||
-                                  ENV["GIT_SHA"] ||
-                                  ENV["HEROKU_SLUG_COMMIT"] ||
-                                  ENV["RENDER_GIT_COMMIT"] ||
-                                  detect_git_sha_from_command
+          # The release the event was CAPTURED under, carried across the queue,
+          # falling back to this process's own for a synchronous capture.
+          attributes[:git_sha] = context_value(:_git_sha) || capture_git_sha
         end
 
         if ErrorLog.column_names.include?("app_version")
-          attributes[:app_version] = RailsErrorDashboard.configuration.app_version ||
-                                      ENV["APP_VERSION"] ||
-                                      detect_version_from_file
+          # Same precedence as occurred_at above. The reporter's own version
+          # wins over this server's -- for a mobile or frontend report they are
+          # different and the client's is the useful one (documented by
+          # ManualErrorReporter, previously discarded) -- then the release the
+          # event was CAPTURED under carried across the queue, then this
+          # process's own.
+          attributes[:app_version] = error_context.app_version ||
+                                      context_value(:_app_version) ||
+                                      capture_app_version
         end
 
         # Add environment snapshot (if column exists)
@@ -290,30 +507,67 @@ module RailsErrorDashboard
           attributes[:environment_info] = Services::EnvironmentSnapshot.snapshot.to_json
         end
 
+        # Environment awareness (if column exists). context wins so a sender
+        # elsewhere can attribute an event to its own environment.
+        if ErrorLog.column_names.include?("environment")
+          attributes[:environment] = resolve_environment
+        end
+
+        # Neutralise invalid bytes BEFORE filtering: the filter runs regexes,
+        # which raise on an invalid string, and PostgreSQL rejects the INSERT.
+        attributes = Services::EncodingSanitizer.scrub_deep(attributes)
+
         # Apply sensitive data filtering (on by default)
         attributes = Services::SensitiveDataFilter.filter_attributes(attributes)
 
+        # Fit string metadata to its columns (after hashing, before writing)
+        attributes = ErrorLog.clamp_string_attributes(attributes)
+
         # Harvest breadcrumbs (if enabled and column exists)
         if !storm_lite && ErrorLog.column_names.include?("breadcrumbs") && RailsErrorDashboard.configuration.enable_breadcrumbs
-          # Sync path: harvest from current thread
-          raw_breadcrumbs = Services::BreadcrumbCollector.harvest
+          # The envelope wins when there is one.
+          #
+          # An async capture harvests the REQUEST's trail before enqueue and
+          # carries it here; the worker thread running this job now has a
+          # buffer of its own (jobs get one, so a failing job has a trail), and
+          # harvesting that first would show the worker's activity in place of
+          # the request's. Draining the current thread stays the sync path, and
+          # still runs below so a worker's own buffer is not left to leak.
+          serialized = @context[:_serialized_breadcrumbs] || @context["_serialized_breadcrumbs"]
 
-          # Async path fallback: use pre-serialized breadcrumbs from call_async context
-          if raw_breadcrumbs.empty?
-            serialized = @context[:_serialized_breadcrumbs]
-            raw_breadcrumbs = serialized if serialized.is_a?(Array)
-          end
+          # A failing job's trail, snapshotted by the around_perform on its way
+          # out. Active Job reports a job error two frames OUTSIDE the callback
+          # that owns the buffer, so by now the live buffer is already gone and
+          # a current-thread harvest returns nothing -- the snapshot is the only
+          # surviving copy. Consumed here, whoever wrote it.
+          job_trail = Thread.current[Subscribers::BreadcrumbSubscriber::JOB_TRAIL_KEY]
+          Thread.current[Subscribers::BreadcrumbSubscriber::JOB_TRAIL_KEY] = nil
+
+          # Still unconditional: drains a worker's own buffer so it cannot leak.
+          current = Services::BreadcrumbCollector.harvest
+
+          # The envelope stays FIRST. An async capture carries the request's
+          # trail across the queue, and neither the worker's own buffer nor a
+          # snapshot may displace it.
+          raw_breadcrumbs =
+            if serialized.is_a?(Array) && serialized.any?
+              serialized
+            elsif job_trail.is_a?(Array) && job_trail.any?
+              job_trail
+            else
+              current
+            end
 
           if raw_breadcrumbs.is_a?(Array) && raw_breadcrumbs.any?
             filtered = Services::BreadcrumbCollector.filter_sensitive(raw_breadcrumbs)
-            attributes[:breadcrumbs] = filtered.to_json
+            attributes[:breadcrumbs] = Services::EncodingSanitizer.scrub_deep(filtered).to_json
           end
         end
 
         # Capture system health snapshot (if enabled and column exists)
         if !storm_lite && ErrorLog.column_names.include?("system_health") && RailsErrorDashboard.configuration.enable_system_health
           health_data = @context[:_serialized_system_health] || Services::SystemHealthSnapshot.capture
-          attributes[:system_health] = health_data.to_json
+          attributes[:system_health] = Services::EncodingSanitizer.scrub_deep(health_data).to_json
         end
 
         # Capture local variables (if enabled and column exists)
@@ -325,7 +579,7 @@ module RailsErrorDashboard
             raw_locals ||= @context[:_serialized_local_variables]
             if raw_locals.is_a?(Hash) && raw_locals.any?
               serialized = raw_locals == @context[:_serialized_local_variables] ? raw_locals : Services::VariableSerializer.call(raw_locals)
-              attributes[:local_variables] = serialized.to_json
+              attributes[:local_variables] = Services::EncodingSanitizer.scrub_deep(serialized).to_json
             end
           rescue => e
             RailsErrorDashboard::Logger.debug("[RailsErrorDashboard] Local variable serialization failed: #{e.message}")
@@ -349,7 +603,7 @@ module RailsErrorDashboard
                   additional_filter_patterns: RailsErrorDashboard.configuration.instance_variable_filter_patterns
                 )
               end
-              attributes[:instance_variables] = serialized.to_json
+              attributes[:instance_variables] = Services::EncodingSanitizer.scrub_deep(serialized).to_json
             end
           rescue => e
             RailsErrorDashboard::Logger.debug("[RailsErrorDashboard] Instance variable serialization failed: #{e.message}")
@@ -357,8 +611,23 @@ module RailsErrorDashboard
         end
 
         # Find existing error or create new one
-        # This ensures accurate occurrence tracking
-        error_log = ErrorLog.find_or_increment_by_hash(error_hash, attributes.merge(error_hash: error_hash))
+        # This ensures accurate occurrence tracking.
+        #
+        # _context_fidelity travels with the attributes so the grouping command
+        # can tell a full capture from a shed one. A :lite capture carries no
+        # context payloads by design, and must not be recorded as though it
+        # refreshed the snapshot -- nor allowed to overwrite a good backtrace.
+        # It is stripped before the INSERT (it is a signal, not a column).
+        #
+        # Only the SHED case is asserted here. "This capture was complete" and
+        # "the stored snapshot is complete" are different claims: when the
+        # grouping command keeps an earlier occurrence's user or locals beside
+        # this one's URL, the row displays a mixture, and only that command can
+        # see it. Passing nil lets it decide between "full" and "partial".
+        error_log = ErrorLog.find_or_increment_by_hash(
+          error_hash,
+          attributes.merge(error_hash: error_hash, _context_fidelity: storm_lite ? "lite" : nil)
+        )
 
         # OTel: now that the error_log exists, attach its id + dedup flag + severity
         # to the parent capture span so operators can correlate to dashboard URLs.
@@ -371,13 +640,22 @@ module RailsErrorDashboard
         #  Track individual error occurrence for co-occurrence analysis (if table exists)
         if defined?(ErrorOccurrence) && ErrorOccurrence.table_exists?
           begin
-            ErrorOccurrence.create(
+            occurrence_attrs = {
               error_log: error_log,
               occurred_at: attributes[:occurred_at],
               user_id: attributes[:user_id],
               request_id: error_context.request_id,
-              session_id: error_context.session_id
-            )
+              # Digest, not the raw ID -- it is a bearer credential. Idempotent,
+              # so a value already digested at the queue boundary passes through.
+              session_id: Services::SensitiveDataFilter.storable_session_id(error_context.session_id)
+            }
+            # The release THIS event happened under. The group keeps its first
+            # release; per-release counts come from here (ReleaseTimeline).
+            occurrence_columns = ErrorOccurrence.column_names
+            occurrence_attrs[:app_version] = attributes[:app_version] if occurrence_columns.include?("app_version")
+            occurrence_attrs[:git_sha] = attributes[:git_sha] if occurrence_columns.include?("git_sha")
+            occurrence_attrs = Services::EncodingSanitizer.scrub_deep(occurrence_attrs)
+            ErrorOccurrence.create(ErrorOccurrence.clamp_string_attributes(occurrence_attrs))
           rescue => e
             RailsErrorDashboard::Logger.error("Failed to create error occurrence: #{e.message}")
           end
@@ -386,12 +664,12 @@ module RailsErrorDashboard
         # Send notifications for new errors and reopened errors (with throttling).
         # Muted errors skip notification dispatch but still fire plugin events.
         if error_log.occurrence_count == 1
-          maybe_notify(error_log) { Services::NotificationThrottler.severity_meets_minimum?(error_log) }
+          maybe_notify(error_log, first_occurrence: true) { Services::NotificationThrottler.severity_meets_minimum?(error_log) }
           PluginRegistry.dispatch(:on_error_logged, error_log)
           trigger_callbacks(error_log)
           emit_instrumentation_events(error_log)
         elsif error_log.just_reopened
-          maybe_notify(error_log) { Services::NotificationThrottler.should_notify?(error_log) }
+          maybe_notify(error_log, respect_cooldown: true) { Services::NotificationThrottler.severity_meets_minimum?(error_log) }
           PluginRegistry.dispatch(:on_error_reopened, error_log)
           trigger_callbacks(error_log)
           emit_instrumentation_events(error_log)
@@ -412,6 +690,13 @@ module RailsErrorDashboard
         RailsErrorDashboard::Logger.error("Original exception: #{@exception.class} - #{@exception.message}") if @exception
         RailsErrorDashboard::Logger.error("Context: #{@context.inspect.truncate(500)}") if @context
         RailsErrorDashboard::Logger.error(e.backtrace&.first(5)&.join("\n")) if e.backtrace
+
+        # A worker must not report a delivery it did not make. Only the
+        # store-unavailable failures are re-raised (they are worth another
+        # attempt); a payload problem would fail identically on every retry,
+        # so it stays swallowed here as it always has.
+        raise if @worker && RETRYABLE_STORE_ERRORS.any? { |klass| e.is_a?(klass) }
+
         nil # Explicitly return nil, never raise
       end
 
@@ -421,16 +706,98 @@ module RailsErrorDashboard
       # Muted errors skip notifications but still fire plugin events/callbacks.
       # During a storm (breaker not closed) per-error notifications are
       # suppressed — a single storm notification replaces them.
-      def maybe_notify(error_log)
+      #
+      # respect_cooldown is true only for the reopened path, which is the only one
+      # the cooldown has ever applied to: a first occurrence and a threshold
+      # milestone always notify. They still stamp the row, so an error reopened
+      # minutes after its first notification is throttled.
+      def maybe_notify(error_log, respect_cooldown: false, first_occurrence: false)
         return if error_log.muted?
+        # wont_fix: the team has decided not to act on this error, so its
+        # recurrences are counted and nothing else. Plugin events still fire,
+        # exactly as they do for a muted error.
+        return if error_log.status.to_s == "wont_fix"
         return if Services::StormProtection::Gate.notifications_suppressed?
+        return unless Services::NotificationThrottler.environment_allowed?(error_log)
         return unless yield
+        return if first_occurrence && burst_capped?
+
+        # Claim, THEN send. The claim is a conditional UPDATE only one process can
+        # win, so N workers reopening the same error send one notification, not
+        # N. The price: if the send below fails, this error is not retried inside
+        # the cooldown window. Recording after sending is what let every process
+        # through.
+        return unless Services::NotificationThrottler.claim!(error_log, respect_cooldown: respect_cooldown)
 
         Services::ErrorNotificationDispatcher.call(error_log)
-        Services::NotificationThrottler.record_notification(error_log)
+      rescue => e
+        # The error row is already written by the time we get here. A channel
+        # that cannot be reached (Redis down for the Slack job's enqueue, a
+        # broken webhook config) must not take the capture down with it: the
+        # caller asked us to record an error, and we did. Log, don't raise.
+        RailsErrorDashboard::Logger.error(
+          "[RailsErrorDashboard] Failed to dispatch notification for error #{error_log&.id}: #{e.class} - #{e.message}"
+        )
+      end
+
+      # A bad deploy can produce hundreds of DISTINCT new errors, each a first
+      # occurrence the per-error cooldown never sees. Past
+      # config.notification_burst_limit per window, new-error notifications are
+      # held back and ONE summary says so. Asked only for first occurrences that
+      # were otherwise going to notify, and before the cooldown claim, so a
+      # suppressed error is not stamped as notified. The error itself is already
+      # stored; only the notification is dropped.
+      def burst_capped?
+        # Nothing can notify, so there is nothing to cap, and no summary to enqueue.
+        return false unless Services::ErrorNotificationDispatcher.any_channel?
+
+        case Services::NotificationThrottler.burst_decision
+        when :summarize
+          config = RailsErrorDashboard.configuration
+          NotificationBurstSummaryJob.perform_later(
+            limit: config.notification_burst_limit.to_i,
+            window_seconds: config.notification_burst_window_seconds.to_i,
+            locale: ApplicationJob.enqueue_locale
+          )
+          true
+        when :suppress
+          true
+        else
+          false
+        end
+      rescue => e
+        # Fail-open: a cap that cannot decide must not cost a notification.
+        RailsErrorDashboard::Logger.debug("[RailsErrorDashboard] burst cap check failed: #{e.class}: #{e.message}")
+        false
+      end
+
+      # The environment this error is attributed to: an explicit context value
+      # (truncated to the column) or the process-wide resolution. Never nil.
+      def resolve_environment
+        name = @context[:environment].to_s.strip
+        return name[0, 64] unless name.empty?
+
+        RailsErrorDashboard.configuration.current_environment
       end
 
       # Find or create application for multi-app support
+      # Complete the fingerprint the request thread started, if it sent one.
+      # The request thread hashed the identity parts into an opaque value (no
+      # message text crosses the queue); this adds the application, which only
+      # a worker can resolve. Same two stages as the sync path, so a capture
+      # groups onto the same row whether it travelled through the queue or not.
+      def canonical_hash_from_identity(application)
+        opaque = @context[:_identity]
+        return nil unless opaque.is_a?(String) && opaque.present?
+
+        Services::ErrorHashGenerator.complete(opaque, application.id)
+      rescue => e
+        RailsErrorDashboard::Logger.debug(
+          "[RailsErrorDashboard] canonical_hash_from_identity failed: #{e.class} - #{e.message}"
+        )
+        nil
+      end
+
       def find_or_create_application
         app_name = RailsErrorDashboard.configuration.application_name ||
                    ENV["APPLICATION_NAME"] ||
@@ -483,6 +850,14 @@ module RailsErrorDashboard
         if error_log.critical?
           ActiveSupport::Notifications.instrument("critical_error.rails_error_dashboard", payload)
         end
+      rescue => e
+        # AS::Notifications re-raises subscriber exceptions to the instrumenting
+        # caller (fanout.rb#iterate_guarding_exceptions), so a host subscriber
+        # on error_logged.rails_error_dashboard would otherwise abort a capture
+        # whose row is already persisted.
+        RailsErrorDashboard::Logger.error(
+          "[RailsErrorDashboard] Failed to emit instrumentation events for error #{error_log&.id}: #{e.class} - #{e.message}"
+        )
       end
 
       #  Check if error exceeds baseline and send alert if needed
@@ -492,6 +867,8 @@ module RailsErrorDashboard
         # Return early if baseline alerts are disabled or error is muted
         return unless config.enable_baseline_alerts
         return if error_log.muted?
+        return if error_log.status.to_s == "wont_fix" # see maybe_notify
+        return unless Services::NotificationThrottler.environment_allowed?(error_log)
         return unless defined?(Queries::BaselineStats)
         return unless defined?(BaselineAlertJob)
 
@@ -505,7 +882,7 @@ module RailsErrorDashboard
         return unless config.baseline_alert_severities.include?(anomaly[:level])
 
         # Enqueue alert job (which will handle throttling)
-        BaselineAlertJob.perform_later(error_log.id, anomaly)
+        BaselineAlertJob.perform_later(error_log.id, anomaly, ApplicationJob.enqueue_locale)
 
         RailsErrorDashboard::Logger.info(
           "Baseline alert queued for #{error_log.error_type} on #{error_log.platform}: " \
@@ -547,22 +924,109 @@ module RailsErrorDashboard
         nil
       end
 
-      # Detect git SHA from git command (fallback)
-      def detect_git_sha_from_command
-        return nil unless File.exist?(Rails.root.join(".git"))
-        `git rev-parse --short HEAD 2>/dev/null`.strip.presence
-      rescue => e
-        RailsErrorDashboard::Logger.debug("Could not detect git SHA: #{e.message}")
+      # The error type as REPORTED, carried across the queue by
+      # AsyncErrorLoggingJob. Symbol or string key: ActiveJob's serializer
+      # turns symbol keys into strings on the way through.
+      def reported_error_type
+        return nil unless @context.is_a?(Hash)
+
+        (@context[:_reported_error_type] || @context["_reported_error_type"]).presence
+      rescue StandardError
         nil
       end
 
       # Detect app version from VERSION file (fallback)
       def detect_version_from_file
+        self.class.detect_version_from_file
+      end
+
+      # --- Capture-time envelope -------------------------------------------
+      #
+      # The release THIS process is running, resolved on the capture thread so
+      # it can be stamped onto the payload before it crosses the queue. The
+      # worker reads the stamp instead of asking its own configuration, which
+      # is what made a queued event inherit the release it was drained under.
+
+      # ONE normalization of a caller-supplied event time, shared by both
+      # transports.
+      #
+      # ErrorContext#extract_occurred_at already parses Strings, clamps a
+      # future time and rescues bad input -- but it runs in the WORKER on the
+      # async path, long after this method's caller has already had to
+      # serialize the value. Stamping the envelope by calling .iso8601 on the
+      # raw input therefore raised NoMethodError for a String (a documented
+      # ManualErrorReporter input form), the outer rescue in .call swallowed
+      # it, and the capture vanished: nothing enqueued, no row, nothing logged
+      # at error level. The sync path accepted the identical input.
+      #
+      # Normalizing here keeps ONE policy -- including the future clamp -- and
+      # returns nil rather than raising, so an unparseable value costs the
+      # timestamp and never the error itself (Safety Rule 1).
+      # @return [Time, nil]
+      def self.normalized_occurred_at(context)
+        raw = context[:occurred_at] || context["occurred_at"]
+        return nil if raw.nil? || (raw.respond_to?(:empty?) && raw.empty?)
+
+        time = raw.is_a?(String) ? Time.zone.parse(raw) : raw
+        return nil unless time.respond_to?(:to_time)
+
+        [ time.to_time, Time.current ].min
+      rescue StandardError => e
+        RailsErrorDashboard::Logger.debug(
+          "[RailsErrorDashboard] Unparseable occurred_at (#{e.class}); using capture time"
+        )
+        nil
+      end
+
+      def self.capture_app_version
+        RailsErrorDashboard.configuration.app_version ||
+          ENV["APP_VERSION"] ||
+          detect_version_from_file
+      end
+
+      def self.capture_git_sha
+        RailsErrorDashboard.configuration.git_sha ||
+          ENV["GIT_SHA"] ||
+          ENV["HEROKU_SLUG_COMMIT"] ||
+          ENV["RENDER_GIT_COMMIT"] ||
+          RailsErrorDashboard.detected_git_sha
+      end
+
+      def self.detect_version_from_file
         version_file = Rails.root.join("VERSION")
         return File.read(version_file).strip if File.exist?(version_file)
         nil
       rescue => e
         RailsErrorDashboard::Logger.debug("Could not detect version: #{e.message}")
+        nil
+      end
+
+      # Symbol or string key: the async job round-trips the context through the
+      # queue serializer, which turns symbol keys into strings.
+      def context_value(key)
+        return nil unless @context.is_a?(Hash)
+
+        (@context[key] || @context[key.to_s]).presence
+      rescue StandardError
+        nil
+      end
+
+      def capture_app_version
+        self.class.capture_app_version
+      end
+
+      def capture_git_sha
+        self.class.capture_git_sha
+      end
+
+      # The capture-time stamp an async payload carries, or nil for a
+      # synchronous capture (which has no queue hop and is already "now").
+      def captured_at_from_context
+        raw = context_value(:_captured_at)
+        return nil if raw.blank?
+
+        Time.zone ? Time.zone.parse(raw.to_s) : Time.parse(raw.to_s)
+      rescue StandardError
         nil
       end
     end

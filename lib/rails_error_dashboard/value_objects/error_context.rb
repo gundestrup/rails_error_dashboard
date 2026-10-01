@@ -7,7 +7,8 @@ module RailsErrorDashboard
     class ErrorContext
       attr_reader :user_id, :request_url, :request_params, :user_agent, :ip_address, :platform,
                   :controller_name, :action_name, :request_id, :session_id,
-                  :http_method, :hostname, :content_type, :request_duration_ms
+                  :http_method, :hostname, :content_type, :request_duration_ms, :environment,
+                  :occurred_at, :app_version
 
       def initialize(context, source = nil)
         @context = context
@@ -23,12 +24,21 @@ module RailsErrorDashboard
         @action_name = extract_action_name
         @request_id = extract_request_id
         @session_id = extract_session_id
+        @occurred_at = extract_occurred_at
+        @app_version = extract_app_version
         @http_method = extract_http_method
         @hostname = extract_hostname
         @content_type = extract_content_type
         @request_duration_ms = extract_request_duration_ms
+        @environment = extract_environment
       end
 
+      # Everything a second ErrorContext needs to rebuild THIS context from a
+      # plain hash. ErrorReporter hands `to_h` to LogError, which constructs a
+      # new ErrorContext from it, so any reader that is not represented here
+      # is silently nil on the far side of that hop. request_id/session_id
+      # were exactly that: extracted from the request, dropped here, and every
+      # occurrence on the main capture path stored nil for both.
       def to_h
         {
           user_id: user_id,
@@ -39,14 +49,45 @@ module RailsErrorDashboard
           platform: platform,
           controller_name: controller_name,
           action_name: action_name,
+          request_id: request_id,
+          session_id: session_id,
           http_method: http_method,
           hostname: hostname,
           content_type: content_type,
-          request_duration_ms: request_duration_ms
+          request_duration_ms: request_duration_ms,
+          environment: environment,
+          # Both belong in to_h, not only in the readers: LogError builds a
+          # SECOND ErrorContext from this hash on the async path, and a key
+          # missing here is silently dropped there. That hop is what lost
+          # request_id and session_id before.
+          occurred_at: occurred_at,
+          app_version: app_version
         }
       end
 
       private
+
+      # A caller-supplied event time, e.g. a mobile client reporting a failure
+      # that happened while it was offline. Never in the future: a client clock
+      # can be wrong, and a future row would sort above every real error and
+      # never age out of a window.
+      def extract_occurred_at
+        raw = @context[:occurred_at]
+        return nil if raw.blank?
+
+        time = raw.is_a?(String) ? Time.zone.parse(raw) : raw
+        return nil unless time.respond_to?(:to_time)
+
+        [ time, Time.current ].min
+      rescue StandardError
+        nil
+      end
+
+      # The release the REPORTER was running, which for a mobile or frontend
+      # report is the whole point -- it differs from the server's version.
+      def extract_app_version
+        @context[:app_version].presence
+      end
 
       def extract_user_id
         @context[:current_user]&.id ||
@@ -110,12 +151,18 @@ module RailsErrorDashboard
         # Additional context (from mobile apps, etc.)
         params.merge!(@context[:additional_context]) if @context[:additional_context]
 
+        # Caller-supplied metadata, documented by ManualErrorReporter and
+        # previously accepted and discarded.
+        params.merge!(@context[:metadata]) if @context[:metadata].is_a?(Hash)
+
         # Pre-serialized params (from async logging or double-ErrorContext path).
         # LogError creates a second ErrorContext from error_context.to_h which
         # has :request_params as a JSON string but no :request object.
         return @context[:request_params] if params.empty? && @context[:request_params].present?
 
-        params.to_json
+        # Params read off a live request or job object never passed through the
+        # context scrub LogError does, and to_json raises on an invalid byte.
+        Services::EncodingSanitizer.scrub_deep(params).to_json
       end
 
       def extract_user_agent
@@ -244,6 +291,13 @@ module RailsErrorDashboard
         return @context[:request_duration_ms] if @context[:request_duration_ms]
 
         nil
+      end
+
+      # An explicit environment from the caller (a sender attributing an event
+      # to its own environment). nil means "resolve from configuration".
+      def extract_environment
+        value = @context[:environment].to_s.strip
+        value.empty? ? nil : value
       end
 
       # Auto-detect user_id from ActiveSupport::CurrentAttributes

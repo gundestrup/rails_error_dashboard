@@ -110,6 +110,19 @@ RSpec.describe "Commands::LogError OTel instrumentation" do
       expect(span.attributes["error.message"]).to start_with("boom — capture me")
     end
 
+    # The span is an EXPORT boundary: its attributes leave the process for a
+    # collector the host app does not necessarily control. Sending the raw
+    # message there while the stored row says password=[FILTERED] let an
+    # observability integration silently widen the sensitive-data policy.
+    it "redacts the message before it reaches the span, as storage does" do
+      secret = StandardError.new("login failed password=SYNTHETIC_TRACE_SECRET")
+      RailsErrorDashboard::Commands::LogError.call(secret, {})
+
+      span = tracer.spans.first[:span]
+      expect(span.attributes["error.message"]).not_to include("SYNTHETIC_TRACE_SECRET")
+      expect(span.attributes["error.message"]).to include("[FILTERED]")
+    end
+
     it "truncates error.message to 200 chars" do
       long = StandardError.new("x" * 500)
       RailsErrorDashboard::Commands::LogError.call(long, {})
@@ -203,8 +216,13 @@ RSpec.describe "Commands::LogError OTel instrumentation" do
     end
 
     it "emits a capture_error span around the enqueue with was_async=true" do
-      # Stub the job so the test doesn't actually enqueue to a real adapter
-      allow(RailsErrorDashboard::AsyncErrorLoggingJob).to receive(:perform_later)
+      # Stub the job so the test doesn't actually enqueue to a real adapter.
+      # It must answer successfully_enqueued? the way a real perform_later
+      # does: a bare stub returns nil, which call_async now correctly reads as
+      # a failed handoff and recovers from by capturing synchronously — which
+      # emits a second (sync) span and is a different scenario than this one.
+      allow(RailsErrorDashboard::AsyncErrorLoggingJob)
+        .to receive(:perform_later).and_return(double("job", successfully_enqueued?: true))
 
       RailsErrorDashboard::Commands::LogError.call(exception, {})
 
@@ -213,6 +231,20 @@ RSpec.describe "Commands::LogError OTel instrumentation" do
       span = capture_spans.first[:span]
       expect(span.attributes["rails_error_dashboard.was_async"]).to eq(true)
       expect(span.attributes["error.type"]).to eq("StandardError")
+    end
+
+    it "emits a second, synchronous span when the handoff fails and capture falls back" do
+      # A dropped handoff becomes a real synchronous capture, and that capture
+      # gets its own span. Two spans here is the correct trace of what happened.
+      allow(RailsErrorDashboard::AsyncErrorLoggingJob).to receive(:perform_later).and_return(false)
+
+      expect {
+        RailsErrorDashboard::Commands::LogError.call(exception, {})
+      }.to change(RailsErrorDashboard::ErrorLog, :count).by(1)
+
+      capture_spans = tracer.spans.select { |s| s[:name] == "rails_error_dashboard.capture_error" }
+      expect(capture_spans.map { |s| s[:span].attributes["rails_error_dashboard.was_async"] })
+        .to eq([ true, false ])
     end
   end
 end

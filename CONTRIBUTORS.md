@@ -57,12 +57,25 @@ Thank you to everyone who has contributed to Rails Error Dashboard! 🙏
 ### Gaël Marziou ([@gmarziou](https://github.com/gmarziou))
 
 - 🐛 [#113](https://github.com/AnjanJ/rails_error_dashboard/pull/113) - Fixed "Copy as curl" generating `https://` URLs for loopback addresses (`127.0.0.1`, `::1`, `0.0.0.0`). Added `local_host?` regex helper covering all loopback variants with optional port suffixes (#112)
+- 🌐 [#201](https://github.com/AnjanJ/rails_error_dashboard/pull/201) - Native-speaker review of the French translation, with consistent terminology throughout (v0.11.5)
 
 ---
 
 ### Antarr Byrd ([@antarr](https://github.com/antarr))
 
 - ✨ [#123](https://github.com/AnjanJ/rails_error_dashboard/pull/123) - Added the AI Help drawer on the error detail page. When an LLM provider is configured, users can ask follow-up questions about the current error and receive streamed Markdown answers from OpenAI (GPT-5 via Responses API, GPT-4 via Chat Completions) or Anthropic (Claude Sonnet via Messages API) without leaving the dashboard. Includes SSE streaming, lambda-friendly API keys, sensitive-data filtering integration, and a privacy note in the README
+
+---
+
+### Barnabé ([@BarnabeD](https://github.com/BarnabeD))
+
+- 🐛 [#211](https://github.com/AnjanJ/rails_error_dashboard/pull/211) - Replaced the `:exponentially_longer` retry backoff, removed in Rails 7.2, with `:polynomially_longer` in the base job and the troubleshooting docs (v0.11.9)
+
+---
+
+### Yoshihiro Okamoto ([@10rayan](https://github.com/10rayan))
+
+- 🌐 [#258](https://github.com/AnjanJ/rails_error_dashboard/pull/258) - Native-speaker review of the Japanese translation: clearer, more natural labels for "Your Code", the raw user agent, and storm protection's reduced capture (v0.14.2)
 
 ---
 
@@ -136,8 +149,8 @@ When you contribute to Rails Error Dashboard, you get:
 
 ## Contributor Stats
 
-**Total Contributors:** 8 (including maintainer)
-**External Contributors:** 7
+**Total Contributors:** 10 (including maintainer)
+**External Contributors:** 9
 **Total PRs Merged:** 60+
 **Total Issues Resolved:** 45+
 **Lines of Code:** 15,000+
@@ -158,6 +171,7 @@ When you contribute to Rails Error Dashboard, you get:
 - [@bonniesimon](https://github.com/bonniesimon) - Turbo helpers production fix
 - [@gundestrup](https://github.com/gundestrup) - Security vulnerabilities
 - [@gmarziou](https://github.com/gmarziou) - Curl loopback address fix
+- [@BarnabeD](https://github.com/BarnabeD) - Active Job retry backoff removed in Rails 7.2
 
 ### 🧹 Code Quality Contributors
 - [@gundestrup](https://github.com/gundestrup) - RuboCop lint corrections
@@ -167,6 +181,10 @@ When you contribute to Rails Error Dashboard, you get:
 
 ### 📚 Documentation Heroes
 - [@RafaelTurtle](https://github.com/RafaelTurtle) - Jekyll front matter for all 32 doc pages, fixed GitHub Pages 404s
+
+### 🌐 Translators
+- [@gmarziou](https://github.com/gmarziou) - French native-speaker review
+- [@10rayan](https://github.com/10rayan) - Japanese native-speaker review
 
 ### ✨ Feature Creators
 - [@midwire](https://github.com/midwire) - Backtrace line numbers, loading states & skeleton screens
@@ -187,4 +205,4 @@ If you've contributed and don't see your name here, please open a PR to add your
 
 ---
 
-*This page is updated with each release. Last updated: May 31, 2026*
+*This page is updated with each release. Last updated: September 27, 2026*

@@ -10,13 +10,20 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2026_07_30_000001) do
+# Hand-maintained mirror of db/migrate for the SQLite test database (the CI
+# PostgreSQL/MySQL rows build from the migrations instead). Kept loadable on
+# every adapter: foreign-key columns are bigint like the ids they reference
+# (MySQL rejects an int -> bigint FK), and the swallowed-exceptions strings
+# carry the 250 limit the MySQL index-key migration leaves them with.
+# bin/check-schema-parity compares this file with the migrations.
+ActiveRecord::Schema[7.0].define(version: 2026_09_20_000002) do
   create_table "rails_error_dashboard_rack_attack_events", force: :cascade do |t|
     t.string "rule", limit: 250, null: false
     t.string "match_type", limit: 50, null: false
     t.string "discriminator", limit: 191
     t.string "path", limit: 191
     t.string "http_method", limit: 10
+    t.string "user_agent", limit: 191
     t.datetime "period_hour", null: false
     t.integer "event_count", default: 0, null: false
     t.datetime "last_seen_at"
@@ -29,6 +36,27 @@ ActiveRecord::Schema[7.0].define(version: 2026_07_30_000001) do
     t.index [ "rule", "period_hour" ], name: "index_rack_attack_events_on_rule_and_hour"
   end
 
+  create_table "rails_error_dashboard_storm_flush_batches", force: :cascade do |t|
+    t.string "digest", limit: 64, null: false
+    t.integer "entry_count", default: 0, null: false
+    t.bigint "occurrences_applied", default: 0, null: false
+    t.datetime "applied_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index [ "applied_at" ], name: "index_storm_flush_batches_on_applied_at"
+    t.index [ "digest" ], name: "index_storm_flush_batches_on_digest", unique: true
+  end
+
+  create_table "rails_error_dashboard_event_timing_gaps", force: :cascade do |t|
+    t.bigint "application_id"
+    t.datetime "covered_from", null: false
+    t.datetime "covered_until", null: false
+    t.bigint "events_affected", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index [ "covered_until" ], name: "index_red_timing_gaps_on_covered_until"
+  end
+
   create_table "rails_error_dashboard_storm_events", force: :cascade do |t|
     t.datetime "started_at", null: false
     t.datetime "ended_at"
@@ -37,6 +65,7 @@ ActiveRecord::Schema[7.0].define(version: 2026_07_30_000001) do
     t.bigint "events_total", default: 0
     t.bigint "events_counted_only", default: 0
     t.bigint "events_overflow", default: 0
+    t.boolean "buckets_incomplete", default: false
     t.integer "fingerprints_affected", default: 0
     t.text "top_fingerprints"
     t.datetime "created_at", null: false
@@ -54,7 +83,7 @@ ActiveRecord::Schema[7.0].define(version: 2026_07_30_000001) do
   end
 
   create_table "rails_error_dashboard_diagnostic_dumps", force: :cascade do |t|
-    t.integer "application_id", null: false
+    t.bigint "application_id", null: false
     t.text "dump_data", null: false
     t.string "note"
     t.datetime "captured_at", null: false
@@ -65,8 +94,8 @@ ActiveRecord::Schema[7.0].define(version: 2026_07_30_000001) do
   end
 
   create_table "rails_error_dashboard_cascade_patterns", force: :cascade do |t|
-    t.integer "parent_error_id", null: false
-    t.integer "child_error_id", null: false
+    t.bigint "parent_error_id", null: false
+    t.bigint "child_error_id", null: false
     t.integer "frequency", default: 1, null: false
     t.float "avg_delay_seconds"
     t.float "cascade_probability"
@@ -99,7 +128,7 @@ ActiveRecord::Schema[7.0].define(version: 2026_07_30_000001) do
   end
 
   create_table "rails_error_dashboard_error_comments", force: :cascade do |t|
-    t.integer "error_log_id", null: false
+    t.bigint "error_log_id", null: false
     t.string "author_name", null: false
     t.text "body", null: false
     t.datetime "created_at", null: false
@@ -118,7 +147,8 @@ ActiveRecord::Schema[7.0].define(version: 2026_07_30_000001) do
     t.text "user_agent"
     t.string "ip_address"
     t.string "platform"
-    t.boolean "resolved", null: false
+    t.string "environment", limit: 64
+    t.boolean "resolved", default: false, null: false
     t.text "resolution_comment"
     t.string "resolution_reference"
     t.string "resolved_by_name"
@@ -149,7 +179,8 @@ ActiveRecord::Schema[7.0].define(version: 2026_07_30_000001) do
     t.string "external_issue_url"
     t.integer "external_issue_number"
     t.string "external_issue_provider", limit: 20
-    t.integer "application_id", null: false
+    t.string "external_issue_repo", limit: 255
+    t.bigint "application_id", null: false
     t.text "exception_cause"
     t.string "http_method", limit: 10
     t.string "hostname", limit: 255
@@ -161,6 +192,10 @@ ActiveRecord::Schema[7.0].define(version: 2026_07_30_000001) do
     t.text "system_health"
     t.text "local_variables"
     t.text "instance_variables"
+    t.string "group_window", limit: 10
+    t.datetime "context_captured_at"
+    t.string "context_fidelity", limit: 10
+    t.datetime "last_notified_at"
     t.index [ "app_version" ], name: "index_rails_error_dashboard_error_logs_on_app_version"
     t.index [ "application_id", "occurred_at" ], name: "index_error_logs_on_app_occurred"
     t.index [ "application_id", "resolved" ], name: "index_error_logs_on_app_resolved"
@@ -168,6 +203,7 @@ ActiveRecord::Schema[7.0].define(version: 2026_07_30_000001) do
     t.index [ "backtrace_signature" ], name: "index_rails_error_dashboard_error_logs_on_backtrace_signature"
     t.index [ "controller_name", "action_name", "error_hash" ], name: "index_error_logs_on_controller_action_hash"
     t.index [ "error_hash", "resolved", "occurred_at" ], name: "index_error_logs_on_hash_resolved_occurred"
+    t.index [ "external_issue_provider", "external_issue_number", "external_issue_repo" ], name: "index_error_logs_on_issue_identity"
     t.index [ "error_hash" ], name: "index_rails_error_dashboard_error_logs_on_error_hash"
     t.index [ "error_type", "occurred_at" ], name: "index_error_logs_on_error_type_and_occurred_at"
     t.index [ "error_type" ], name: "index_rails_error_dashboard_error_logs_on_error_type"
@@ -177,23 +213,30 @@ ActiveRecord::Schema[7.0].define(version: 2026_07_30_000001) do
     t.index [ "occurred_at" ], name: "index_rails_error_dashboard_error_logs_on_occurred_at"
     t.index [ "occurrence_count" ], name: "index_rails_error_dashboard_error_logs_on_occurrence_count"
     t.index [ "platform", "occurred_at" ], name: "index_error_logs_on_platform_and_occurred_at"
+    t.index [ "environment", "occurred_at" ], name: "index_error_logs_on_environment_and_occurred_at"
     t.index [ "platform" ], name: "index_rails_error_dashboard_error_logs_on_platform"
     t.index [ "priority_score" ], name: "index_rails_error_dashboard_error_logs_on_priority_score"
+    t.index [ "app_version", "resolved", "occurred_at" ], name: "index_error_logs_on_version_resolution_time"
+    t.index [ "assigned_to", "status", "occurred_at" ], name: "index_error_logs_on_assignment_workflow"
+    t.index [ "muted" ], name: "index_rails_error_dashboard_error_logs_on_muted"
+    t.index [ "platform", "status", "occurred_at" ], name: "index_error_logs_on_platform_status_time"
+    t.index [ "priority_level", "resolved", "occurred_at" ], name: "index_error_logs_on_priority_resolution"
     t.index [ "resolved", "occurred_at" ], name: "index_error_logs_on_resolved_and_occurred_at"
     t.index [ "resolved" ], name: "index_rails_error_dashboard_error_logs_on_resolved"
     t.index [ "similarity_score" ], name: "index_rails_error_dashboard_error_logs_on_similarity_score"
     t.index [ "user_id" ], name: "index_rails_error_dashboard_error_logs_on_user_id"
+    t.index "application_id, error_hash, COALESCE(environment,''), COALESCE(group_window,'')", name: "index_error_logs_on_group_identity", unique: true, where: "resolved = false"
   end
 
   create_table "rails_error_dashboard_swallowed_exceptions", force: :cascade do |t|
-    t.string "exception_class", null: false
-    t.string "raise_location", limit: 500, null: false
-    t.string "rescue_location", limit: 500
+    t.string "exception_class", limit: 250, null: false
+    t.string "raise_location", limit: 250, null: false
+    t.string "rescue_location", limit: 250
     t.datetime "period_hour", null: false
     t.integer "raise_count", default: 0, null: false
     t.integer "rescue_count", default: 0, null: false
     t.datetime "last_seen_at"
-    t.integer "application_id"
+    t.bigint "application_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index [ "application_id", "period_hour" ], name: "index_swallowed_exceptions_on_app_and_hour"
@@ -203,17 +246,30 @@ ActiveRecord::Schema[7.0].define(version: 2026_07_30_000001) do
   end
 
   create_table "rails_error_dashboard_error_occurrences", force: :cascade do |t|
-    t.integer "error_log_id", null: false
+    t.bigint "error_log_id", null: false
     t.datetime "occurred_at", null: false
     t.integer "user_id"
     t.string "request_id"
     t.string "session_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "app_version"
+    t.string "git_sha"
+    t.index [ "app_version", "occurred_at" ], name: "index_error_occurrences_on_version_and_time"
     t.index [ "error_log_id" ], name: "index_error_occurrences_on_error_log"
     t.index [ "occurred_at", "error_log_id" ], name: "index_error_occurrences_on_time_and_error"
     t.index [ "request_id" ], name: "index_error_occurrences_on_request"
     t.index [ "user_id" ], name: "index_error_occurrences_on_user"
+  end
+
+  create_table "rails_error_dashboard_event_counts", force: :cascade do |t|
+    t.bigint "error_log_id", null: false
+    t.datetime "bucket_at", null: false
+    t.bigint "count", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index [ "bucket_at" ], name: "index_red_event_counts_on_bucket_at"
+    t.index [ "error_log_id", "bucket_at" ], name: "index_red_event_counts_on_group_and_bucket", unique: true
   end
 
   add_foreign_key "rails_error_dashboard_diagnostic_dumps", "rails_error_dashboard_applications", column: "application_id"

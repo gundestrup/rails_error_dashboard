@@ -5,6 +5,866 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.3](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.14.2...rails_error_dashboard/v0.14.3) (2026-09-29)
+
+
+### 🐛 Bug Fixes
+
+* **auth:** warn in development when a blank credential denies every login ([cc86c1a](https://github.com/AnjanJ/rails_error_dashboard/commit/cc86c1a41773d642a1b12b2590f7f380c46593e8))
+* **cleanup:** delete dependents first in error_dashboard:cleanup_resolved ([cc86c1a](https://github.com/AnjanJ/rails_error_dashboard/commit/cc86c1a41773d642a1b12b2590f7f380c46593e8))
+* **generators:** retire the Solid Queue generator, which wrote a queue.yml with no dispatcher ([cc86c1a](https://github.com/AnjanJ/rails_error_dashboard/commit/cc86c1a41773d642a1b12b2590f7f380c46593e8))
+* **install:** stop claiming async logging needs no worker ([cc86c1a](https://github.com/AnjanJ/rails_error_dashboard/commit/cc86c1a41773d642a1b12b2590f7f380c46593e8))
+* **logger:** accept log_level :fatal and never raise from the internal logger ([cc86c1a](https://github.com/AnjanJ/rails_error_dashboard/commit/cc86c1a41773d642a1b12b2590f7f380c46593e8))
+* **solid_queue:** stop telling apps that use Solid Queue to re-run its installer ([3b6070a](https://github.com/AnjanJ/rails_error_dashboard/commit/3b6070a593babdcce0f48cac4da5607d55b0f0df))
+* **uninstall:** drop every RED table in foreign-key order, on the error database ([cc86c1a](https://github.com/AnjanJ/rails_error_dashboard/commit/cc86c1a41773d642a1b12b2590f7f380c46593e8))
+* **uninstall:** stop when the error database can't be reached ([#264](https://github.com/AnjanJ/rails_error_dashboard/issues/264)) ([d953f2d](https://github.com/AnjanJ/rails_error_dashboard/commit/d953f2dd7dca085383301ce6e7a3c022f8dc3e40))
+* **verify:** match Solid Queue on configs it can't start or that start no worker ([3b6070a](https://github.com/AnjanJ/rails_error_dashboard/commit/3b6070a593babdcce0f48cac4da5607d55b0f0df))
+
+### Upgrade instructions
+
+There are no migrations. Update the gem, restart, and run verify, which now checks your Solid Queue
+config too:
+
+```sh
+bundle update rails_error_dashboard
+bin/rails error_dashboard:verify
+```
+
+Two things to check when you upgrade:
+
+- **Did you ever run `rails generate rails_error_dashboard:solid_queue`?** Replace the
+  `config/queue.yml` it wrote. Until you do, Solid Queue runs none of your app's delayed jobs. See
+  below.
+- **Is your app on a Rails older than 8.1.4 or 7.2.4?** That includes every 8.0, 7.1 and 7.0
+  release. Pin `json` below 3. See the known issue at the end.
+
+### If you ran the Solid Queue generator, replace its `config/queue.yml`
+
+The generator wrote a `config/queue.yml` with `workers:` and no `dispatchers:`. Solid Queue starts
+no dispatcher from that file, so no delayed job ever runs. That covers your whole app, not only RED:
+`retry_on ... wait:`, `perform_later(wait:)` and anything else scheduled for later. Its workers
+also served only `default` and `error_notifications`, so jobs on your app's other queues were never
+picked up. On an app that already had Solid Queue's config, the generator replaced that working
+file.
+
+To fix it, replace `config/queue.yml` with Solid Queue's own template:
+
+```yaml
+default: &default
+  dispatchers:
+    - polling_interval: 1
+      batch_size: 500
+  workers:
+    - queues: "*"
+      threads: 3
+      processes: <%= ENV.fetch("JOB_CONCURRENCY", 1) %>
+      polling_interval: 1
+
+development:
+  <<: *default
+
+test:
+  <<: *default
+
+production:
+  <<: *default
+```
+
+Keep any other environments your app has (a `staging:` section, for example) as `<<: *default`
+too. Then run `bin/rails error_dashboard:verify`. It checks every environment in the file and
+names any section with no dispatcher, no worker for RED's queues, or settings Solid Queue can't
+start with.
+
+Edit the file; don't re-run `bin/rails solid_queue:install` to get it. On an app that already uses
+Solid Queue, its installer (as of 1.7.0) also rewrites the queue settings in
+`config/environments/production.rb` to use a separate `queue` database, which breaks an app that
+runs Solid Queue on its main database. It also offers to overwrite `config/recurring.yml`.
+
+The generator now writes nothing. It checks your config, prints what it found, and will be removed
+in a later minor release. RED needs no queue config of its own: Solid Queue's `"*"` worker already
+processes RED's queues. From this release on, RED never writes Solid Queue's files or tells you to
+run its installer; the [Solid Queue guide](https://anjanj.github.io/rails_error_dashboard/docs/guides/solid-queue-setup/#what-red-needs-from-solid-queue)
+lists what RED needs from your config.
+
+### Uninstall now removes every RED table
+
+Before 0.14.3, the uninstall generator and `rails_error_dashboard:db:drop` both knew 5 of RED's 13
+tables and left the other 8 behind. One of those, `rails_error_dashboard_rack_attack_events`, holds
+IP addresses and user agents. Once RED had recorded data, foreign keys could stop the drops too. And
+with `use_separate_database`, both looked in the primary database, found nothing, and reported
+success.
+
+Both now find every `rails_error_dashboard_*` table on the database RED actually uses, and drop them
+in foreign-key order. The generator drops the tables before it removes any file. Both refuse, and
+drop nothing, in these cases:
+
+- **The error database can't be reached**, because `database.yml` has no entry for it or the
+  server is down. The generator used to carry on here: it removed the initializer, the route and
+  the migrations, and left all 13 tables in a database nothing pointed to any more. It now stops
+  before removing anything. If that database really is gone, `--keep-data` removes only the files.
+- **One of your app's tables has a foreign key into a RED table.** The message names the key.
+
+### Other fixes
+
+- **`error_dashboard:verify` now agrees with Solid Queue itself.** Its Solid Queue check is tested
+  against the real library on every CI run, and it now catches configs it used to pass:
+  - configs `bin/jobs` can't start with: `workers:` or `dispatchers:` left empty or written as a
+    map instead of a list, or `processes:` that isn't a whole number;
+  - `processes: 0`, which starts no worker.
+
+  It also follows your Solid Queue version's rules for a section with only a `scheduler:`.
+
+- **`error_dashboard:cleanup_resolved` failed with a foreign-key error** on any resolved error that
+  had occurrences, comments or cascade patterns. It now deletes those first, in batches, the same
+  way the retention job does.
+- **`config.log_level = :fatal` broke RED's logging.** It passed validation, but every internal log
+  call then raised `ArgumentError`, including the ones inside rescue blocks. `:fatal` now works (RED
+  has no fatal messages, so it logs nothing), and an unknown level can no longer make the logger
+  raise.
+- **A blank dashboard credential in development denied every login without a word.** For example,
+  `ERROR_DASHBOARD_PASSWORD=` in a `.env` file. RED now logs a warning at boot that says where the
+  blank value came from, and `error_dashboard:verify` reports it instead of saying OK.
+- **The installer said async logging needs no extra process.** It does. RED's jobs run on your
+  app's Active Job adapter, which in Rails 8 production is Solid Queue. So a worker (`bin/jobs`, or
+  Solid Queue's Puma plugin) must process the `default` and `error_notifications` queues. Without
+  one, errors are queued but never recorded. If you use async logging, check that a worker runs, or
+  set `config.async_logging = false`. The installer and the generated initializer now say this.
+
+### Known issue: json 3 breaks Rails before 8.1.4 and 7.2.4
+
+This is a Rails bug, not a RED one, but RED is often where it shows first. json 3.0.0 (released
+2026-09-07) rejects options that Rails still passes when it encodes and parses JSON:
+
+- On Rails 8.0 (up to 8.0.5.1), 7.2 before 7.2.4, 7.1 and 7.0, any `to_json` raises. RED's dashboard
+  returns a 500 and error capture fails silently.
+- On Rails 8.1 before 8.1.4, reading the session cookie raises, so every dashboard page returns a
+  500.
+
+Other JSON in your app breaks too. Rails 8.1.4 and 7.2.4 carry the fix; 8.0, 7.1 and 7.0 have no
+release with it. Until you can upgrade, keep json below 3 in your `Gemfile`:
+
+```ruby
+gem "json", "< 3"
+```
+
+Then run `bundle update json`.
+
+## [0.14.2](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.14.1...rails_error_dashboard/v0.14.2) (2026-09-27)
+
+
+### 🐛 Bug Fixes
+
+* clarify Japanese translations ([#258](https://github.com/AnjanJ/rails_error_dashboard/issues/258)) ([4e0d84f](https://github.com/AnjanJ/rails_error_dashboard/commit/4e0d84f8d8bceb38a7a9907816c51793c806fd52))
+* refuse partial, blank and non-string dashboard credentials ([#260](https://github.com/AnjanJ/rails_error_dashboard/issues/260)) ([b00c8e5](https://github.com/AnjanJ/rails_error_dashboard/commit/b00c8e5b88508cc31fe522491fa09ee20664fcf6))
+
+### Upgrade instructions
+
+There are no migrations. Update the gem and restart:
+
+```sh
+bundle update rails_error_dashboard
+```
+
+**This release can stop an app booting, on purpose.** Read the security section below before you
+deploy.
+
+### Security: the default-credentials guard could be bypassed
+
+> Detail for the credentials entry above. Security advisory:
+> [GHSA-qh4g-qc9x-9f83](https://github.com/AnjanJ/rails_error_dashboard/security/advisories/GHSA-qh4g-qc9x-9f83).
+
+Since 0.9.1, RED has refused to boot outside `development` and `test` while the dashboard runs on
+its published credentials, `gandalf` / `youshallnotpass`
+([GHSA-qhgm-3pxf-mvc6](https://github.com/AnjanJ/rails_error_dashboard/security/advisories/GHSA-qhgm-3pxf-mvc6)).
+That check could be bypassed. In each of these setups the app booted, and the published password,
+or sometimes an empty one, logged in:
+
+- only `ERROR_DASHBOARD_USER` was set, so the password fell back to the published default;
+- a custom username was set in the initializer, and the password was left alone;
+- a credential variable was set but empty (for example, a Compose file passing an unset variable
+  through), or contained only whitespace, including Unicode whitespace;
+- the initializer overwrote a variable's value with the default or a blank value;
+- `config.authenticate_with = false`, for example `Rails.env.production? && -> { ... }` outside
+  production;
+- the password was the Symbol `:youshallnotpass`;
+- `SECRET_KEY_BASE_DUMMY` was left set at runtime, which skips the boot check.
+
+The published password is now accepted only when `ERROR_DASHBOARD_PASSWORD` itself sets it, as an
+explicit choice (a public demo, for example). A blank credential is never accepted. The boot check,
+the login and `bin/rails error_dashboard:verify` all use the same rule. The login also refuses
+these credentials on its own, so they stay refused even when the boot check was skipped.
+
+#### ⚠️ This can stop an app booting when you upgrade
+
+**If an app outside `development` and `test` relies on any setup above, it will now raise
+`ConfigurationError` on boot.** The error says which problem it found. To fix it:
+
+```ruby
+# 1. Set both environment variables (recommended), and make sure
+#    config/initializers/rails_error_dashboard.rb does not overwrite them
+ENV["ERROR_DASHBOARD_USER"]     = "..."
+ENV["ERROR_DASHBOARD_PASSWORD"] = "..."
+
+# 2. Or hand authentication to your own app
+RailsErrorDashboard.configure do |config|
+  config.authenticate_with = -> { current_user&.admin? }
+end
+```
+
+**Unaffected:**
+- apps that set both credentials to real values;
+- apps that use an `authenticate_with` lambda;
+- apps that run only in `development` or `test`;
+- Docker asset precompilation, which still skips the check via `SECRET_KEY_BASE_DUMMY`.
+
+### Clearer Japanese translations
+
+A native-speaker review by [@10rayan](https://github.com/10rayan) makes several Japanese labels
+clearer and more natural: "Your Code", the raw user agent, and the wording for storm protection's
+reduced capture ([#258](https://github.com/AnjanJ/rails_error_dashboard/pull/258)). Thank you!
+
+## [0.14.1](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.14.0...rails_error_dashboard/v0.14.1) (2026-09-25)
+
+
+### 🐛 Bug Fixes
+
+* count events on the high-frequency and correlation figures ([#253](https://github.com/AnjanJ/rails_error_dashboard/issues/253)) ([49a86e4](https://github.com/AnjanJ/rails_error_dashboard/commit/49a86e431fab25ee83bebe6bab84d43d3a198b7e))
+* count events, not first-seen groups, on the three readers 0.14.0 missed ([#252](https://github.com/AnjanJ/rails_error_dashboard/issues/252)) ([0242d79](https://github.com/AnjanJ/rails_error_dashboard/commit/0242d79e29f8aa4a28cd21d6a06ac6b09ba673ac))
+
+### Upgrade instructions
+
+There are no migrations and no configuration changes. Update the gem and restart:
+
+```sh
+bundle update rails_error_dashboard
+```
+
+Several figures on the pages listed below will change after the upgrade. The new values are
+corrections, not regressions.
+
+### Every page counts events when they happened
+
+0.14.0 made the Overview and Analytics totals count events within their reporting window. The
+pages below still chose error groups by the day each was **first seen** and then counted or
+summed them. An error first seen before the window, but still firing inside it, was therefore
+missing from these pages or counted as zero. Each of these figures now counts events by when
+they happened:
+
+- **Platform Comparison**, and the platform health cards on the **Overview**. Changed figures:
+  - error rate and daily trends
+  - the severity distribution
+  - the cross-platform totals
+  - the health card's total, critical count and error velocity
+
+  Each platform's top errors are now ranked by their events in the window, and the count shown
+  is the count within the window, not the group's lifetime total.
+- **User Impact**. The Occurrences column counts events in the window. Each row now takes its
+  message, severity and link from the most recently seen error of that type, so an error that
+  began before the window no longer shows a row with nothing to click. "Last Seen" shows when
+  the error was last seen, not when it was first seen.
+- **Analytics, High Frequency Errors**. An error qualifies when it fired more than 10 times
+  **within the window** (previously: more than 10 times in its lifetime, among errors first seen
+  in the window). Chronic errors now appear here.
+- **Correlation**. The period comparison counts the events in each half of the window.
+  Platform-specific errors are ranked by events, and "also on" lists the other platforms where
+  the same error type had events in the window.
+- **Digest email**. Occurrences, the Top Errors counts and the comparison with the previous
+  period all count events. Top Errors used to count *how many groups* each error type had, not
+  how often it fired.
+
+Figures about the state of distinct errors still select errors by the day they were first
+seen: new, resolved, unresolved, resolution rate, resolution time, and the list of critical
+unresolved errors.
+
+### Digest "New Errors"
+
+The digest's **New Errors** figure, which also appears in the email subject, now counts every
+error first seen in the period, however often it fired. It used to count only errors seen
+exactly once, so a new error that fired twice on its first day was missing from the headline.
+Expect this number to be higher.
+
+### If you read these figures from code
+
+No hash keys changed, but the values of these entries now count events within the window:
+
+- `Queries::PlatformComparison`: every figure listed above. `top_errors_by_platform[...][:occurrence_count]` is the count within the window.
+- `Queries::UserImpactSummary`: `total_occurrences`. `last_seen` is the last-seen time.
+- `Queries::RecurringIssues`: `high_frequency_errors`.
+- `Queries::ErrorCorrelation`: `period_comparison` and `platform_specific_errors`.
+- `Services::DigestBuilder`: `total_occurrences`, `top_errors[:count]` and `comparison`. `new_errors` counts every error first seen in the period.
+
+### Not changed in this release
+
+These still work from the time each error group was first seen:
+- Occurrence-pattern and hourly-correlation analyses
+- The errors list's time filters, Critical Alerts, and Persistent Unresolved Errors
+- The health summaries (for example N+1 queries, cache, jobs and LLM calls)
+
+## [0.14.0](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.13.0...rails_error_dashboard/v0.14.0) (2026-09-20)
+
+### Upgrade instructions
+
+This release adds three migrations:
+
+- `CreateEventCounts`: per-group, 15-minute counts for events retained by storm protection without full occurrence records.
+- `AddBucketsIncompleteToStormEvents`: a timing-completeness flag on storm episodes.
+- `CreateEventTimingGaps`: durable records of intervals with missing event timing, independent of optional storm episodes.
+
+Update the gem, rerun the installer to copy the new migrations, and migrate:
+
+```sh
+bundle update rails_error_dashboard
+bin/rails generate rails_error_dashboard:install
+bin/rails db:migrate
+```
+
+For installations using a separate error database, run
+`bin/rails db:migrate:error_dashboard` instead of the last command. The installer
+preserves the existing initializer and detects the configured migration directory.
+
+### Event counts and reporting time
+
+Overview and Analytics count events within their reporting window instead of
+summing the lifetime counts of groups first seen in that window. Recurrences of
+older errors now contribute to the appropriate totals, trends and breakdowns.
+
+Storm protection records shed events in 15-minute UTC buckets. Daily and hourly
+reporting uses the configured reporting time zone, including fractional-hour
+offsets and daylight-saving changes. SQLite aggregation is bounded by the time
+window rather than returning one intermediate result per distinct timestamp.
+MySQL continues to require populated time-zone tables for named-zone conversion.
+
+Historical counts without per-event timestamps still fall back to the group's
+first-seen time; the new migrations cannot reconstruct that missing history.
+Storm buckets provide 15-minute resolution. Existing totals can change after the
+upgrade because the queries now use different, more appropriate timing evidence.
+
+The Overview warns when persisted timing gaps overlap its reporting window.
+The warning remains visible when missing timing makes every displayed total zero
+but an error group still shows recent activity. Orphan warnings are suppressed
+only when both recent groups and displayed events are absent.
+Timing-gap evidence is recorded in the same transaction as degraded storm counts
+and retained for at least the 30-day reporting horizon when retention is enabled.
+Storm count buckets are removed when their error group is deleted or expires.
+Concurrent recurrence, transient storage failures and retried batches preserve
+storm counts without applying a successful batch twice.
+
+### Variable serialization changes
+
+Unknown objects now produce a class summary by default instead of invoking their
+`inspect` method. ActiveModel objects also receive summaries; Active Record
+objects retain their existing record summaries. Structs are serialized member by
+member with the configured collection/depth limits, so nested objects follow the
+same policy. Captured variable output may therefore contain less detail or have
+a different representation than in 0.13.0.
+
+Two new configuration options control explicit inspection:
+
+- `local_variable_inspect_allowlist`, default `[]`: class or ancestor names whose
+  `inspect` methods may run.
+- `local_variable_inspect_budget_ms`, default `5`: selects a summary instead of
+  the returned inspection text if the completed call exceeded this threshold.
+
+The threshold is not an execution timeout. Adding a class to the allowlist permits
+its application-defined code to run to completion on the capture path.
+
+### Capture privacy and fidelity
+
+- With sensitive-data filtering enabled, dotted filter paths apply consistently
+  to local-variable hashes and arrays. Params, additional context and metadata
+  are filtered before crossing the async queue; OpenTelemetry capture messages
+  are filtered before export.
+- Async captures carry their capture timestamp, application version and Git SHA
+  across the queue, so queue delay and intervening deploys do not substitute the
+  worker's time and build for available capture-time evidence.
+- Manual reports preserve caller-supplied event time, application version and
+  metadata. Parseable timestamp strings work on the async path; future timestamps
+  are clamped and invalid timestamps fall back to capture time. Client error types
+  without a matching Ruby class retain their reported names after async handling.
+- `ManualErrorReporter`'s `severity:` argument remains accepted but ignored;
+  severity is classified from the reported error type. This existing limitation
+  is now explicitly documented and logged at debug level when supplied.
+- Snapshots that retain older fields alongside a newer occurrence are labeled
+  `partial`, rather than presenting the combined context as one complete capture.
+
+### Background jobs and mobile layout
+
+When breadcrumbs are enabled, Active Job executions receive a breadcrumb buffer
+and failed-job trails survive handoff to the reporter. Inline jobs preserve an
+existing request buffer, and async error capture prefers the original event's
+trail over the capture worker's activity.
+
+The error-detail header, action buttons and context tables wrap correctly on
+narrow screens instead of squeezing titles and forcing horizontal page scrolling.
+
+## [0.13.0](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.12.1...rails_error_dashboard/v0.13.0) (2026-09-18)
+
+
+### 🐛 Bug Fixes
+
+* capture invalid bytes, sticky wont_fix, resolved_at and retention by last seen ([#224](https://github.com/AnjanJ/rails_error_dashboard/issues/224)) ([c88447f](https://github.com/AnjanJ/rails_error_dashboard/commit/c88447fd62937f94e24061eaac0477499ac52161))
+* **ci:** grant the smoke-test job its permissions so the Release workflow starts ([22427a0](https://github.com/AnjanJ/rails_error_dashboard/commit/22427a061411a252657bc0247cb2f3ab4a53bbd2)), closes [#223](https://github.com/AnjanJ/rails_error_dashboard/issues/223)
+* **ci:** let the Release workflow start again ([#230](https://github.com/AnjanJ/rails_error_dashboard/issues/230)) ([22427a0](https://github.com/AnjanJ/rails_error_dashboard/commit/22427a061411a252657bc0247cb2f3ab4a53bbd2))
+* **ci:** make the post-release smoke test actually run ([#221](https://github.com/AnjanJ/rails_error_dashboard/issues/221)) ([39f281a](https://github.com/AnjanJ/rails_error_dashboard/commit/39f281a68dc16bd8a7be5fe9f0ec3530de8b8fe4))
+* render rows that hold invalid bytes; ignore a non-scalar days parameter ([#229](https://github.com/AnjanJ/rails_error_dashboard/issues/229)) ([25be577](https://github.com/AnjanJ/rails_error_dashboard/commit/25be577f01f8871c4bb5edf4a70238434e2904dc))
+* **security:** harden issue links, Basic auth, error handling, session IDs and chart JSON ([#233](https://github.com/AnjanJ/rails_error_dashboard/issues/233)) ([30802f8](https://github.com/AnjanJ/rails_error_dashboard/commit/30802f8b5994a29d13b2b64ce97a2a1dcb84f370))
+* storm breaker that closes, database-held notification cooldown and a burst cap ([#225](https://github.com/AnjanJ/rails_error_dashboard/issues/225)) ([dafe3b0](https://github.com/AnjanJ/rails_error_dashboard/commit/dafe3b05803d70a0f632941dc65bdc8dfe69c37d))
+* **ui:** render rows that hold invalid bytes; ignore a non-scalar days param ([25be577](https://github.com/AnjanJ/rails_error_dashboard/commit/25be577f01f8871c4bb5edf4a70238434e2904dc)), closes [#223](https://github.com/AnjanJ/rails_error_dashboard/issues/223)
+* validate workflow input, literal search wildcards, a working search box ([#227](https://github.com/AnjanJ/rails_error_dashboard/issues/227)) ([e2c9c26](https://github.com/AnjanJ/rails_error_dashboard/commit/e2c9c263e28bc000c8f487580d32bc38930d4433))
+
+
+### ⚡ Performance
+
+* bound the cost of capturing an error; scope live updates per application ([#226](https://github.com/AnjanJ/rails_error_dashboard/issues/226)) ([2344272](https://github.com/AnjanJ/rails_error_dashboard/commit/23442726f99a84e401a2f93ac726a3e81ccb50da))
+
+
+### 📚 Documentation
+
+* **changelog:** write the 0.13.0 release notes and release as a minor ([#234](https://github.com/AnjanJ/rails_error_dashboard/issues/234)) ([0fd824c](https://github.com/AnjanJ/rails_error_dashboard/commit/0fd824ce1cd430c1f3996ebe791051a1d42f7c23)), closes [#223](https://github.com/AnjanJ/rails_error_dashboard/issues/223)
+
+### 0.13.0 highlights — hardening from a deep QA of 0.12.1
+
+> A deep QA pass over 0.12.1 produced 26 reproduced or source-audited defects. All are fixed
+> here, plus three that only turned up while verifying the fixes. Tracking issue: #223.
+
+**Upgrade steps.** This release has a migration.
+
+1. `rails rails_error_dashboard:install:migrations && rails db:migrate` — adds
+   `error_logs.last_notified_at` (one nullable datetime, no index). Upgrading the gem before
+   migrating is safe: until the column exists the old in-process cooldown is used.
+2. Run once, in any order (all idempotent):
+   - `rails error_dashboard:scrub_invalid_encoding` — SQLite/MySQL only; repairs rows stored with
+     invalid bytes. Pages render without it (rows are scrubbed as they load), but raw SQL and
+     exports still see the bad bytes until you run it.
+   - `rails error_dashboard:backfill_resolved_at` — **MTTR will rise to its true value afterwards.**
+   - `rails error_dashboard:digest_session_ids` — one-way; raw session IDs are not recoverable.
+
+**Behaviour changes.**
+
+- **"Won't fix" is sticky.** A recurrence is counted on the same row at any age: no reopen, no
+  notification, no new row. It used to hold for 24 hours and then reopen. Move the error back to
+  "New" by hand to be alerted again.
+- **Retention is "not seen for N days"**, not N days after first seen. An error that is still
+  happening is no longer deleted with its comments. Retention now also prunes diagnostic dumps and
+  swallowed-exception records.
+- **Stat cards may lag captures by up to 60 seconds.** Anything you do in the dashboard shows at once.
+- A form post with an expired CSRF token answers **422** (it was 500); a missing parameter 400; an
+  unknown format such as `?format=json` 406. Out-of-range pagination recovers with 303, not a
+  browser-cached 301. `per_page` is capped at 100.
+- `AssignError`, `SnoozeError` and `UpdateErrorPriority` return `{ success:, error: }` instead of
+  the record, and reject blank assignees, snoozes outside 1–720 hours and unknown priority levels.
+  `UpdateErrorStatus` adds `reason:`. **If you call these commands from your own code, update the callers.**
+- `ErrorComment#formatted_time` is removed; the views format the time in the dashboard's locale.
+
+**Capture correctness.** An error whose message, backtrace, cause, URL, user agent or params
+contained invalid UTF-8 or a NUL byte was silently lost on the sync path, raised while being
+enqueued on the async path, and broke its own page if it got as far as the table. It is now
+stored, with the bad bytes as `?`. Valid messages are untouched, so no fingerprint moves.
+
+**Alerting.** The storm circuit breaker only advanced when a new error arrived, so after a storm
+that ended in silence, notifications stayed suppressed until the next error — which was then
+swallowed as the probe. It now closes by elapsed time. A flat error rate no longer reports a
+"critical" anomaly (zero standard deviation), and exactly 3σ / 4σ are "high" / "critical". The
+notification cooldown is claimed in the database, so an error reopened by one deploy notifies once
+rather than once per worker. New: `config.notification_burst_limit` (10) and
+`config.notification_burst_window_seconds` (60) cap notifications for brand-new errors; over the
+cap one summary goes to Slack, Discord and webhooks. With `sampling_rate < 1.0` the first event of
+each distinct error per process is always recorded.
+
+**Capture cost.** Capturing one error into a database with 200 distinct error types ran **3663
+queries** in the host app's request thread and swept the host's cache with `delete_matched`. It is
+now under 40, guarded by a spec. Dashboard caches are invalidated by a generation counter, the
+stats broadcast is throttled to once per 5 seconds and paused during a storm, and capture no longer
+spawns `git rev-parse`.
+
+**Multi-app correctness.** The correlation page's period comparison and the live updates (new
+rows, stat cards) now respect the selected application.
+
+**Dashboard.** MTTR now includes errors resolved through the status workflow. A refused status
+change says so instead of showing success. The top-bar search box works (it had no form). `%` and
+`_` in a search match literally on SQLite and MySQL. The "Current Release" and "latest dump" cards
+no longer disappear on page 2. Two untranslated sidebar labels are fixed, and `bin/i18n-check`
+now fails on a key that names a namespace. A hostile or malformed query parameter (`days[x]=1`,
+`application_id[x]=1`, `per_page=9999999`) no longer answers 500.
+
+**Privacy.** While `filter_sensitive_data` is on, the session ID stored on each occurrence — and
+carried across the async queue — is a keyed digest (`h1:` + 32 hex), not the raw ID.
+`ErrorOccurrence.for_session(raw_id)` keeps working, including for rows stored before the upgrade.
+
+**Security.** See advisory GHSA-xmv7-mg68-3v2f. Issue links are
+validated as http(s) when stored and again when rendered; a malformed Basic `Authorization`
+header answers 401 before any query runs, and an error raised before authentication never renders
+the dashboard layout. Third-party label colours, avatar URLs and the new-issue popup URL are
+validated. JSON inlined into chart scripts no longer depends on the host app's
+`escape_html_entities_in_json` setting.
+
+**How it was verified.** Every fix was written against a failing spec first. RSpec: 5150 examples
+on SQLite, and the same suite green on PostgreSQL and MySQL.
+Production-mode integration suite: 1483 assertions across five generated apps, including a storm
+that ends in silence and an error made of invalid bytes. A hostile sweep of every GET route
+against 37 malformed parameter sets over hostile rows: 788 requests, no 5xx, no live payload.
+
+## [0.12.1](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.12.0...rails_error_dashboard/v0.12.1) (2026-09-16)
+
+
+### 🐛 Bug Fixes
+
+* **analytics:** count events, not groups, on the Analytics page ([#218](https://github.com/AnjanJ/rails_error_dashboard/issues/218)) ([0ba1c6a](https://github.com/AnjanJ/rails_error_dashboard/commit/0ba1c6aa8e865743fb62e83576b6023937a71fe9))
+* **chaos:** stop J7/J8 pinning a one-time regrouping as permanent ([#220](https://github.com/AnjanJ/rails_error_dashboard/issues/220)) ([ad86c2c](https://github.com/AnjanJ/rails_error_dashboard/commit/ad86c2c7bf1e1ee020f1e136abf0a6723c3aac78))
+
+## [0.12.0](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.11.9...rails_error_dashboard/v0.12.0) (2026-09-15)
+
+
+### 🐛 Bug Fixes
+
+* repair the nine verified correctness findings from the 0.11.9 review ([#215](https://github.com/AnjanJ/rails_error_dashboard/issues/215)) ([8d43eeb](https://github.com/AnjanJ/rails_error_dashboard/commit/8d43eeb2972d8b35a36be18f38b6b2ecada83531))
+
+
+### 📚 Documentation
+
+* **changelog:** write the 0.12.0 release notes and release as a minor ([#217](https://github.com/AnjanJ/rails_error_dashboard/issues/217)) ([b56afce](https://github.com/AnjanJ/rails_error_dashboard/commit/b56afce58462137fc8bbd47aeb3ab48130eeb38a))
+
+### 0.12.0 highlights — nine correctness findings from an independent review
+
+> Detail for the `fix` entry above. RED 0.11.9 was reviewed independently; the
+> review filed nine verified findings, reproduced each with a probe, and all
+> nine are fixed here. The reviewer's probes assert the OLD behaviour, so
+> eleven of the twelve now fail — which is the intended inversion.
+
+**Capture correctness.** One exception could become two occurrences: the tracing
+wrapper rescued around its own `yield` and yielded again on failure, which hit
+every install regardless of OpenTelemetry configuration. A capture handed to a
+queue that refused it was treated as delivered, because from Rails 7.2
+`perform_later` returns `false` rather than raising. A worker that could not
+write reported success instead of letting the job retry — and the `retry_on`
+that should have applied polynomial backoff was dead code on all 19 jobs,
+shadowed by a `rescue_from` registered below it.
+
+**Counting.** Five users hitting one exception was reported as "1 error today,
+1 affected user". An `ErrorLog` row is a *group*; its `occurrence_count` says
+how many times it happened. Headline metrics now count events, and affected
+users come from occurrence rows rather than the group's own mutable `user_id`.
+The error rate is errors per hour, not a percentage against an invented scale.
+When a failed query means the dashboard cannot read its data, it says so
+instead of rendering healthy-looking zeros.
+
+**Storm accounting.** Counted-only events were written out only when a later
+error arrived, so the tail of a burst sat in memory until a deploy dropped it;
+the engine now drains at the end of every request and job, and again at exit.
+Replaying a batch counted it twice; each batch now has an identity recorded in
+the same transaction as its counts.
+
+**Identity and evidence.** Concurrent first captures could create two groups
+for one fingerprint. A signed issue webhook from one repository could resolve
+an error linked to a different repository sharing an issue number. A group
+displayed diagnostic evidence without saying which occurrence supplied it, and
+a group first seen during a storm kept a single bare file path as its backtrace
+forever.
+
+**Privacy.** Sensitive values reached the queue before redaction — with a
+durable adapter that put secrets in its backing store, its backups and any
+job-argument logging, even though the error row itself was redacted. The
+payload is now redacted before it is enqueued, on the async path and the storm
+path alike.
+
+French is marked community-reviewed: it was reviewed by a native speaker and
+shipped in 0.11.5, but every surface still called it machine-translated.
+
+#### ⚠️ Fingerprints are rebuilt once on upgrade
+
+Grouping identity must be computed from the raw error message, but the async
+and storm paths compute it on the request thread and hand it to a worker over
+a queue — which is how the message text was reaching the queue. The fingerprint
+is now two-stage: the request thread hashes the identity parts into an opaque
+digest, and the worker completes it with the application. No message text
+crosses the queue.
+
+The consequence is a **one-time regrouping**. An unresolved group that is in
+flight when you upgrade will open a *new* group on its next occurrence; its
+history, counts and workflow state are untouched, and everything captured after
+the upgrade deduplicates normally. Resolved history keeps its stored hash.
+
+#### ⚠️ This release has four migrations
+
+```
+rails rails_error_dashboard:install:migrations && rails db:migrate
+```
+
+| Migration | What it does |
+|---|---|
+| group identity | A unique index over unresolved groups, plus the `group_window` bucket it needs. **Merges any duplicate groups a host already holds**, summing their counts and keeping the widest time range. |
+| issue repository | Records which repository or Linear team a linked issue belongs to, backfilled from stored issue URLs. |
+| snapshot provenance | Records when the displayed diagnostic snapshot was captured, and at what fidelity. |
+| storm flush batches | A small ledger that makes a replayed storm batch a no-op. Pruned by `RetentionCleanupJob`. |
+
+The gem keeps capturing normally before the migrations run.
+
+**MySQL** has no partial indexes, so the group-identity constraint is skipped
+there and the existing retry path stays dormant, exactly as it is today. The
+other three migrations apply on every adapter.
+
+## [0.11.9](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.11.8...rails_error_dashboard/v0.11.9) (2026-09-14)
+
+
+### 🐛 Bug Fixes
+
+* **jobs:** use the Active Job retry backoff Rails 7.2+ still accepts ([#211](https://github.com/AnjanJ/rails_error_dashboard/issues/211)) ([b84a6a8](https://github.com/AnjanJ/rails_error_dashboard/commit/b84a6a805f3516521bd3dfb71f0e480a141691fc))
+* **source-links:** only link http(s) repository URLs, detect the forge by host; document the real config options ([#214](https://github.com/AnjanJ/rails_error_dashboard/issues/214)) ([eb9fc84](https://github.com/AnjanJ/rails_error_dashboard/commit/eb9fc84d80ff2bb28ac4c73c45c669c3b16578c1))
+
+## [0.11.8](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.11.7...rails_error_dashboard/v0.11.8) (2026-09-08)
+
+
+### 🐛 Bug Fixes
+
+* **migrations:** give PostgreSQL search the index it actually uses ([#209](https://github.com/AnjanJ/rails_error_dashboard/issues/209)) ([eff3ed3](https://github.com/AnjanJ/rails_error_dashboard/commit/eff3ed3f91cdd54a60e18f626b8f829b74bde3c8))
+
+## [0.11.7](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.11.6...rails_error_dashboard/v0.11.7) (2026-09-08)
+
+
+### 🐛 Bug Fixes
+
+* **migrations:** PostgreSQL indexes fresh installs never got; CI on PostgreSQL and MySQL built from the migrations ([#206](https://github.com/AnjanJ/rails_error_dashboard/issues/206)) ([9a383bd](https://github.com/AnjanJ/rails_error_dashboard/commit/9a383bd2dd2b3eb47b001c4d82a0af0439cc6e63))
+
+## [0.11.6](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.11.5...rails_error_dashboard/v0.11.6) (2026-09-07)
+
+
+### 🐛 Bug Fixes
+
+* close the 0.11.5 review findings (storm counts, redaction, row lock, async capture, release and baseline analytics) ([#204](https://github.com/AnjanJ/rails_error_dashboard/issues/204)) ([ca90ee4](https://github.com/AnjanJ/rails_error_dashboard/commit/ca90ee4e3effe91f5281365a3b7664381d14ace2))
+
+## [0.11.5](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.11.4...rails_error_dashboard/v0.11.5) (2026-09-07)
+
+
+### 🐛 Bug Fixes
+
+* **i18n:** native-speaker review of the French translation ([#201](https://github.com/AnjanJ/rails_error_dashboard/issues/201)) ([377131f](https://github.com/AnjanJ/rails_error_dashboard/commit/377131fc73d70a434863b7b0db653048d0b6086c)), closes [#158](https://github.com/AnjanJ/rails_error_dashboard/issues/158)
+
+## [0.11.4](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.11.3...rails_error_dashboard/v0.11.4) (2026-08-30)
+
+
+### 🐛 Bug Fixes
+
+* **i18n:** repair and reorder chart date axes, and match the server's plural rules ([#199](https://github.com/AnjanJ/rails_error_dashboard/issues/199)) ([0067967](https://github.com/AnjanJ/rails_error_dashboard/commit/0067967b27b8f97389b65b275ec7c4a36c808774))
+
+## [0.11.3](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.11.2...rails_error_dashboard/v0.11.3) (2026-08-29)
+
+
+### 🐛 Bug Fixes
+
+* classify GitHub Copilot, and render the RubyGems description as RDoc ([#197](https://github.com/AnjanJ/rails_error_dashboard/issues/197)) ([10d13b6](https://github.com/AnjanJ/rails_error_dashboard/commit/10d13b6a892a64336bd37881703904cd2fbd833a))
+
+## [0.11.2](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.11.1...rails_error_dashboard/v0.11.2) (2026-08-29)
+
+
+### 🐛 Bug Fixes
+
+* **rack-attack:** drain buffered events at the end of each request ([#195](https://github.com/AnjanJ/rails_error_dashboard/issues/195)) ([edb5aa3](https://github.com/AnjanJ/rails_error_dashboard/commit/edb5aa3d09a9d1dfbe5af321ed840826376de8a1))
+
+## [0.11.1](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.11.0...rails_error_dashboard/v0.11.1) (2026-08-27)
+
+
+### 🐛 Bug Fixes
+
+* **capture:** refresh moment-of-failure context on every recurrence ([#190](https://github.com/AnjanJ/rails_error_dashboard/issues/190)) ([7c56e57](https://github.com/AnjanJ/rails_error_dashboard/commit/7c56e57badba49fe8fe90a6a5d5f4cecabb8a399))
+
+## [0.11.0](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.10.0...rails_error_dashboard/v0.11.0) (2026-08-26)
+
+
+### ✨ Features
+
+* **environment:** record, filter, badge and notify per environment ([#187](https://github.com/AnjanJ/rails_error_dashboard/issues/187)) ([23b6822](https://github.com/AnjanJ/rails_error_dashboard/commit/23b682253489117dbe01eaee4fcde0d9ef051be1))
+
+
+### 🐛 Bug Fixes
+
+* **ui:** stop the dashboard scrolling sideways on a phone; system specs go offline ([#184](https://github.com/AnjanJ/rails_error_dashboard/issues/184)) ([8e51278](https://github.com/AnjanJ/rails_error_dashboard/commit/8e51278d04fa3e4d5a77d14c16f9d25a9738d4cf))
+
+### 0.11.0 highlights — environment awareness
+
+> Detail for the `feat(environment)` entry above.
+
+Every error now records the **environment** it came from — `production`, `staging`,
+`uat`, `preprod`, whatever your deploys are called. Names are free-form, never an
+enum: the 0.9.1 advisory was caused by a check that only knew one environment name,
+and this feature is built so that a name nobody has invented yet still works.
+
+- **Index filter and chip**, a **badge** on each row and on the detail page, and an
+  **Errors by Environment** chart on Analytics — each shown only when more than one
+  environment exists, so single-environment installs look exactly as before.
+- **The same error in staging and in production is two rows**, each with its own
+  status, assignee and resolution. Fingerprints are unchanged; environment is a match
+  dimension beside the application.
+- **`config.notification_environments = %w[production]`** keeps staging out of your
+  pager. It applies to every channel — Slack, Discord, PagerDuty, email, webhooks —
+  and to storm and baseline alerts. `nil` (the default) notifies everywhere, as before.
+- **Every notification names the environment.** Email subjects become
+  `[Shop · production] NoMethodError: …`; Slack and Discord gain a field; webhook and
+  PagerDuty payloads gain an `environment` key. "Copy for LLM" and issue-tracker bodies
+  list it too.
+- **`config.environment`** overrides `Rails.env` (also `ERROR_DASHBOARD_ENVIRONMENT`)
+  for the deploy that runs under `RAILS_ENV=production` but is really staging.
+
+#### ⚠️ This release has a migration
+
+```
+rails rails_error_dashboard:install:migrations && rails db:migrate
+```
+
+The gem keeps capturing normally before the migration runs — it just does not record
+the environment until the column exists.
+
+**Errors captured before this version have no environment.** They show no badge and
+match as a wildcard: the next occurrence of such an error claims the row and stamps
+it, so live errors migrate themselves. To fill in the rest from the Ruby/Rails
+snapshot each error already carries, run
+`rails rails_error_dashboard:backfill_environments` once.
+
+## [0.10.0](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.9.1...rails_error_dashboard/v0.10.0) (2026-08-25)
+
+
+### ✨ Features
+
+* **rack-attack:** fix track discriminator, count loss and shutdown flush; record agents ([#177](https://github.com/AnjanJ/rails_error_dashboard/issues/177)) ([e49a986](https://github.com/AnjanJ/rails_error_dashboard/commit/e49a98623d9cc943e1d45573d8bdbc69a345fc67)), closes [#170](https://github.com/AnjanJ/rails_error_dashboard/issues/170)
+
+
+### 🐛 Bug Fixes
+
+* **i18n:** localize chart dates and correct the horizontal bar chart axes ([#179](https://github.com/AnjanJ/rails_error_dashboard/issues/179)) ([4a8edf8](https://github.com/AnjanJ/rails_error_dashboard/commit/4a8edf8638f2bb96a6ae7b85b7de47b87fde2eb0))
+
+## [0.9.1](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.9.0...rails_error_dashboard/v0.9.1) (2026-08-24)
+
+
+### 🐛 Bug Fixes
+
+* **security:** refuse default credentials outside development and test ([#173](https://github.com/AnjanJ/rails_error_dashboard/issues/173)) ([2dca278](https://github.com/AnjanJ/rails_error_dashboard/commit/2dca278bbfc896748b3778de8ad9f0ea724d7908))
+
+### 0.9.1 highlights — default credentials are now refused outside development and test
+
+> Detail for the `fix(security)` entry above. Security advisory:
+> [GHSA-qhgm-3pxf-mvc6](https://github.com/AnjanJ/rails_error_dashboard/security/advisories/GHSA-qhgm-3pxf-mvc6),
+> reported by [@rajnisht7](https://github.com/rajnisht7).
+
+RED has always refused to boot on the built-in `gandalf` / `youshallnotpass`
+credentials — but the check asked `Rails.env.production?`, which tests one
+literal string. An internet-facing app deployed under any other environment
+name (`staging`, `uat`, `demo`, `preprod`, `qa`) booted successfully on
+credentials this project publishes in its own README. The only remaining
+protection was a dismissible banner, visible only to someone who was already
+inside.
+
+The guard is now an **allowlist**: only `development` and `test` may run on the
+built-in credentials. Every other environment name — including ones that do not
+exist yet — is refused by default.
+
+#### ⚠️ This can stop an app booting when you upgrade
+
+**If you run RED in a non-production environment on the default credentials,
+that app will now raise `ConfigurationError` on boot instead of starting.** That
+is the intended outcome — it was reachable with published credentials — but it
+is a behaviour change, so it is called out here rather than buried.
+
+The error names the environment it refused, and there are three ways to fix it:
+
+```ruby
+# 1. Set the environment variables (recommended)
+ENV["ERROR_DASHBOARD_USER"]     = "..."
+ENV["ERROR_DASHBOARD_PASSWORD"] = "..."
+
+# 2. Or set them in the initializer
+RailsErrorDashboard.configure do |config|
+  config.dashboard_username = "..."
+  config.dashboard_password = ENV.fetch("ERROR_DASHBOARD_PASSWORD")
+end
+
+# 3. Or hand authentication to your own app
+RailsErrorDashboard.configure do |config|
+  config.authenticate_with = -> { current_user&.admin? }
+end
+```
+
+Setting either environment variable is enough to satisfy the check — RED treats
+an explicitly-set variable as a deliberate choice.
+
+**Unaffected:** apps already setting credentials or `authenticate_with`; apps
+running only in `development` or `test`; and Docker asset precompilation, which
+is still skipped via `SECRET_KEY_BASE_DUMMY`.
+
+## [0.9.0](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.8.4...rails_error_dashboard/v0.9.0) (2026-08-23)
+
+
+### ✨ Features
+
+* **i18n:** translate the dashboard, mailers and notifications — eleven locales ([#155](https://github.com/AnjanJ/rails_error_dashboard/issues/155)) ([fe23196](https://github.com/AnjanJ/rails_error_dashboard/commit/fe231968addd97da9d049c114147eba4f566352c))
+
+
+### 🐛 Bug Fixes
+
+* **security:** authenticate every dashboard controller, not just ErrorsController ([#167](https://github.com/AnjanJ/rails_error_dashboard/issues/167)) ([6e34f12](https://github.com/AnjanJ/rails_error_dashboard/commit/6e34f12ee6a141279716c18d2f656568359b5a7e)), closes [#148](https://github.com/AnjanJ/rails_error_dashboard/issues/148)
+* **specs:** restore every credential this spec overwrites, not just one ([#168](https://github.com/AnjanJ/rails_error_dashboard/issues/168)) ([1da82a2](https://github.com/AnjanJ/rails_error_dashboard/commit/1da82a22ef183a22524bf4ff2132b9a1e78356d2)), closes [#166](https://github.com/AnjanJ/rails_error_dashboard/issues/166)
+
+### 0.9.0 highlights — the dashboard is now translated
+
+> Detail for the `feat(i18n)` entry above.
+
+RED's dashboard, its emails and its notification payloads render in **eleven
+languages**. Set the default with `config.dashboard_locale`, and users can
+override it for themselves from a picker in the navbar:
+
+```ruby
+RailsErrorDashboard.configure do |config|
+  config.dashboard_locale = "de"  # en, de, es, fr, pt-BR, ja, ru, uk, pl, it, zh-CN
+end
+```
+
+`en` (source) · `de` Deutsch · `es` Español · `fr` Français · `pt-BR` Português
+(Brasil) · `ja` 日本語 · `ru` Русский · `uk` Українська · `pl` Polski ·
+`it` Italiano · `zh-CN` 简体中文
+
+**Your application's `I18n` is untouched.** RED translates through its own
+private backend, so it never reads, writes or mutates `I18n.load_path`,
+`I18n.locale`, `I18n.available_locales`, `I18n.default_locale`, `I18n.backend`
+or `I18n.exception_handler`. RED's locale is independent of your app's — a host
+running in French can render the dashboard in German, and vice versa. This also
+means hosts cannot override RED's strings with their own locale files, which is
+a deliberate trade-off for a self-hosted ops tool.
+
+Nothing in the translation path can raise. A missing or wrong translation
+**falls back to English**, never to a broken page — which matters on the one
+page that has to work when everything else is broken.
+
+**Upgrading changes nothing unless you opt in.** The default locale is `en`, and
+English rendering is unchanged.
+
+#### ⚠️ Every non-English locale is machine-translated and unreviewed
+
+**None of the ten translations has been reviewed by a native speaker.** RED's
+maintainer reads only English. This is stated plainly rather than as "beta",
+which would imply a review process that has not happened.
+
+What is and is not verified:
+
+- Key structure, interpolation variables and CLDR plural categories **are**
+  verified mechanically in every locale, on every CI run.
+- Wording, register and idiom are **not** verified by anyone.
+
+**Corrections are very welcome, and a one-key PR is a perfectly good PR.** If
+you read any of these languages, [every locale has an open issue][review-issues]
+tracking its review, or you can [report a bad translation][report] without
+touching any code. See the [translations guide][guide] for how the system works,
+what is deliberately left in English, and how to add a language.
+
+[review-issues]: https://github.com/AnjanJ/rails_error_dashboard/issues?q=is%3Aissue+is%3Aopen+label%3Atranslation%3Aneeds-review
+[report]: https://github.com/AnjanJ/rails_error_dashboard/issues/new?template=translation_report.yml
+[guide]: https://github.com/AnjanJ/rails_error_dashboard/blob/main/docs/guides/TRANSLATIONS.md
+
+## [0.8.4](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.8.3...rails_error_dashboard/v0.8.4) (2026-08-13)
+
+
+### 🐛 Bug Fixes
+
+* **dashboard:** render pagination in the dashboard's own locale ([#152](https://github.com/AnjanJ/rails_error_dashboard/issues/152)) ([abe49f5](https://github.com/AnjanJ/rails_error_dashboard/commit/abe49f5dfc0b278b24de73ce423c7a1881995036)), closes [#148](https://github.com/AnjanJ/rails_error_dashboard/issues/148)
+* **rack-attack:** surface a missing rack-attack gem instead of failing silently ([#150](https://github.com/AnjanJ/rails_error_dashboard/issues/150)) ([ebbe9e6](https://github.com/AnjanJ/rails_error_dashboard/commit/ebbe9e65c4181fbf9302a832598ff2203bdd6150))
+
 ## [0.8.3](https://github.com/AnjanJ/rails_error_dashboard/compare/rails_error_dashboard/v0.8.2...rails_error_dashboard/v0.8.3) (2026-07-30)
 
 

@@ -4,6 +4,8 @@ module RailsErrorDashboard
   module Commands
     # Command: Unmute multiple errors at once
     class BatchUnmuteErrors
+      include RailsErrorDashboard::Translation
+
       def self.call(error_ids)
         new(error_ids).call
       end
@@ -13,7 +15,7 @@ module RailsErrorDashboard
       end
 
       def call
-        return { success: false, count: 0, errors: [ "No error IDs provided" ] } if @error_ids.empty?
+        return { success: false, count: 0, errors: [ red_t("red.commands.no_error_ids") ] } if @error_ids.empty?
 
         errors = ErrorLog.where(id: @error_ids)
 
@@ -37,6 +39,8 @@ module RailsErrorDashboard
           end
         end
 
+        Services::AnalyticsCacheManager.clear if unmuted_count.positive?
+
         PluginRegistry.dispatch(:on_errors_batch_unmuted, unmuted_errors) if unmuted_errors.any?
 
         {
@@ -44,7 +48,7 @@ module RailsErrorDashboard
           count: unmuted_count,
           total: @error_ids.size,
           failed_ids: failed_ids,
-          errors: failed_ids.empty? ? [] : [ "Failed to unmute #{failed_ids.size} error(s)" ]
+          errors: failed_ids.empty? ? [] : [ red_tp("red.commands.batch_failed.unmute", count: failed_ids.size) ]
         }
       rescue => e
         RailsErrorDashboard::Logger.error("Batch unmute failed: #{e.message}")

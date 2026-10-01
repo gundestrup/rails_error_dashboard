@@ -13,8 +13,14 @@ class FixSwallowedExceptionsIndexForMysql < ActiveRecord::Migration[7.0]
     return unless table_exists?(:rails_error_dashboard_swallowed_exceptions)
 
     # Remove the oversized index if it exists (it may not exist on MySQL
-    # since the original migration would have failed at this point)
-    if index_exists?(:rails_error_dashboard_swallowed_exceptions, name: "index_swallowed_exceptions_upsert_key")
+    # since the original migration would have failed at this point).
+    #
+    # Checked by name rather than by columns. index_exists? takes the column
+    # list as a required positional argument — omitting it raises ArgumentError
+    # on Rails 8 — and passing it would be wrong here anyway: this migration
+    # wants to free the *name* before re-adding it, whatever columns the
+    # existing index happens to cover.
+    if index_name_exists?(:rails_error_dashboard_swallowed_exceptions, "index_swallowed_exceptions_upsert_key")
       remove_index :rails_error_dashboard_swallowed_exceptions, name: "index_swallowed_exceptions_upsert_key"
     end
 
@@ -32,8 +38,15 @@ class FixSwallowedExceptionsIndexForMysql < ActiveRecord::Migration[7.0]
 
   def down
     return unless table_exists?(:rails_error_dashboard_swallowed_exceptions)
+    # The pre-migration shape (500-char locations under a five-column unique
+    # index) is exactly what MySQL cannot create — that is why this migration
+    # exists — so there is nothing valid to roll back to there.
+    if connection.adapter_name.match?(/mysql|trilogy/i)
+      raise ActiveRecord::IrreversibleMigration,
+            "the previous swallowed_exceptions index exceeds MySQL's 3072-byte key limit; this migration cannot be reversed on MySQL"
+    end
 
-    if index_exists?(:rails_error_dashboard_swallowed_exceptions, name: "index_swallowed_exceptions_upsert_key")
+    if index_name_exists?(:rails_error_dashboard_swallowed_exceptions, "index_swallowed_exceptions_upsert_key")
       remove_index :rails_error_dashboard_swallowed_exceptions, name: "index_swallowed_exceptions_upsert_key"
     end
 

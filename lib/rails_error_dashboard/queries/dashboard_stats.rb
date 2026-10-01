@@ -5,6 +5,13 @@ module RailsErrorDashboard
     # Query: Fetch dashboard statistics
     # This is a read operation that aggregates error data for the dashboard
     class DashboardStats
+      # The widest window any figure on the Overview covers (total_month).
+      # The completeness predicate is matched to this, not to "today".
+      WIDEST_DISPLAYED_WINDOW = 30.days
+
+      # One instance answers ONE call: several aggregates (today's event count,
+      # the 7-day trend, spike detection) are memoised on it so that they are
+      # computed once per call rather than once per card that shows them.
       def initialize(application_id: nil)
         @application_id = application_id
       end
@@ -19,9 +26,14 @@ module RailsErrorDashboard
         begin
           Rails.cache.fetch(cache_key, expires_in: 1.minute) do
             {
-              total_today: base_scope.where("occurred_at >= ?", Time.current.beginning_of_day).count,
-              total_week: base_scope.where("occurred_at >= ?", 7.days.ago).count,
-              total_month: base_scope.where("occurred_at >= ?", 30.days.ago).count,
+              # EVENTS, not groups. An ErrorLog row is a group whose
+              # occurrence_count says how many times it happened, so counting
+              # rows reported five users hitting one error as "1 error today".
+              # Summing is also exact during a storm: counted-only events never
+              # create occurrence rows, but they DO raise occurrence_count.
+              total_today: today_event_count,
+              total_week: week_event_counts.values.sum,
+              total_month: month_event_count,
               unresolved: base_scope.unresolved.count,
               resolved: base_scope.resolved.count,
               reopened: reopened_count,
@@ -40,7 +52,20 @@ module RailsErrorDashboard
               trend_percentage: trend_percentage,
               trend_direction: trend_direction,
               top_errors_by_impact: top_errors_by_impact,
-              average_resolution_time: average_resolution_time
+              average_resolution_time: average_resolution_time,
+              # Affected-user figures come from occurrence rows, which storm
+              # count-only events never create. When that happened in the
+              # window, the dimension is incomplete and the page says so
+              # rather than presenting an undercount as fact.
+              affected_users_incomplete: affected_users_incomplete?,
+              # A storm episode in this window lost its per-bucket TIMING
+              # evidence, so every time-window figure for it rests on the
+              # group's own occurred_at rather than on per-event records.
+              # Reported for the same reason as affected_users_incomplete:
+              # an incomplete dimension should say so rather than present a
+              # figure of unknown completeness as fact.
+              event_timing_incomplete: event_timing_incomplete?,
+              data_unavailable: false
             }
           end
         rescue => e
@@ -50,7 +75,14 @@ module RailsErrorDashboard
           RailsErrorDashboard::Logger.debug("[RailsErrorDashboard] Backtrace: #{e.backtrace&.first(3)&.join("\n")}")
 
           # Return minimal stats hash to prevent nil errors in views
+          # Zero errors and "we could not read the data" are different states.
+          # Reporting healthy-looking zeros made a failed dashboard query
+          # indistinguishable from a quiet day; data_unavailable lets the page
+          # say which it is.
           {
+            data_unavailable: true,
+            affected_users_incomplete: false,
+            event_timing_incomplete: false,
             total_today: 0,
             total_week: 0,
             total_month: 0,
@@ -76,13 +108,14 @@ module RailsErrorDashboard
       end
 
       def cache_key
-        # Cache key includes last error update timestamp for auto-invalidation
-        # Also includes current hour to ensure fresh data
-        # Uses base_scope to respect application_id filter for proper cache isolation
+        # The cache GENERATION, not maximum(:updated_at): the timestamp cost a
+        # query per key build and changed on every capture, so the cache never
+        # hit while errors were arriving. Freshness after a capture is the
+        # 1-minute TTL; user actions bump the generation (AnalyticsCacheManager).
         [
           "dashboard_stats",
           @application_id || "all",
-          base_scope.maximum(:updated_at)&.to_i || 0,
+          Services::AnalyticsCacheManager.generation,
           Time.current.hour
         ].join("/")
       end
@@ -95,62 +128,221 @@ module RailsErrorDashboard
         scope
       end
 
+      # Total EVENTS in a window -- the events that HAPPENED in it, not the
+      # lifetime volume of the groups first seen in it.
+      #
+      # This used to filter groups by occurred_at and sum occurrence_count.
+      # occurred_at is first-seen and is never rewritten on recurrence, so an
+      # error first seen at 23:59 that recurred at 00:01 reported zero errors
+      # today and two yesterday. Queries::EventVolume counts per-event records
+      # instead: occurrence rows, plus storm-shed time buckets, plus the
+      # remainder of any group that has neither.
+      def event_count_since(since)
+        Queries::EventVolume.in_window(base_scope, since)
+      end
+
+      # The widest-window total, memoised: the stats hash shows it and the
+      # completeness predicate needs the same number. One instance answers one
+      # call, and this runs on the capture path via the stats broadcast, so a
+      # second identical aggregate here is pure waste.
+      def month_event_count
+        @month_event_count ||= event_count_since(WIDEST_DISPLAYED_WINDOW.ago)
+      end
+
+      def event_count_between(from, to)
+        Queries::EventVolume.in_window(base_scope, from, to)
+      end
+
+      # Occurrence rows carry the user of EACH event. The group's user_id is
+      # mutable -- refreshed by the latest occurrence -- so counting it
+      # distinct over groups can only ever yield zero or one per group.
+      def occurrence_scope
+        occurrences = ErrorOccurrence.table_name
+        scope = ErrorOccurrence.joins(:error_log)
+        scope = scope.where(ErrorLog.table_name => { application_id: @application_id }) if @application_id.present?
+        scope
+      end
+
+      def occurrences_available?
+        defined?(ErrorOccurrence) && ErrorOccurrence.table_exists?
+      rescue StandardError
+        false
+      end
+
+      # True when the window contains more events than recorded occurrences --
+      # i.e. storm shedding dropped per-event rows, so any occurrence-derived
+      # dimension (affected users) is a floor, not a total.
+      def affected_users_incomplete?
+        return false unless occurrences_available?
+
+        recorded = occurrence_scope
+                     .where("#{ErrorOccurrence.table_name}.occurred_at >= ?", Time.current.beginning_of_day)
+                     .count
+        recorded < today_event_count
+      rescue StandardError
+        false
+      end
+
+      # True when a storm episode overlapping this window degraded without
+      # writing its time buckets.
+      #
+      # Read from the persisted episode rather than recomputed: the flush that
+      # knew is long over by the time the dashboard renders, and the flag has
+      # to survive a replay. Every guard here is deliberate -- the storm table
+      # may not exist, and the column may not be migrated yet on an older host.
+      # True when any recorded timing gap overlaps a window this page shows.
+      #
+      # The page displays today, 7-day AND 30-day figures, so the predicate has
+      # to match the WIDEST of them. An earlier version asked only about today
+      # and dropped the warning while the weekly and monthly numbers on the
+      # same screen still contained the affected events.
+      #
+      # Read from EventTimingGap rather than the storm episode: the episode is
+      # optional (the gate can shed with its breaker closed), and it is written
+      # after the counts transaction commits. See the migration for the full
+      # history of why this moved.
+      def event_timing_incomplete?
+        # Nothing left to qualify, so no warning.
+        #
+        # Gaps are deliberately retained past their own retention while the
+        # figures they describe are still shown (see the cleanup job), so a gap
+        # can outlive every event it covered -- a group expiring is what
+        # removes those events. Warning about a window whose subject matter is
+        # gone is noise, and noise trains people to ignore the banner.
+        #
+        # Asked of surviving GROUPS, not of the event aggregate. The aggregate
+        # is the wrong witness here: losing the time buckets is exactly what
+        # makes events invisible to it, so an old group that recurs today
+        # reports zero for every window (EventVolume can only place an
+        # untracked remainder at the group's own occurred_at, which precedes
+        # the window -- see untracked_groups) while the events are real, the
+        # group is alive and a current gap records them. Reading that zero as
+        # "nothing happened" suppressed the banner in precisely the state it
+        # exists to announce.
+        #
+        # last_seen_at is the right evidence because it is what retention
+        # deletes on: a group is expired only once it has not been seen for
+        # retention_days, so "no group seen in this window" is the same fact as
+        # "the covered events are gone" -- and it is indexed, and immune to the
+        # timing loss itself.
+        #
+        # Suppressed only when BOTH witnesses are silent, because neither alone
+        # is sufficient and they fail in opposite directions. The aggregate
+        # misses an old group's untracked recurrence (the defect above); the
+        # liveness check misses the converse, since EventVolume windows
+        # occurrence rows and buckets on THEIR OWN timestamps against an
+        # unwindowed group set (see group_ids), so a group whose last_seen_at
+        # has fallen behind its own event rows can still put events on the page.
+        # Requiring both to be empty means the banner can never be dropped
+        # while any displayed figure is non-zero, which is the F22 invariant.
+        return false unless groups_seen_in_widest_window? || month_event_count.positive?
+
+        EventTimingGap.affecting?(WIDEST_DISPLAYED_WINDOW.ago, application_id: @application_id)
+      rescue StandardError
+        false
+      end
+
+      # Whether any error group was last seen inside the widest displayed
+      # window. Existence, not a count: one indexed row settles it, and this
+      # runs on the capture path via the stats broadcast.
+      #
+      # The NULL arm covers rows written before last_seen_at existed, whose
+      # occurred_at is the only timestamp they have -- the same COALESCE
+      # equivalence the retention job documents, written so each arm keeps its
+      # own index.
+      def groups_seen_in_widest_window?
+        cutoff = WIDEST_DISPLAYED_WINDOW.ago
+        base_scope.where(
+          "last_seen_at >= :cutoff OR (last_seen_at IS NULL AND occurred_at >= :cutoff)", cutoff: cutoff
+        ).exists?
+      end
+
       def reopened_count
         return 0 unless ErrorLog.column_names.include?("reopened_at")
 
         base_scope.where.not(reopened_at: nil).count
       end
 
+      # Top error types in the last 7 days, by EVENTS.
+      #
+      # Filtering groups by first-seen and summing their LIFETIME
+      # occurrence_count answered a different question: an August group that
+      # recurred today was excluded entirely, so reopening it produced an empty
+      # list while the headline total (already on EventVolume) counted the
+      # event. Routed through the same primitive as the total so the page's
+      # parts and its whole cannot drift apart.
       def top_errors
-        base_scope.where("occurred_at >= ?", 7.days.ago)
-                  .group(:error_type)
-                  .count
-                  .sort_by { |_, count| -count }
-                  .first(10)
-                  .to_h
+        weekly_volume.by_group_attribute(:error_type)
+                     .sort_by { |_, count| -count }
+                     .first(10)
+                     .to_h
+      end
+
+      # One EventVolume for the 7-day window, shared by every weekly breakdown.
+      def weekly_volume
+        @weekly_volume ||= Queries::EventVolume.new(base_scope, 7.days.ago)
       end
 
       # Get 7-day error trend (daily counts)
+      # Events per day, placed on the day they HAPPENED. Grouping the ErrorLog
+      # table by its own occurred_at put a group's whole lifetime volume on the
+      # day it was first seen, so a recurrence never moved the trend.
+      #
+      # The zero-filled date range is preserved: the chart needs a point for
+      # every day in the window, not only the days that had errors.
       def errors_trend_7d
-        base_scope.where("occurred_at >= ?", 7.days.ago)
-                  .group_by_day(:occurred_at, range: 7.days.ago.to_date..Date.current, default_value: 0)
-                  .count
+        week_event_counts
       end
 
       # Get error counts by severity for last 7 days
       # OPTIMIZED: Use database filtering instead of loading all records into Ruby
+      # Weekly events by severity.
+      #
+      # Folded from the SAME per-type breakdown top_errors uses, rather than
+      # four independently scoped sums. Two reasons: it was summing LIFETIME
+      # counts of groups born in the window (so a reopened August group scored
+      # zero across every severity), and deriving both figures from one
+      # breakdown makes them agree by construction instead of by luck --
+      # asserted by spec/queries/dashboard_breakdowns_event_volume_spec.rb.
       def errors_by_severity_7d
-        scoped_errors = base_scope.where("occurred_at >= ?", 7.days.ago)
+        critical = Services::SeverityClassifier::CRITICAL_ERROR_TYPES
+        high     = Services::SeverityClassifier::HIGH_SEVERITY_ERROR_TYPES
+        medium   = Services::SeverityClassifier::MEDIUM_SEVERITY_ERROR_TYPES
 
-        {
-          critical: scoped_errors.where(error_type: Services::SeverityClassifier::CRITICAL_ERROR_TYPES).count,
-          high: scoped_errors.where(error_type: Services::SeverityClassifier::HIGH_SEVERITY_ERROR_TYPES).count,
-          medium: scoped_errors.where(error_type: Services::SeverityClassifier::MEDIUM_SEVERITY_ERROR_TYPES).count,
-          low: scoped_errors.where.not(
-            error_type: Services::SeverityClassifier::CRITICAL_ERROR_TYPES +
-                       Services::SeverityClassifier::HIGH_SEVERITY_ERROR_TYPES +
-                       Services::SeverityClassifier::MEDIUM_SEVERITY_ERROR_TYPES
-          ).count
-        }
+        totals = { critical: 0, high: 0, medium: 0, low: 0 }
+        weekly_volume.by_group_attribute(:error_type).each do |error_type, count|
+          bucket =
+            if critical.include?(error_type) then :critical
+            elsif high.include?(error_type)  then :high
+            elsif medium.include?(error_type) then :medium
+            else :low
+            end
+          totals[bucket] += count
+        end
+        totals
       end
 
       # Detect if there's an error spike
       #  Uses baselines if available, falls back to simple 2x average
+      #
+      # Memoised: the stats hash asks twice (spike_detected and spike_info), and
+      # this runs from the live stats broadcast inside the capture path.
       def spike_detected?
-        return false if errors_trend_7d.empty?
+        return @spike_detected if defined?(@spike_detected)
 
-        today_count = base_scope.where("occurred_at >= ?", Time.current.beginning_of_day).count
+        @spike_detected = compute_spike_detected
+      end
 
-        # Try baseline-based detection first
-        if baseline_anomaly_detected?(today_count)
-          return true
-        end
+      def compute_spike_detected
+        trend = errors_trend_7d
+        return false if trend.empty?
+        return true if baseline_anomalies.any?
 
         # Fall back to simple 2x average detection
-        avg_count = errors_trend_7d.values.sum / 7.0
+        avg_count = trend.values.sum / 7.0
         return false if avg_count.zero?
 
-        today_count >= (avg_count * 2)
+        today_event_count >= (avg_count * 2)
       end
 
       # Get spike information
@@ -158,7 +350,7 @@ module RailsErrorDashboard
       def spike_info
         return nil unless spike_detected?
 
-        today_count = base_scope.where("occurred_at >= ?", Time.current.beginning_of_day).count
+        today_count = today_event_count
         avg_count = (errors_trend_7d.values.sum / 7.0).round(1)
 
         info = {
@@ -169,57 +361,46 @@ module RailsErrorDashboard
         }
 
         # Add baseline info if available
-        baseline_info = baseline_anomaly_info(today_count)
+        baseline_info = baseline_anomaly_info
         info.merge!(baseline_info) if baseline_info.present?
 
         info
       end
 
-      # Check if baseline indicates anomaly
-      def baseline_anomaly_detected?(_count)
-        return false unless defined?(Queries::BaselineStats)
+      # Today, yesterday and the 7-day total all come from ONE daily breakdown.
+      # Each window is three queries (occurrence rows, shed buckets, untracked
+      # remainder), and this method runs on the capture path via the stats
+      # broadcast, so asking per window multiplied the query count.
+      def week_event_counts
+        @week_event_counts ||= begin
+          counts = Queries::EventVolume.by_day(base_scope, 7.days.ago)
+          (7.days.ago.to_date..Date.current).to_h { |day| [ day, counts[day] || 0 ] }
+        end
+      end
 
-        # Check most common error types for anomalies
-        base_scope.distinct.pluck(:error_type, :platform).compact.any? do |(error_type, platform)|
-          stats = Queries::BaselineStats.new(error_type, platform)
-          error_count = base_scope.where(
-            error_type: error_type,
-            platform: platform
-          ).where("occurred_at >= ?", Time.current.beginning_of_day).count
+      def today_event_count
+        @today_event_count ||= week_event_counts[Date.current].to_i
+      end
 
-          result = stats.check_anomaly(error_count, sensitivity: 2)
-          result[:anomaly]
+      # Every anomalous (error_type, platform) pair, from a fixed number of
+      # queries (BaselineStats.current_anomalies), loaded once per call. This
+      # used to be about six queries per distinct pair, run twice.
+      def baseline_anomalies
+        return @baseline_anomalies if defined?(@baseline_anomalies)
+
+        @baseline_anomalies = if defined?(Queries::BaselineStats)
+          Queries::BaselineStats.current_anomalies(sensitivity: 2, application_id: @application_id)
+        else
+          []
         end
       end
 
       # Get baseline anomaly information
-      def baseline_anomaly_info(_total_count)
-        return nil unless defined?(Queries::BaselineStats)
-
-        # Find the most anomalous error type
-        anomalies = base_scope.distinct.pluck(:error_type, :platform).compact.map do |(error_type, platform)|
-          stats = Queries::BaselineStats.new(error_type, platform)
-          error_count = base_scope.where(
-            error_type: error_type,
-            platform: platform
-          ).where("occurred_at >= ?", Time.current.beginning_of_day).count
-
-          result = stats.check_anomaly(error_count, sensitivity: 2)
-          next unless result[:anomaly]
-
-          {
-            error_type: error_type,
-            platform: platform,
-            count: error_count,
-            level: result[:level],
-            std_devs_above: result[:std_devs_above]
-          }
-        end.compact
-
-        return nil if anomalies.empty?
+      def baseline_anomaly_info
+        return nil if baseline_anomalies.empty?
 
         # Return info about worst anomaly
-        worst = anomalies.max_by { |a| a[:std_devs_above] || 0 }
+        worst = baseline_anomalies.max_by { |a| a[:std_devs_above] || 0 }
         {
           baseline_detected: true,
           anomaly_error_type: worst[:error_type],
@@ -229,42 +410,51 @@ module RailsErrorDashboard
         }
       end
 
-      # Calculate error rate as a percentage
-      # Since we don't track total requests, we'll use error count as proxy
-      # In the future, this could be: (errors / total_requests) * 100
+      # Errors per hour so far today. NOT a percentage.
+      #
+      # This value was rendered with a "%" sign against a scale that mapped
+      # one error per hour to "1%", and was capped at 100 -- a rate of 4,000
+      # errors/hour displayed as "100%". There is no request denominator to
+      # make a real failure percentage from, so the honest figure is the rate
+      # itself, uncapped, labelled with its unit.
       def error_rate
-        today_errors = base_scope.where("occurred_at >= ?", Time.current.beginning_of_day).count
-        return 0.0 if today_errors.zero?
+        today_events = today_event_count
+        return 0.0 if today_events.zero?
 
-        # For now, use a simple heuristic: errors per hour today
-        # Assume we want < 1 error per hour = good (< 1%)
-        # 1-5 errors per hour = warning (1-5%)
-        # > 5 errors per hour = critical (> 5%)
         hours_today = ((Time.current - Time.current.beginning_of_day) / 1.hour).round(1)
-        hours_today = 1.0 if hours_today < 1.0 # Avoid division by zero in early morning
+        hours_today = 1.0 if hours_today < 1.0 # Avoid dividing by ~0 just after midnight
 
-        errors_per_hour = today_errors / hours_today
-        # Convert to percentage scale (0-100)
-        # Scale: 0 errors/hr = 0%, 1 error/hr = 1%, 10 errors/hr = 10%, etc.
-        [ errors_per_hour, 100.0 ].min.round(1)
+        (today_events / hours_today).round(1)
       end
 
-      # Count distinct users affected by errors today
+      # Distinct users affected today, counted from OCCURRENCE rows.
+      #
+      # The group's user_id is overwritten by each new occurrence, so counting
+      # it distinct across groups reported five users hitting one error as one
+      # affected user. Storm count-only events create no occurrence row, so
+      # this is a floor during a storm -- affected_users_incomplete? says when.
       def affected_users_today
-        base_scope.where("occurred_at >= ?", Time.current.beginning_of_day)
-                  .where.not(user_id: nil)
-                  .distinct
-                  .count(:user_id)
+        @affected_users_today ||= distinct_affected_users(Time.current.beginning_of_day, nil)
       end
 
-      # Count distinct users affected by errors yesterday
       def affected_users_yesterday
-        base_scope.where("occurred_at >= ? AND occurred_at < ?",
-                        1.day.ago.beginning_of_day,
-                        Time.current.beginning_of_day)
-                  .where.not(user_id: nil)
-                  .distinct
-                  .count(:user_id)
+        @affected_users_yesterday ||=
+          distinct_affected_users(1.day.ago.beginning_of_day, Time.current.beginning_of_day)
+      end
+
+      def distinct_affected_users(from, to)
+        unless occurrences_available?
+          scope = base_scope.where("occurred_at >= ?", from)
+          scope = scope.where("occurred_at < ?", to) if to
+          return scope.where.not(user_id: nil).distinct.count(:user_id)
+        end
+
+        occurrences = ErrorOccurrence.table_name
+        scope = occurrence_scope.where("#{occurrences}.occurred_at >= ?", from)
+        scope = scope.where("#{occurrences}.occurred_at < ?", to) if to
+        scope.where.not(occurrences => { user_id: nil }).distinct.count("#{occurrences}.user_id")
+      rescue StandardError
+        0
       end
 
       # Calculate change in affected users (today vs yesterday)
@@ -280,10 +470,14 @@ module RailsErrorDashboard
 
       # Calculate percentage change in errors (today vs yesterday)
       def trend_percentage
-        today = base_scope.where("occurred_at >= ?", Time.current.beginning_of_day).count
-        yesterday = base_scope.where("occurred_at >= ? AND occurred_at < ?",
-                                     1.day.ago.beginning_of_day,
-                                     Time.current.beginning_of_day).count
+        return @trend_percentage if defined?(@trend_percentage)
+
+        @trend_percentage = compute_trend_percentage
+      end
+
+      def compute_trend_percentage
+        today = today_event_count
+        yesterday = week_event_counts[Date.current - 1].to_i
 
         return 0.0 if today.zero? && yesterday.zero?
         return 100.0 if yesterday.zero? && today.positive?
@@ -306,26 +500,49 @@ module RailsErrorDashboard
 
       # Get top 6 errors ranked by impact score
       # Impact = affected_users_count × occurrence_count
+      # Top errors by impact = distinct affected users x events.
+      #
+      # This grouped by each row's own id and counted DISTINCT user_id within
+      # that single row, which can only be zero or one -- so every error's
+      # "affected users" was 1 and the impact score was just its occurrence
+      # count. The user count comes from occurrence rows, where each event
+      # carries its own user.
       def top_errors_by_impact
-        base_scope.where("occurred_at >= ?", 7.days.ago)
-                .group(:error_type, :id)
-                .select("error_type, id, message, occurred_at, occurrence_count,
-                        COUNT(DISTINCT user_id) as affected_users,
-                        COUNT(DISTINCT user_id) * occurrence_count as impact_score")
-                .order("impact_score DESC")
-                .limit(6)
-                .map do |error|
-                  {
-                    id: error.id,
-                    error_type: error.error_type,
-                    message: error.message&.truncate(80),
-                    severity: Services::SeverityClassifier.classify(error.error_type),
-                    occurrence_count: error.occurrence_count,
-                    affected_users: error.affected_users.to_i,
-                    impact_score: error.impact_score.to_i,
-                    occurred_at: error.occurred_at
-                  }
-                end
+        errors = base_scope.where("occurred_at >= ?", 7.days.ago)
+                           .order(occurrence_count: :desc)
+                           .limit(50)
+                           .to_a
+        return [] if errors.empty?
+
+        users_by_error = distinct_users_by_error_log(errors.map(&:id))
+
+        errors.map { |error|
+          affected = users_by_error.fetch(error.id, error.user_id.present? ? 1 : 0)
+          {
+            id: error.id,
+            error_type: error.error_type,
+            message: error.message&.truncate(80),
+            severity: Services::SeverityClassifier.classify(error.error_type),
+            occurrence_count: error.occurrence_count,
+            affected_users: affected,
+            impact_score: affected * error.occurrence_count.to_i,
+            occurred_at: error.occurred_at
+          }
+        }.sort_by { |entry| -entry[:impact_score] }.first(6)
+      end
+
+      # error_log_id => distinct users with a recorded occurrence.
+      def distinct_users_by_error_log(error_log_ids)
+        return {} unless occurrences_available?
+        return {} if error_log_ids.empty?
+
+        ErrorOccurrence.where(error_log_id: error_log_ids)
+                       .where.not(user_id: nil)
+                       .group(:error_log_id)
+                       .distinct
+                       .count(:user_id)
+      rescue StandardError
+        {}
       end
 
       # Calculate average resolution time (MTTR) in hours for the last 30 days
