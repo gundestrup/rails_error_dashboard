@@ -19,7 +19,7 @@ jobs:
     name: Ruby ${{ matrix.ruby }} / Rails ${{ matrix.rails }}
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
@@ -53,7 +53,7 @@ jobs:
 
     - name: Upload coverage reports (Ruby 3.4 / Rails 8.1 only)
       if: matrix.ruby == '3.4' && matrix.rails == '8.1'
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v7
       with:
         files: ./coverage/coverage.xml
         fail_ci_if_error: false
@@ -100,7 +100,7 @@ jobs:
       DATABASE_URL: ${{ matrix.adapter == 'postgresql' && 'postgres://red:red@127.0.0.1:5432/red_test?pool=10' || 'trilogy://root:red@127.0.0.1:3306/red_test?pool=10' }}
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
@@ -137,7 +137,7 @@ jobs:
     name: Schema parity (schema.rb vs db/migrate)
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
@@ -163,7 +163,7 @@ jobs:
     name: System Tests (Chrome)
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1

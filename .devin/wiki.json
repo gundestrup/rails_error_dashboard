@@ -1,0 +1,47 @@
+{
+  "repo_notes": [
+    { "content": "Self-hosted Rails engine (gem, MIT, fork of AnjanJ/rails_error_dashboard) for error tracking inside the host app: exceptions are captured with Ruby state (locals + receiver ivars via TracePoint(:raise)) and Rails runtime health (connection pool, Puma, jobs, GC, memory), all stored in the app's own database. Dashboard at /red." },
+    { "content": "CQRS architecture: Commands for writes (lib/rails_error_dashboard/commands/), Queries for reads (queries/), Services for algorithms (services/)." },
+    { "content": "Host-app safety is rule zero: never raise in the capture path, never block requests, budget every operation, clean up Thread.current, always re-raise the original exception." },
+    { "content": "No Rails asset pipeline dependency: no Sprockets/Propshaft/app/assets/public serving — all CSS inline in the layout <style> block, all JS inline in <script>; Bootstrap JS/Chart.js/Highlight.js via CDN only. Layout is fully self-contained to work behind any proxy." },
+    { "content": "Storm protection is on by default: during error floods it progressively reduces captured context + DB work, keeps a per-minute exemplar, records a Storm History ledger, and reconciles exact occurrence counts." },
+    { "content": "Testing has two tiers: ~5,300 RSpec specs plus chaos tests (bin/pre-release-test) that build real Rails apps in /tmp and exercise production-mode capture end-to-end. Lefthook runs chaos tests pre-commit." },
+    { "content": "See CLAUDE.md for architecture rules, test tiers, style conventions (rails-omakase RuboCop, array brackets with inner spaces), and common gotchas." }
+  ],
+  "pages": [
+    {
+      "title": "Architecture Overview",
+      "purpose": "Rails Engine mount, middleware + Rails.error subscriber capture paths, CQRS layering, and the in-app-database storage model",
+      "page_notes": [{ "content": "Include Mermaid diagram: exception -> middleware/subscriber -> capture pipeline (state+health) -> DB -> dashboard queries" }]
+    },
+    {
+      "title": "Capture Pipeline",
+      "purpose": "TracePoint(:raise) local/instance variable capture with bounded serialization and filter_parameters scrubbing; runtime health attachment (pool/Puma/jobs/GC/memory); why bindings are never retained",
+      "parent": "Architecture Overview"
+    },
+    {
+      "title": "Storm Protection",
+      "purpose": "Progressive degradation during error floods, per-minute exemplar retention, Storm History ledger, and in-process occurrence reconciliation",
+      "parent": "Architecture Overview"
+    },
+    {
+      "title": "Dashboard UI",
+      "purpose": "Self-contained ERB dashboard at /red: inline CSS/JS design, CDN-only externals, error detail pages, reproduction helpers (cURL/RSpec scaffold)",
+      "parent": "Architecture Overview"
+    },
+    {
+      "title": "CQRS Layering",
+      "purpose": "Commands/Queries/Services split: which operations live where and the conventions for adding new ones",
+      "parent": "Architecture Overview"
+    },
+    {
+      "title": "Testing",
+      "purpose": "RSpec suite + system tests (Capybara/Cuprite) vs pre-release chaos tests (real apps in /tmp, production mode, Phases A-F), Lefthook gates",
+      "parent": "Architecture Overview"
+    },
+    {
+      "title": "Installation and Configuration",
+      "purpose": "rails generate rails_error_dashboard:install, migrations (incl. separate-DB path), 100+ configuration options, supported Rails/Ruby matrix"
+    }
+  ]
+}
